@@ -58,7 +58,11 @@
             box-shadow: 0 25px 50px -12px rgba(99,102,241,0.4);
             cursor: pointer;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
         }
+        .main-banner-wrap { position: relative; min-width: 0; }
         .main-banner:hover {
             transform: translateY(-4px);
             box-shadow: 0 32px 64px -12px rgba(99,102,241,0.5);
@@ -190,16 +194,50 @@
         .side-banner.has-image .side-banner-title { color: white; }
         .banner-dots {
             position: absolute !important;
-            right: 18px;
-            bottom: 16px;
-            left: 18px;
+            right: auto;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3 !important;
             display: flex;
+            align-items: center;
             justify-content: center;
-            gap: 7px;
+            gap: 0;
+            width: fit-content;
+            padding: 3px 5px;
+            border: 1px solid rgba(255,255,255,.22);
+            border-radius: 999px;
+            background: rgba(15,23,42,.34);
+            box-shadow: 0 4px 14px rgba(15,23,42,.2);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
-        .banner-dot { width: 7px; height: 7px; background: rgba(255,255,255,.5); border-radius: 999px; transition: width .2s ease, background .2s ease; }
-        .banner-dot.active { width: 22px; background: #fff; }
+        .banner-dots[hidden] { display: none; }
+        .banner-dot {
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .banner-dot::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            background: rgba(255,255,255,.58);
+            border-radius: 999px;
+            box-shadow: 0 1px 3px rgba(15,23,42,.2);
+            transition: width .22s ease, background .22s ease, transform .22s ease;
+        }
+        .banner-dot:hover::before,
+        .banner-dot:focus-visible::before { background: rgba(255,255,255,.9); transform: scale(1.15); }
+        .banner-dot:focus-visible { outline: 1.5px solid rgba(255,255,255,.9); outline-offset: -1px; }
+        .banner-dot.active::before { width: 13px; background: #fff; }
         
         /* ===== FEATURES SECTION ===== */
         .features-section {
@@ -516,14 +554,17 @@
     <!-- Hero Banner -->
     <section class="hero-section">
         <div class="hero-inner">
-            <a href="/products" class="main-banner" id="mainBanner">
-                <span class="banner-label"><i class="bi bi-lightning-fill"></i> Khuyến mãi đặc biệt</span>
-                <div class="banner-title">
-                    iPhone 17 Pro Max
-                    <span>Siêu phẩm công nghệ 2026</span>
-                </div>
-                <span class="btn-banner">Xem ngay <i class="bi bi-arrow-right"></i></span>
-            </a>
+            <div class="main-banner-wrap">
+                <a href="/products" class="main-banner" id="mainBanner">
+                    <span class="banner-label"><i class="bi bi-lightning-fill"></i> Khuyến mãi đặc biệt</span>
+                    <div class="banner-title">
+                        iPhone 17 Pro Max
+                        <span>Siêu phẩm công nghệ 2026</span>
+                    </div>
+                    <span class="btn-banner">Xem ngay <i class="bi bi-arrow-right"></i></span>
+                </a>
+                <div class="banner-dots" id="mainBannerControls" aria-label="Chọn banner" hidden></div>
+            </div>
             <div class="side-banners" id="sideBanners">
                 <a href="/products?sort=newest" class="side-banner">
                     <span class="side-banner-tag">Hàng mới về</span>
@@ -650,12 +691,17 @@
         }
 
         function createProductCard(p) {
+            const inStock = Number(p.stock) > 0;
             const badge = p.discount_percent > 0 ? '<span class="product-badge">-' + Math.round(p.discount_percent) + '%</span>' : '';
+            const stockBadge = !inStock ? '<span class="product-badge product-stock-badge">Hết hàng</span>' : '';
             const img = p.thumbnail ? '<img src="' + getThumbUrl(p.thumbnail) + '" alt="' + p.name + '" loading="lazy" onerror="this.onerror=null;this.src=&quot;/images/no-image.svg&quot;">' : '<i class="bi bi-phone" style="font-size: 4rem; color: var(--slate-300);"></i>';
             const oldPrice = p.old_price ? '<span class="product-old-price">' + formatPrice(p.old_price) + 'đ</span>' : '';
+            const cartButton = inStock
+                ? '<button class="btn-add-cart" onclick="addToCart(' + p.id + ')"><i class="bi bi-bag-plus"></i> Thêm vào giỏ</button>'
+                : '<button class="btn-add-cart btn-out-of-stock" disabled><i class="bi bi-x"></i> Hết hàng</button>';
             
             return '<div class="product-card">' +
-                badge +
+                badge + stockBadge +
                 '<a href="/product/' + p.id + '"><div class="product-img-wrap">' + img + '</div></a>' +
                 '<div class="product-body">' +
                     '<div class="product-brand">' + (p.brand_name || '') + '</div>' +
@@ -666,9 +712,7 @@
                         '<span class="product-price">' + formatPrice(p.price) + 'đ</span>' +
                         oldPrice +
                     '</div>' +
-                    '<button class="btn-add-cart" onclick="addToCart(' + p.id + ')">' +
-                        '<i class="bi bi-bag-plus"></i> Thêm vào giỏ' +
-                    '</button>' +
+                    cartButton +
                 '</div>' +
             '</div>';
         }
@@ -719,6 +763,52 @@
         }
 
         let mainBannerTimer = null;
+        let mainBannerSlides = [];
+        let mainBannerIndex = 0;
+
+        function stopMainBannerAutoplay() {
+            if (!mainBannerTimer) return;
+            clearInterval(mainBannerTimer);
+            mainBannerTimer = null;
+        }
+
+        function startMainBannerAutoplay() {
+            stopMainBannerAutoplay();
+            if (mainBannerSlides.length < 2) return;
+            mainBannerTimer = setInterval(() => {
+                showMainBannerSlide(mainBannerIndex + 1);
+            }, 2000);
+        }
+
+        function showMainBannerSlide(index) {
+            if (!mainBannerSlides.length) return;
+            mainBannerIndex = (index + mainBannerSlides.length) % mainBannerSlides.length;
+            renderMainBannerSlide(document.getElementById('mainBanner'), mainBannerSlides, mainBannerIndex);
+            renderMainBannerControls();
+        }
+
+        function selectMainBannerSlide(index) {
+            showMainBannerSlide(index);
+            // Sau thao tác thủ công, bắt đầu lại chu kỳ để người dùng có đủ thời gian xem ảnh.
+            startMainBannerAutoplay();
+        }
+
+        function renderMainBannerControls() {
+            const controls = document.getElementById('mainBannerControls');
+            controls.replaceChildren();
+            controls.hidden = mainBannerSlides.length < 2;
+            if (controls.hidden) return;
+
+            mainBannerSlides.forEach((banner, index) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'banner-dot' + (index === mainBannerIndex ? ' active' : '');
+                button.setAttribute('aria-label', `Hiển thị banner ${index + 1}`);
+                button.setAttribute('aria-current', index === mainBannerIndex ? 'true' : 'false');
+                button.addEventListener('click', () => selectMainBannerSlide(index));
+                controls.appendChild(button);
+            });
+        }
 
         function renderFromBannersTable(banners) {
             console.log('Banners loaded from API:', banners);
@@ -727,20 +817,14 @@
 
             // Tối đa 10 ảnh hero, tự chuyển ảnh sau mỗi 2 giây.
             const mains = banners.filter(b => b.position === 0 || b.position === '0' || b.position === 'hero').slice(0, 10);
-            if (mainBannerTimer) {
-                clearInterval(mainBannerTimer);
-                mainBannerTimer = null;
-            }
+            stopMainBannerAutoplay();
+            mainBannerSlides = mains;
+            mainBannerIndex = 0;
             if (mains.length) {
-                let activeIndex = 0;
-                renderMainBannerSlide(mainBanner, mains, activeIndex);
-                if (mains.length > 1) {
-                    mainBannerTimer = setInterval(() => {
-                        activeIndex = (activeIndex + 1) % mains.length;
-                        renderMainBannerSlide(mainBanner, mains, activeIndex);
-                    }, 2000);
-                }
+                showMainBannerSlide(0);
+                startMainBannerAutoplay();
             } else {
+                renderMainBannerControls();
                 console.warn('No main banner (hero position) found');
             }
 
@@ -775,10 +859,7 @@
                 '<span class="banner-label"><i class="bi bi-lightning-fill"></i> ' + escapeHtml(banner.title || 'Khuyến mãi đặc biệt') + '</span>' +
                 '<div class="banner-title">' + escapeHtml(banner.title || '') +
                 (banner.subtitle ? '<span>' + escapeHtml(banner.subtitle) + '</span>' : '') + '</div>' +
-                '<span class="btn-banner">Xem ngay <i class="bi bi-arrow-right"></i></span>' +
-                (banners.length > 1 ? '<span class="banner-dots">' + banners.map((item, dotIndex) =>
-                    '<span class="banner-dot ' + (dotIndex === index ? 'active' : '') + '"></span>'
-                ).join('') + '</span>' : '');
+                '<span class="btn-banner">Xem ngay <i class="bi bi-arrow-right"></i></span>';
         }
 
         function resolveImageUrl(value) {
@@ -787,10 +868,10 @@
         }
 
         function renderFromPromotions(promotions) {
-            if (mainBannerTimer) {
-                clearInterval(mainBannerTimer);
-                mainBannerTimer = null;
-            }
+            stopMainBannerAutoplay();
+            mainBannerSlides = [];
+            mainBannerIndex = 0;
+            renderMainBannerControls();
             const mainBanner = document.getElementById('mainBanner');
             const sideBanners = document.getElementById('sideBanners');
 

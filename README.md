@@ -147,7 +147,8 @@ CLOUDINARY_AVATAR_FOLDER=anhtraisstore/avatars
 # Trợ lý AI Gemini
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.6-flash
-GEMINI_API_TIMEOUT_MS=25000
+GEMINI_API_TIMEOUT_MS=60000
+GEMINI_THINKING_LEVEL=minimal
 ```
 
 Không có cấu hình SMTP hoặc Google OAuth thì server vẫn chạy và tự vô hiệu hóa tính năng tương ứng. Không có Cloudinary thì vẫn xem được ảnh sẵn có, nhưng các API upload trả lỗi `503`. Không có `GEMINI_API_KEY` thì chat AI không hoạt động; chat hỗ trợ với admin vẫn dùng được.

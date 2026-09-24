@@ -35,6 +35,37 @@ test('every admin page uses only the rebuilt shared admin interface', () => {
     assert.doesNotThrow(() => new vm.Script(sharedScript));
 });
 
+test('home product cards disable cart actions and show a badge when stock is depleted', () => {
+    const html = fs.readFileSync(path.join(root, 'views', 'index.html'), 'utf8');
+    const script = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
+        .map(match => match[1])
+        .find(source => source.includes('function createProductCard'));
+    const context = vm.createContext({
+        console,
+        document: { addEventListener() {}, getElementById() { return null; } },
+        formatPrice(value) { return String(value); },
+        fetch: async () => ({ json: async () => ({}) }),
+        setInterval() {},
+        clearInterval() {}
+    });
+    vm.runInContext(script, context);
+
+    const soldOut = context.createProductCard({
+        id: 1, name: 'Điện thoại hết hàng', price: 1000, old_price: null,
+        discount_percent: 0, stock: '0', thumbnail: null, brand_name: 'Test'
+    });
+    assert.match(soldOut, /product-stock-badge[^>]*>Hết hàng</);
+    assert.match(soldOut, /btn-out-of-stock" disabled/);
+    assert.doesNotMatch(soldOut, /onclick="addToCart\(/);
+
+    const available = context.createProductCard({
+        id: 2, name: 'Điện thoại còn hàng', price: 1000, old_price: null,
+        discount_percent: 0, stock: '3', thumbnail: null, brand_name: 'Test'
+    });
+    assert.match(available, /onclick="addToCart\(2\)"/);
+    assert.doesNotMatch(available, /btn-out-of-stock|product-stock-badge/);
+});
+
 function loadPage(name, search = '') {
     const html = fs.readFileSync(path.join(root, 'views', name + '.html'), 'utf8');
     const script = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
@@ -533,16 +564,17 @@ test('FREESHIP is consistently presented as a 30K order discount', async () => {
 });
 
 test('available coupons exclude used, first-order-only and ineligible VIP codes', async () => {
-    const pool = { async query(sql, params) {
+    const pool = { async query(sql) {
         if (sql.includes('FROM coupons')) {
-            assert.equal(params[0], 5000000);
-            assert.match(sql, /used_count < usage_limit/);
-            assert.match(sql, /min_order_value, 0\) <= \?/);
+            assert.doesNotMatch(sql, /used_count < usage_limit/);
+            assert.doesNotMatch(sql, /min_order_value, 0\) <= \?/);
             return [[
                 { id: 1, code: 'PHONE15', discount_type: 'percent', discount_value: 15, min_order_value: 5000000, usage_limit: 50, used_count: 2 },
                 { id: 2, code: 'WELCOME10', discount_type: 'percent', discount_value: 10, min_order_value: 1000000, usage_limit: 100, used_count: 3 },
                 { id: 3, code: 'VIP20', discount_type: 'percent', discount_value: 20, min_order_value: 3000000, usage_limit: 100, used_count: 1 },
-                { id: 4, code: 'FREESHIP', discount_type: 'fixed', discount_value: 30000, min_order_value: 500000, usage_limit: null, used_count: 8 }
+                { id: 4, code: 'FREESHIP', discount_type: 'fixed', discount_value: 30000, min_order_value: 500000, usage_limit: null, used_count: 8 },
+                { id: 5, code: 'HIGHVALUE', discount_type: 'fixed', discount_value: 500000, min_order_value: 10000000, usage_limit: null, used_count: 0 },
+                { id: 6, code: 'SOLDOUT', discount_type: 'fixed', discount_value: 100000, min_order_value: 0, usage_limit: 1, used_count: 1 }
             ]];
         }
         if (sql.includes('FROM user_coupons')) return [[{ coupon_id: 1 }]];
@@ -555,12 +587,24 @@ test('available coupons exclude used, first-order-only and ineligible VIP codes'
     await route.stack[0].handle({ query: { order_total: '5000000' }, session: { user_id: 7 } }, res);
     assert.equal(res.statusCode, 200);
     assert.deepEqual(plain(res.body.coupons.map(coupon => coupon.code)), ['FREESHIP']);
+    assert.deepEqual(plain(res.body.unavailable.map(coupon => coupon.code)), [
+        'PHONE15', 'WELCOME10', 'VIP20', 'HIGHVALUE', 'SOLDOUT'
+    ]);
+    assert.match(res.body.unavailable.find(coupon => coupon.code === 'PHONE15').reason, /đã sử dụng/);
+    assert.match(res.body.unavailable.find(coupon => coupon.code === 'WELCOME10').reason, /đơn hàng đầu tiên/);
+    assert.match(res.body.unavailable.find(coupon => coupon.code === 'VIP20').reason, /30 triệu/);
+    assert.match(res.body.unavailable.find(coupon => coupon.code === 'HIGHVALUE').reason, /10\.000\.000/);
+    assert.match(res.body.unavailable.find(coupon => coupon.code === 'SOLDOUT').reason, /hết lượt/);
 });
 
 test('checkout requests eligible coupons and validates minimum value from product subtotal', () => {
     const html = fs.readFileSync(path.join(root, 'views', 'checkout.html'), 'utf8');
     assert.match(html, /coupons\/available\?order_total=' \+ encodeURIComponent\(subtotal\)/);
     assert.match(html, /JSON\.stringify\(\{ code, order_total: subtotal \}\)/);
+    assert.match(html, /unavailableCoupons = Array\.isArray\(data\.unavailable\)/);
+    assert.match(html, /Hiện không có mã nào dùng được cho đơn hàng này/);
+    assert.match(html, /Không thể tải danh sách mã giảm giá/);
+    assert.match(html, /function removeCoupon\(\)\s*\{[\s\S]*?appliedCoupon = null;[\s\S]*?renderOrderSummary\(\);[\s\S]*?updateQRAmount\(\);[\s\S]*?\}/);
     assert.doesNotMatch(html, /order_total: totalBeforeDiscount/);
 });
 
@@ -605,6 +649,11 @@ test('main banner supports ten Cloudinary images and rotates every two seconds w
     assert.match(home, /setInterval\([\s\S]*?,\s*2000\)/);
     assert.match(home, /\.filter\([\s\S]*?position[\s\S]*?\)\.slice\(0, 10\)/);
     assert.match(home, /object-fit:\s*contain/);
+    assert.match(home, /id="mainBannerControls"[^>]*aria-label="Chọn banner"/);
+    assert.match(home, /button\.className = 'banner-dot'/);
+    assert.match(home, /button\.addEventListener\('click', \(\) => selectMainBannerSlide\(index\)\)/);
+    assert.match(home, /container\.href = banner\.link \|\| '\/products'/);
+    assert.doesNotMatch(home, /container\.innerHTML\s*=[\s\S]*?<span class="banner-dot/);
     assert.match(admin, /uploadBanner\.array\('images', 10\)|upload-many/);
     assert.match(admin, /files\.length > 10/);
 });
@@ -856,20 +905,28 @@ test('AI assistant calls a product function before answering and sends no catalo
     };
     const db = { async query() { return [[{ id: 7, name: 'Samsung A', price: 12000000, stock: 2 }]]; } };
     const result = await runStoreAssistant({ message: 'Tìm Samsung dưới 15 triệu', db, requestAI });
-    assert.equal(requests.length, 2);
+    assert.equal(requests.length, 1);
     assert.equal(requests[0].contents.length, 1);
     assert.equal(requests[0].contents[0].parts[0].text, 'Tìm Samsung dưới 15 triệu');
     assert.equal(requests[0].tools[0].functionDeclarations[0].parameters.additionalProperties, undefined);
-    assert.ok(requests[1].contents.some(item => item.parts?.some(part => part.functionResponse)));
+    assert.equal(requests[0].generationConfig.thinkingConfig.thinkingLevel, 'minimal');
+    assert.equal(requests[0].generationConfig.maxOutputTokens, 1000);
+    assert.equal(requests[0].generationConfig.temperature, undefined);
     assert.equal(result.products[0].id, 7);
     assert.deepEqual(result.tools_used, ['search_products']);
+    assert.match(result.reply, /1 sản phẩm phù hợp/);
 });
 
 test('AI product thumbnails use the public product image route', () => {
-    const { normalizeProductThumbnail } = require('../src/services/store-ai');
+    const { normalizeProductThumbnail, geminiThinkingLevel, isStoreDataUnavailable } = require('../src/services/store-ai');
     assert.equal(normalizeProductThumbnail('product-123.jpg'), '/assets/images/products/product-123.jpg');
     assert.equal(normalizeProductThumbnail('/uploads/products/product-123.jpg'), '/uploads/products/product-123.jpg');
     assert.equal(normalizeProductThumbnail('https://cdn.example.com/product.jpg'), 'https://cdn.example.com/product.jpg');
+    assert.equal(geminiThinkingLevel('LOW'), 'low');
+    assert.equal(geminiThinkingLevel('invalid'), 'minimal');
+    assert.equal(isStoreDataUnavailable({ code: 'ECONNREFUSED' }), true);
+    assert.equal(isStoreDataUnavailable({ code: 'ER_PARSE_ERROR' }), false);
+    assert.equal(isStoreDataUnavailable({ errors: [{ code: 'ETIMEDOUT' }] }), true);
 });
 
 test('AI chat history is retained in the current Express session', () => {

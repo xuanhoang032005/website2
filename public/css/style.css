@@ -757,6 +757,12 @@ input, select, textarea { font-family: inherit; }
     z-index: 2;
     box-shadow: 0 4px 12px rgba(239,68,68,0.4);
 }
+.product-stock-badge {
+    right: 12px;
+    left: auto;
+    background: var(--slate-500);
+    box-shadow: 0 4px 12px rgba(100,116,139,0.3);
+}
 .product-img-wrap {
     width: 100%;
     aspect-ratio: 1;
@@ -811,6 +817,13 @@ input, select, textarea { font-family: inherit; }
     box-shadow: 0 4px 14px rgba(226,27,27,0.3);
 }
 .btn-add-cart:hover { box-shadow: 0 6px 20px rgba(226,27,27,0.4); }
+.btn-add-cart.btn-out-of-stock,
+.btn-add-cart.btn-out-of-stock:hover {
+    background: var(--slate-300);
+    color: var(--slate-500);
+    cursor: not-allowed;
+    box-shadow: none;
+}
 
 /* ===== EMPTY STATE ===== */
 .empty-state { text-align: center; padding: 80px 20px; }

@@ -1,5 +1,5 @@
 const express = require('express');
-const { runStoreAssistant } = require('../services/store-ai');
+const { runStoreAssistant, isStoreDataUnavailable } = require('../services/store-ai');
 const { createRateLimiter } = require('../middleware/rate-limit');
 
 const router = express.Router();
@@ -66,7 +66,15 @@ router.post('/ai', aiRateLimit, async (req, res) => {
         if (error.code === 'AI_NOT_CONFIGURED') {
             return res.status(503).json({ success: false, error: 'Trợ lý AI chưa được cấu hình. Vui lòng liên hệ quản trị viên.' });
         }
-        console.error('AI Chat error:', error.code || error.name, error.status || '');
+        if (error.code === 'AI_TIMEOUT') {
+            console.error('AI Chat error:', error.code, error.status || '');
+            return res.status(504).json({ success: false, error: 'Trợ lý AI phản hồi quá chậm. Vui lòng thử lại.' });
+        }
+        if (isStoreDataUnavailable(error)) {
+            console.error('AI Chat error: STORE_DATA_UNAVAILABLE', error.code || '');
+            return res.status(503).json({ success: false, error: 'Dữ liệu cửa hàng đang tạm gián đoạn. Vui lòng thử lại sau.' });
+        }
+        console.error('AI Chat error:', error.code || error.name, error.status || '', error.upstreamCode || '');
         return res.status(502).json({ success: false, error: 'Trợ lý AI đang tạm gián đoạn. Vui lòng thử lại sau.' });
     }
 });

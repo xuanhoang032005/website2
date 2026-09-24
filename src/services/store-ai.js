@@ -3,6 +3,17 @@ const pool = require('../config/database');
 const MAX_HISTORY_MESSAGES = 8;
 const MAX_TOOL_ROUNDS = 3;
 const DEFAULT_MODEL = 'gemini-3.6-flash';
+const DEFAULT_TIMEOUT_MS = 60000;
+const GEMINI_THINKING_LEVELS = new Set(['minimal', 'low', 'medium', 'high']);
+const DATABASE_UNAVAILABLE_CODES = new Set([
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'EHOSTUNREACH',
+    'ENOTFOUND',
+    'PROTOCOL_CONNECTION_LOST',
+    'ER_CON_COUNT_ERROR'
+]);
 
 const nullableString = { type: ['string', 'null'] };
 const nullableInteger = { type: ['integer', 'null'] };
@@ -134,6 +145,17 @@ function clampInteger(value, min, max, fallback) {
 
 function cleanText(value, maxLength = 120) {
     return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+function geminiThinkingLevel(value) {
+    const level = cleanText(value, 20).toLowerCase();
+    return GEMINI_THINKING_LEVELS.has(level) ? level : 'minimal';
+}
+
+function isStoreDataUnavailable(error) {
+    if (!error) return false;
+    if (DATABASE_UNAVAILABLE_CODES.has(error.code)) return true;
+    return Array.isArray(error.errors) && error.errors.some(isStoreDataUnavailable);
 }
 
 function normalizeProductThumbnail(value) {
@@ -383,7 +405,7 @@ async function createGeminiResponse(body) {
     }
     const controller = new AbortController();
     const timeoutMs = process.env.GEMINI_API_TIMEOUT_MS || process.env.OPENAI_API_TIMEOUT_MS;
-    const timeout = setTimeout(() => controller.abort(), clampInteger(timeoutMs, 5000, 60000, 25000));
+    const timeout = setTimeout(() => controller.abort(), clampInteger(timeoutMs, 10000, 120000, DEFAULT_TIMEOUT_MS));
     try {
         const model = cleanText(body.model, 100).replace(/^models\//, '') || DEFAULT_MODEL;
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -397,9 +419,18 @@ async function createGeminiResponse(body) {
             const error = new Error('Dịch vụ AI tạm thời không phản hồi.');
             error.code = 'AI_UPSTREAM_ERROR';
             error.status = response.status;
+            error.upstreamCode = cleanText(data.error?.status, 80);
             throw error;
         }
         return data;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            const timeoutError = new Error('Dịch vụ AI phản hồi quá thời gian cho phép.');
+            timeoutError.code = 'AI_TIMEOUT';
+            timeoutError.status = 504;
+            throw timeoutError;
+        }
+        throw error;
     } finally {
         clearTimeout(timeout);
     }
@@ -422,6 +453,49 @@ function extractReply(response) {
         .trim();
 }
 
+function formatCurrency(value) {
+    return Number(value || 0).toLocaleString('vi-VN') + 'đ';
+}
+
+function formatToolResult(name, result) {
+    if (result?.error) return result.error;
+    if (result?.message && !result.product && !result.products?.length && !result.order) return result.message;
+
+    if (name === 'search_products' || name === 'recommend_products') {
+        return result.count > 0
+            ? `Mình tìm thấy ${result.count} sản phẩm phù hợp. Bạn xem các sản phẩm bên dưới nhé.`
+            : 'Mình chưa tìm thấy sản phẩm phù hợp với yêu cầu này.';
+    }
+    if (name === 'get_product_details') {
+        return result.found
+            ? `${result.product.name} hiện có giá ${formatCurrency(result.product.price)} và còn ${result.product.stock} sản phẩm. Bạn xem thẻ sản phẩm bên dưới để biết thêm chi tiết nhé.`
+            : (result.message || 'Mình chưa tìm thấy sản phẩm này.');
+    }
+    if (name === 'check_stock') {
+        if (!result.found) return result.message || 'Mình chưa tìm thấy sản phẩm này.';
+        return result.product.stock > 0
+            ? `${result.product.name} hiện còn ${result.product.stock} sản phẩm.`
+            : `${result.product.name} hiện đã hết hàng.`;
+    }
+    if (name === 'prepare_purchase') {
+        return result.found
+            ? `${result.product.name}: ${result.instruction}`
+            : (result.message || 'Mình chưa tìm thấy sản phẩm này.');
+    }
+    if (name === 'get_order_status') {
+        if (result.requires_login || !result.found) return result.message;
+        return `Đơn #${result.order.id} hiện có trạng thái "${result.order.status}", tổng tiền ${formatCurrency(result.order.total_price)}.`;
+    }
+    if (name === 'get_store_information') {
+        if (result.information) return result.information;
+        if (Array.isArray(result.promotions) && result.promotions.length) {
+            return `Các mã khuyến mãi đang hoạt động: ${result.promotions.map(item => item.code).join(', ')}.`;
+        }
+        return 'Hiện chưa có khuyến mãi phù hợp.';
+    }
+    return 'Mình đã kiểm tra dữ liệu cửa hàng cho bạn.';
+}
+
 async function runStoreAssistant({ message, history, userId, db = pool, requestAI = createGeminiResponse }) {
     const contents = sanitizeHistory(history).map(item => ({
         role: item.role === 'assistant' ? 'model' : 'user',
@@ -438,7 +512,12 @@ async function runStoreAssistant({ message, history, userId, db = pool, requestA
             contents: [...contents],
             tools: [{ functionDeclarations: geminiFunctionDeclarations() }],
             toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-            generationConfig: { maxOutputTokens: 600, temperature: 0.2 }
+            generationConfig: {
+                maxOutputTokens: 1000,
+                thinkingConfig: {
+                    thinkingLevel: geminiThinkingLevel(process.env.GEMINI_THINKING_LEVEL)
+                }
+            }
         });
         const modelContent = response.candidates?.[0]?.content;
         const calls = (modelContent?.parts || []).flatMap(part => part.functionCall ? [part.functionCall] : []);
@@ -450,17 +529,19 @@ async function runStoreAssistant({ message, history, userId, db = pool, requestA
                 tools_used: toolsUsed
             };
         }
-        const functionResponses = [];
+        const toolReplies = [];
         for (const call of calls) {
             const result = await executeStoreTool(call.name, call.args || {}, { db, userId });
             toolsUsed.push(call.name);
             if (result.product) collectedProducts.set(result.product.id, result.product);
             for (const product of result.products || []) collectedProducts.set(product.id, product);
-            const functionResponse = { name: call.name, response: { result } };
-            if (call.id) functionResponse.id = call.id;
-            functionResponses.push({ functionResponse });
+            toolReplies.push(formatToolResult(call.name, result));
         }
-        contents.push({ role: 'user', parts: functionResponses });
+        return {
+            reply: [...new Set(toolReplies.filter(Boolean))].join('\n'),
+            products: [...collectedProducts.values()].slice(0, 6),
+            tools_used: toolsUsed
+        };
     }
     const error = new Error('AI đã gọi quá nhiều công cụ trong một lượt.');
     error.code = 'AI_TOOL_LIMIT';
@@ -471,6 +552,9 @@ module.exports = {
     TOOL_DEFINITIONS,
     toGeminiSchema,
     sanitizeHistory,
+    geminiThinkingLevel,
+    isStoreDataUnavailable,
+    formatToolResult,
     normalizeProductThumbnail,
     executeStoreTool,
     runStoreAssistant

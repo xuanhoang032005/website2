@@ -165,14 +165,20 @@ router.get('/available', async (req, res) => {
              WHERE is_active = 1
              AND (start_date IS NULL OR start_date <= NOW())
              AND (expires_at IS NULL OR expires_at >= NOW())
-             AND (usage_limit IS NULL OR used_count < usage_limit)
-             AND COALESCE(min_order_value, 0) <= ?
              ORDER BY created_at DESC`
-            , [total]
         );
         const userId = req.session?.user_id;
         const context = await getCouponContext(pool, userId, coupons);
-        const available = coupons.filter(coupon => !getCouponRestriction(coupon, total, userId, context));
+        const evaluated = coupons.map(coupon => ({
+            coupon,
+            restriction: getCouponRestriction(coupon, total, userId, context)
+        }));
+        const available = evaluated.filter(item => !item.restriction).map(item => item.coupon);
+        const unavailable = evaluated.filter(item => item.restriction).map(item => ({
+            id: item.coupon.id,
+            code: item.coupon.code,
+            reason: item.restriction.error
+        }));
         res.json({ coupons: available.map(coupon => ({
             id: coupon.id,
             code: coupon.code,
@@ -182,7 +188,7 @@ router.get('/available', async (req, res) => {
             min_order_value: coupon.min_order_value,
             max_discount: coupon.max_discount,
             expires_at: coupon.expires_at
-        })) });
+        })), unavailable });
     } catch (error) {
         console.error('Get available coupons error:', error);
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });

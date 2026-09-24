@@ -411,6 +411,24 @@
         .coupon-msg { margin-top: 8px; font-size: 0.8rem; padding: 0 4px; }
         .coupon-msg.error { color: var(--danger); }
         .coupon-msg.success { color: var(--success); }
+        .coupon-availability-note {
+            margin-bottom: 12px;
+            padding: 11px 12px;
+            border: 1px solid var(--slate-200);
+            border-radius: 10px;
+            background: var(--slate-50);
+            color: var(--slate-600);
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+        .coupon-availability-note.error {
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        .coupon-availability-title { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+        .coupon-unavailable-list { margin: 7px 0 0 18px; padding: 0; }
+        .coupon-unavailable-list li + li { margin-top: 4px; }
 
         .coupon-applied-box {
             display: flex;
@@ -750,6 +768,8 @@
         let currentPaymentMethod = 'cod';
         let pendingOrderId = null;
         let availableCoupons = [];
+        let unavailableCoupons = [];
+        let couponLoadError = '';
 
         // ===== INIT =====
         document.addEventListener('DOMContentLoaded', async () => {
@@ -765,12 +785,22 @@
                 const res = await fetch('/api/coupons/available?order_total=' + encodeURIComponent(subtotal), {
                     credentials: 'include'
                 });
+                const contentType = res.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    throw new Error('Phản hồi mã giảm giá không hợp lệ');
+                }
                 const data = await res.json();
-                availableCoupons = res.ok && Array.isArray(data.coupons) ? data.coupons : [];
+                if (!res.ok) throw new Error(data.error || 'Không thể tải mã giảm giá');
+                availableCoupons = Array.isArray(data.coupons) ? data.coupons : [];
+                unavailableCoupons = Array.isArray(data.unavailable) ? data.unavailable : [];
+                couponLoadError = '';
                 renderOrderSummary();
             } catch (e) {
                 availableCoupons = [];
+                unavailableCoupons = [];
+                couponLoadError = 'Không thể tải danh sách mã giảm giá. Vui lòng thử tải lại trang.';
                 console.error('Load coupons error:', e);
+                renderOrderSummary();
             }
         }
 
@@ -1207,13 +1237,29 @@
                     const desc = c.discount_type === 'percent' 
                         ? `Giảm ${c.discount_value}%` 
                         : `Giảm ${formatPrice(c.discount_value)}đ`;
-                    return `<div class="coupon-chip" onclick="selectCouponChip('${c.code}')">
+                    return `<div class="coupon-chip" data-code="${escapeHtml(c.code)}" onclick="selectCouponChip(this.dataset.code)">
                         <i class="bi bi-ticket-perforated"></i>
-                        <span class="coupon-code">${c.code}</span>
+                        <span class="coupon-code">${escapeHtml(c.code)}</span>
                         <span>${desc}</span>
                     </div>`;
                 }).join('');
                 couponsHtml = `<div class="available-coupons">${chips}</div>`;
+            } else if (!appliedCoupon && couponLoadError) {
+                couponsHtml = `<div class="coupon-availability-note error">
+                    <div class="coupon-availability-title"><i class="bi bi-exclamation-circle"></i>${escapeHtml(couponLoadError)}</div>
+                </div>`;
+            } else if (!appliedCoupon && unavailableCoupons.length > 0) {
+                const reasons = unavailableCoupons.map(c =>
+                    `<li><strong>${escapeHtml(c.code)}:</strong> ${escapeHtml(c.reason)}</li>`
+                ).join('');
+                couponsHtml = `<div class="coupon-availability-note">
+                    <div class="coupon-availability-title"><i class="bi bi-info-circle"></i>Hiện không có mã nào dùng được cho đơn hàng này</div>
+                    <ul class="coupon-unavailable-list">${reasons}</ul>
+                </div>`;
+            } else if (!appliedCoupon) {
+                couponsHtml = `<div class="coupon-availability-note">
+                    <div class="coupon-availability-title"><i class="bi bi-info-circle"></i>Hiện chưa có mã giảm giá nào</div>
+                </div>`;
             }
 
             // Coupon input HTML
@@ -1383,6 +1429,7 @@
         function removeCoupon() {
             appliedCoupon = null;
             renderOrderSummary();
+            if (typeof updateQRAmount === 'function') updateQRAmount();
         }
 
         function updateQRAmount() {
