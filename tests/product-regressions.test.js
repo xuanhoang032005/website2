@@ -40,16 +40,15 @@ test('database schema includes ownership constraints and operational indexes', (
     assert.match(sql, /Skipped uq_user_coupons_user_coupon: duplicate coupon history must be resolved first/);
 });
 
-test('versioned migrations are ordered, checksummed and exposed through npm', async () => {
+test('merged database schema keeps embedded migration history', async () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     assert.equal(packageJson.scripts.migrate, 'node src/config/migrate.js');
     const { checksum, migrationFiles } = require('../src/config/migrate');
     const files = await migrationFiles();
-    assert.deepEqual(files, ['001_schema_integrity.sql', '002_unique_user_coupon.sql']);
-    for (const file of files) {
-        const sql = fs.readFileSync(path.join(root, 'database', 'migrations', file), 'utf8');
-        assert.match(checksum(sql), /^[a-f0-9]{64}$/);
-    }
+    assert.deepEqual(files, []);
+    const schema = fs.readFileSync(path.join(root, 'database', 'anhtraistore.sql'), 'utf8');
+    assert.match(schema, /001_schema_integrity\.sql/);
+    assert.match(schema, /002_unique_user_coupon\.sql/);
     const runner = fs.readFileSync(path.join(root, 'src', 'config', 'migrate.js'), 'utf8');
     assert.match(runner, /CREATE TABLE IF NOT EXISTS schema_migrations/);
     assert.match(runner, /GET_LOCK/);

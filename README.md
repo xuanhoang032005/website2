@@ -78,13 +78,15 @@ mysql -u root -p anhtraisstore < database/anhtraistore.sql
 
 File SQL đã bao gồm `contacts.user_id`, các khóa ngoại, unique constraint và index phục vụ đơn hàng, giỏ hàng, đánh giá, coupon và chat.
 
+`database/anhtraistore.sql` là file database duy nhất, đã bao gồm schema hiện tại và đánh dấu các thay đổi `001`/`002` trong `schema_migrations`.
+
 Với database cũ, chạy migration theo thứ tự bằng lệnh:
 
 ```bash
 npm run migrate
 ```
 
-Trên phpMyAdmin, import lần lượt các file trong `database/migrations/` theo tên. Migration đã chạy được ghi vào bảng `schema_migrations` và không chạy lại; không sửa nội dung migration cũ sau khi đã áp dụng. Migration `002_unique_user_coupon.sql` sẽ dừng nếu lịch sử coupon có dữ liệu trùng để tránh tự động xóa dữ liệu.
+Database đã chạy trước đó có thể tiếp tục dùng `npm run migrate`; các thay đổi đã gộp trong file cài mới được runner nhận diện là embedded migration.
 
 ### 3. Cấu hình môi trường
 

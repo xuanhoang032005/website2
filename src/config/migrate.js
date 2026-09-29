@@ -8,6 +8,7 @@ const { projectRoot } = require('../core/paths');
 
 const migrationsDir = path.join(projectRoot, 'database', 'migrations');
 const lockName = 'anhtraistore_schema_migrations';
+const embeddedMigrations = new Set(['001_schema_integrity.sql', '002_unique_user_coupon.sql']);
 
 function databaseOptions() {
     return {
@@ -26,7 +27,9 @@ function checksum(content) {
 }
 
 async function migrationFiles() {
-    const entries = await fs.readdir(migrationsDir, { withFileTypes: true });
+    let entries;
+    try { entries = await fs.readdir(migrationsDir, { withFileTypes: true }); }
+    catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     return entries
         .filter(entry => entry.isFile() && /^\d{3}_[a-z0-9_-]+\.sql$/i.test(entry.name))
         .map(entry => entry.name)
@@ -55,7 +58,9 @@ async function migrate() {
         const files = await migrationFiles();
         const fileSet = new Set(files);
         for (const name of applied.keys()) {
-            if (!fileSet.has(name)) throw new Error(`Migration đã ghi nhận nhưng file không còn tồn tại: ${name}`);
+            if (!fileSet.has(name) && !embeddedMigrations.has(name)) {
+                throw new Error(`Migration đã ghi nhận nhưng file không còn tồn tại: ${name}`);
+            }
         }
         let appliedCount = 0;
 

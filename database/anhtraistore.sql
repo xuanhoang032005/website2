@@ -851,6 +851,19 @@ ALTER TABLE messages MODIFY id INT(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2
 -- HOÀN TẤT
 -- 
 SELECT '========================================' AS '';
+
+-- Đánh dấu các thay đổi schema đã được gộp vào file cài mới.
+-- Nhờ đó `npm run migrate` không chạy lại 001/002 trên database vừa cài.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    checksum CHAR(64) NOT NULL,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT IGNORE INTO schema_migrations (name, checksum) VALUES
+    ('001_schema_integrity.sql', 'aa62e9419d68fc8452dbb918f425bf48ad3a1cf0f46d7c916b5472c0455c721b'),
+    ('002_unique_user_coupon.sql', 'e21740c5ee1f4b8320ed0495c7172242fc205763c4cbd45b116764833dfa284d');
 SELECT 'Database setup completed!' AS status;
 SELECT 'New features:' AS '';
 SELECT '  - product_images: Gallery nhiều ảnh/sản phẩm' AS '';
