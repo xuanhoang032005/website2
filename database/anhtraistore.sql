@@ -100,6 +100,31 @@ CREATE TABLE IF NOT EXISTS product_images (
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
+-- Đồng bộ cấu trúc cho database cũ trước khi chèn dữ liệu mẫu.
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_images' AND COLUMN_NAME = 'alt_text'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE product_images ADD COLUMN alt_text VARCHAR(255) DEFAULT NULL AFTER image_url',
+    'SELECT ''Column alt_text already exists'' AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_images' AND COLUMN_NAME = 'is_primary'
+);
+SET @sql = IF(@column_exists = 0,
+    'ALTER TABLE product_images ADD COLUMN is_primary TINYINT(1) DEFAULT 0 AFTER sort_order',
+    'SELECT ''Column is_primary already exists'' AS message'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- Các phiên bản RAM / ROM / màu sắc của sản phẩm
 CREATE TABLE IF NOT EXISTS product_variants (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -595,33 +620,6 @@ ALTER TABLE promotions MODIFY id INT(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT
 ALTER TABLE banners MODIFY id INT(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 ALTER TABLE conversations MODIFY id INT(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 ALTER TABLE messages MODIFY id INT(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
-
--- MIGRATION: Các cột bổ sung (chạy lần đầu)
-
--- Thêm các cột vào product_images
-SET @column_exists = (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_images' AND COLUMN_NAME = 'alt_text'
-);
-SET @sql = IF(@column_exists = 0,
-    'ALTER TABLE product_images ADD COLUMN alt_text VARCHAR(255) DEFAULT NULL AFTER image_url',
-    'SELECT "Column alt_text already exists" AS message'
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @column_exists = (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_images' AND COLUMN_NAME = 'is_primary'
-);
-SET @sql = IF(@column_exists = 0,
-    'ALTER TABLE product_images ADD COLUMN is_primary TINYINT(1) DEFAULT 0 AFTER sort_order',
-    'SELECT "Column is_primary already exists" AS message'
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
 
 -- 
 -- HOÀN TẤT
