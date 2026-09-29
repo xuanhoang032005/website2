@@ -167,7 +167,10 @@ CREATE TABLE IF NOT EXISTS orders (
     paid_at DATETIME NULL,
     cart_item_ids VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    UNIQUE KEY uq_orders_payment_code (payment_code),
+    INDEX idx_orders_user_created (user_id, created_at),
+    INDEX idx_orders_status_created (status, created_at),
+    CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 -- 
@@ -194,8 +197,10 @@ CREATE TABLE IF NOT EXISTS cart (
     user_id INT NOT NULL,
     product_id INT NOT NULL,
     variant_id INT NULL,
+    variant_identity INT GENERATED ALWAYS AS (COALESCE(variant_id, 0)) STORED,
     quantity INT DEFAULT 1,
     INDEX idx_cart_variant (variant_id),
+    UNIQUE KEY uq_cart_user_product_variant (user_id, product_id, variant_identity),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
     CONSTRAINT fk_cart_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
@@ -211,6 +216,8 @@ CREATE TABLE IF NOT EXISTS reviews (
     rating INT,
     comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_reviews_user_product (user_id, product_id),
+    INDEX idx_reviews_product_created (product_id, created_at),
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
@@ -259,8 +266,11 @@ CREATE TABLE IF NOT EXISTS user_coupons (
     discount_amount DECIMAL(15,0) NOT NULL,
     used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
+    INDEX idx_user_coupons_order (order_id),
+    UNIQUE KEY uq_user_coupons_user_coupon (user_id, coupon_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE
+    FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_coupons_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
 );
 
 -- 
@@ -268,13 +278,16 @@ CREATE TABLE IF NOT EXISTS user_coupons (
 -- 
 CREATE TABLE IF NOT EXISTS contacts (
     id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT DEFAULT NULL,
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL,
     phone VARCHAR(15),
     subject VARCHAR(200),
     message TEXT NOT NULL,
     is_read TINYINT(1) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_contacts_user_created (user_id, created_at),
+    CONSTRAINT fk_contacts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- 
@@ -287,7 +300,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     status ENUM('open', 'closed') DEFAULT 'open',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_message_at DATETIME DEFAULT NULL,
-    INDEX idx_user_id (user_id),
+    INDEX idx_conversations_user_activity (user_id, last_message_at),
+    INDEX idx_conversations_status_activity (status, last_message_at),
     INDEX idx_contact_id (contact_id),
     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -304,6 +318,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     is_read TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_messages_conversation_created (conversation_id, created_at, id),
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 );
 
@@ -337,6 +352,217 @@ CREATE TABLE IF NOT EXISTS banners (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+-- BEGIN EXISTING DATABASE UPGRADE
+-- ĐỒNG BỘ RÀNG BUỘC CHO DATABASE CŨ
+-- Các lệnh dưới đây có thể chạy lại. Nếu database cũ có dữ liệu trùng, việc
+-- tạo UNIQUE sẽ dừng để dữ liệu được kiểm tra thay vì tự động xóa bản ghi.
+--
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contacts' AND COLUMN_NAME = 'user_id'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE contacts ADD COLUMN user_id INT NULL AFTER id',
+    'SELECT ''contacts.user_id already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cart' AND COLUMN_NAME = 'variant_identity'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE cart ADD COLUMN variant_identity INT GENERATED ALWAYS AS (COALESCE(variant_id, 0)) STORED AFTER variant_id',
+    'SELECT ''cart.variant_identity already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'uq_orders_payment_code'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE orders ADD UNIQUE KEY uq_orders_payment_code (payment_code)',
+    'SELECT ''uq_orders_payment_code already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cart' AND INDEX_NAME = 'uq_cart_user_product_variant'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE cart ADD UNIQUE KEY uq_cart_user_product_variant (user_id, product_id, variant_identity)',
+    'SELECT ''uq_cart_user_product_variant already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND INDEX_NAME = 'uq_reviews_user_product'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE reviews ADD UNIQUE KEY uq_reviews_user_product (user_id, product_id)',
+    'SELECT ''uq_reviews_user_product already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_coupons' AND INDEX_NAME = 'uq_user_coupons_user_coupon'
+);
+SET @duplicate_coupon_groups = (
+    SELECT COUNT(*) FROM (
+        SELECT user_id, coupon_id
+        FROM user_coupons
+        GROUP BY user_id, coupon_id
+        HAVING COUNT(*) > 1
+    ) AS duplicate_groups
+);
+SET @ddl = IF(@ddl_exists > 0,
+    'SELECT ''uq_user_coupons_user_coupon already exists'' AS message',
+    IF(@duplicate_coupon_groups = 0,
+        'ALTER TABLE user_coupons ADD UNIQUE KEY uq_user_coupons_user_coupon (user_id, coupon_id)',
+        'SELECT ''Skipped uq_user_coupons_user_coupon: duplicate coupon history must be resolved first'' AS warning'
+    )
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'idx_orders_user_created'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE orders ADD INDEX idx_orders_user_created (user_id, created_at)',
+    'SELECT ''idx_orders_user_created already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'idx_orders_status_created'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE orders ADD INDEX idx_orders_status_created (status, created_at)',
+    'SELECT ''idx_orders_status_created already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND INDEX_NAME = 'idx_reviews_product_created'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE reviews ADD INDEX idx_reviews_product_created (product_id, created_at)',
+    'SELECT ''idx_reviews_product_created already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_coupons' AND INDEX_NAME = 'idx_user_coupons_order'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE user_coupons ADD INDEX idx_user_coupons_order (order_id)',
+    'SELECT ''idx_user_coupons_order already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contacts' AND INDEX_NAME = 'idx_contacts_user_created'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE contacts ADD INDEX idx_contacts_user_created (user_id, created_at)',
+    'SELECT ''idx_contacts_user_created already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversations' AND INDEX_NAME = 'idx_conversations_user_activity'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE conversations ADD INDEX idx_conversations_user_activity (user_id, last_message_at)',
+    'SELECT ''idx_conversations_user_activity already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversations' AND INDEX_NAME = 'idx_conversations_status_activity'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE conversations ADD INDEX idx_conversations_status_activity (status, last_message_at)',
+    'SELECT ''idx_conversations_status_activity already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'messages' AND INDEX_NAME = 'idx_messages_conversation_created'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE messages ADD INDEX idx_messages_conversation_created (conversation_id, created_at, id)',
+    'SELECT ''idx_messages_conversation_created already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'contacts' AND CONSTRAINT_NAME = 'fk_contacts_user'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE contacts ADD CONSTRAINT fk_contacts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL',
+    'SELECT ''fk_contacts_user already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @ddl_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'user_coupons' AND CONSTRAINT_NAME = 'fk_user_coupons_order'
+);
+SET @ddl = IF(@ddl_exists = 0,
+    'ALTER TABLE user_coupons ADD CONSTRAINT fk_user_coupons_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL',
+    'SELECT ''fk_user_coupons_order already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- END EXISTING DATABASE UPGRADE
 
 -- 
 -- DỮ LIỆU MẪU - BRANDS

@@ -17,6 +17,97 @@ const cloudStorageStub = {
     async destroyUploadedProductFiles() {}
 };
 
+test('database schema includes ownership constraints and operational indexes', () => {
+    const sql = fs.readFileSync(path.join(root, 'database', 'anhtraistore.sql'), 'utf8');
+    const requiredDefinitions = [
+        /CREATE TABLE IF NOT EXISTS contacts[\s\S]*?user_id INT DEFAULT NULL[\s\S]*?CONSTRAINT fk_contacts_user FOREIGN KEY \(user_id\) REFERENCES users\(id\) ON DELETE SET NULL/,
+        /variant_identity INT GENERATED ALWAYS AS \(COALESCE\(variant_id, 0\)\) STORED/,
+        /UNIQUE KEY uq_cart_user_product_variant \(user_id, product_id, variant_identity\)/,
+        /UNIQUE KEY uq_reviews_user_product \(user_id, product_id\)/,
+        /UNIQUE KEY uq_user_coupons_user_coupon \(user_id, coupon_id\)/,
+        /UNIQUE KEY uq_orders_payment_code \(payment_code\)/,
+        /CONSTRAINT fk_user_coupons_order FOREIGN KEY \(order_id\) REFERENCES orders\(id\) ON DELETE SET NULL/,
+        /INDEX idx_orders_user_created \(user_id, created_at\)/,
+        /INDEX idx_orders_status_created \(status, created_at\)/,
+        /INDEX idx_conversations_user_activity \(user_id, last_message_at\)/,
+        /INDEX idx_conversations_status_activity \(status, last_message_at\)/,
+        /INDEX idx_messages_conversation_created \(conversation_id, created_at, id\)/
+    ];
+    requiredDefinitions.forEach(pattern => assert.match(sql, pattern));
+    assert.match(sql, /INFORMATION_SCHEMA\.COLUMNS[\s\S]*?TABLE_NAME = 'contacts'[\s\S]*?COLUMN_NAME = 'user_id'/);
+    assert.match(sql, /ALTER TABLE contacts ADD COLUMN user_id INT NULL AFTER id/);
+    assert.match(sql, /SET @duplicate_coupon_groups = \([\s\S]*?HAVING COUNT\(\*\) > 1/);
+    assert.match(sql, /Skipped uq_user_coupons_user_coupon: duplicate coupon history must be resolved first/);
+});
+
+test('versioned migrations are ordered, checksummed and exposed through npm', async () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    assert.equal(packageJson.scripts.migrate, 'node src/config/migrate.js');
+    const { checksum, migrationFiles } = require('../src/config/migrate');
+    const files = await migrationFiles();
+    assert.deepEqual(files, ['001_schema_integrity.sql', '002_unique_user_coupon.sql']);
+    for (const file of files) {
+        const sql = fs.readFileSync(path.join(root, 'database', 'migrations', file), 'utf8');
+        assert.match(checksum(sql), /^[a-f0-9]{64}$/);
+    }
+    const runner = fs.readFileSync(path.join(root, 'src', 'config', 'migrate.js'), 'utf8');
+    assert.match(runner, /CREATE TABLE IF NOT EXISTS schema_migrations/);
+    assert.match(runner, /GET_LOCK/);
+    assert.match(runner, /checksum thay đổi/);
+});
+
+test('shared request validation normalizes input and returns structured field errors', () => {
+    const { validateBody, stringField, emailField, integerField } = require('../src/middleware/validate');
+    const middleware = validateBody({
+        name: stringField({ required: true, min: 2, max: 20, label: 'Tên' }),
+        email: emailField({ required: true }),
+        quantity: integerField({ required: true, min: 1, max: 5, label: 'Số lượng' })
+    });
+    const valid = { body: { name: '  An  ', email: ' USER@Example.COM ', quantity: '2' } };
+    let validError;
+    middleware(valid, {}, error => { validError = error; });
+    assert.equal(validError, undefined);
+    assert.deepEqual(valid.body, { name: 'An', email: 'user@example.com', quantity: 2 });
+
+    const invalid = { body: { name: '', email: 'invalid', quantity: 9 } };
+    let invalidError;
+    middleware(invalid, {}, error => { invalidError = error; });
+    assert.equal(invalidError.status, 400);
+    assert.equal(invalidError.code, 'VALIDATION_ERROR');
+    assert.equal(invalidError.details.fields.length, 3);
+});
+
+test('CSRF middleware rejects foreign browser writes and allows same-origin writes', () => {
+    const { csrfProtection } = require('../src/middleware/csrf');
+    function request(origin, fetchSite = 'same-origin') {
+        const headers = { host: 'localhost:3000', origin, 'sec-fetch-site': fetchSite };
+        return {
+            method: 'POST',
+            protocol: 'http',
+            get(name) { return headers[String(name).toLowerCase()]; }
+        };
+    }
+    let sameOriginError;
+    csrfProtection(request('http://localhost:3000'), {}, error => { sameOriginError = error; });
+    assert.equal(sameOriginError, undefined);
+
+    let foreignError;
+    csrfProtection(request('https://attacker.example', 'cross-site'), {}, error => { foreignError = error; });
+    assert.equal(foreignError.status, 403);
+    assert.equal(foreignError.code, 'CSRF_ORIGIN_REJECTED');
+});
+
+test('security headers include a restrictive content security policy', () => {
+    const { securityHeaders } = require('../src/middleware/security');
+    const headers = new Map();
+    securityHeaders({ path: '/' }, { setHeader(name, value) { headers.set(name, value); } }, () => {});
+    const policy = headers.get('Content-Security-Policy');
+    assert.match(policy, /default-src 'self'/);
+    assert.match(policy, /object-src 'none'/);
+    assert.match(policy, /frame-ancestors 'none'/);
+    assert.match(policy, /img-src 'self' data: https:\/\/res\.cloudinary\.com/);
+});
+
 test('every admin page uses only the rebuilt shared admin interface', () => {
     const adminDir = path.join(root, 'views', 'admin');
     const pages = fs.readdirSync(adminDir).filter(name => name.endsWith('.html'));
@@ -64,6 +155,28 @@ test('home product cards disable cart actions and show a badge when stock is dep
     });
     assert.match(available, /onclick="addToCart\(2\)"/);
     assert.doesNotMatch(available, /btn-out-of-stock|product-stock-badge/);
+
+    const malicious = context.createProductCard({
+        id: 3,
+        name: '<img src=x onerror=alert(1)>',
+        brand_name: '<script>alert(1)</script>',
+        price: 1000,
+        old_price: null,
+        discount_percent: 0,
+        stock: 1,
+        thumbnail: 'phone.jpg'
+    });
+    assert.doesNotMatch(malicious, /<script>|<img src=x onerror/);
+    assert.match(malicious, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+});
+
+test('product descriptions and promotion fallbacks escape API-provided HTML', () => {
+    const productDetail = fs.readFileSync(path.join(root, 'views', 'product-detail.html'), 'utf8');
+    const home = fs.readFileSync(path.join(root, 'views', 'index.html'), 'utf8');
+    assert.match(productDetail, /escapeHtml\(product\.description \|\| 'Chưa có mô tả/);
+    assert.match(home, /escapeHtml\(mainPromo\.title \|\| ''\)/);
+    assert.match(home, /escapeHtml\(p\.description \|\| ''\)/);
+    assert.match(home, /safeInternalLink\(p\.link_url\)/);
 });
 
 function loadPage(name, search = '') {
@@ -510,7 +623,7 @@ test('support chat reuses one conversation per account and persists the first me
     const route = loadRoute(path.join(root, 'src', 'routes', 'api.js'), '/contact', 'post', pool);
     const response = jsonResponse();
     const emitted = [];
-    await route.stack[0].handle({
+    await route.stack.at(-1).handle({
         session: { user_id: 5 },
         body: { full_name: 'Khách', email: 'khach@example.com', phone: '', message: 'Cần hỗ trợ' },
         app: { get() { return { to() { return { emit(event, data) { emitted.push({ event, data }); } }; } }; } }
@@ -861,7 +974,11 @@ test('API error handler does not expose internal error details', () => {
         console.error = originalConsoleError;
     }
     assert.equal(res.statusCode, 500);
-    assert.deepEqual(res.body, { error: 'Đã xảy ra lỗi trên máy chủ!' });
+    assert.deepEqual(res.body, {
+        success: false,
+        error: 'Đã xảy ra lỗi trên máy chủ!',
+        code: 'INTERNAL_ERROR'
+    });
 });
 
 test('rate limiter returns 429 without exposing implementation details', () => {

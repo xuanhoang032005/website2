@@ -403,6 +403,15 @@
         })
         .then(async r => {
             const data = await r.json().catch(() => ({}));
+            if (r.status === 202 && data.job_id) {
+                for (let attempt = 0; attempt < 30; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const poll = await fetch(`/api/chat/ai/jobs/${encodeURIComponent(data.job_id)}`, { credentials: 'include' });
+                    const result = await poll.json().catch(() => ({}));
+                    if (poll.status !== 202) return result;
+                }
+                throw new Error('Trợ lý AI xử lý quá lâu. Vui lòng thử lại.');
+            }
             if (!r.ok) throw new Error(data.error || 'AI_UNAVAILABLE');
             return data;
         })

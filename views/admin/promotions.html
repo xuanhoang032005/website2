@@ -235,6 +235,9 @@
     </div>
 
     <script>
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+        }
         let allCoupons = [];
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -251,7 +254,7 @@
         function showAlert(message, type = 'success') {
             const box = document.getElementById('alertBox');
             const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
-            box.innerHTML = `<div class="alert alert-${type}"><i class="fas fa-${icon}"></i> ${message}</div>`;
+            box.innerHTML = `<div class="alert alert-${escapeHtml(type)}"><i class="fas fa-${escapeHtml(icon)}"></i> ${escapeHtml(message)}</div>`;
             setTimeout(() => { box.innerHTML = ''; }, 3500);
         }
 

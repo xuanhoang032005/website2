@@ -1,3 +1,5 @@
+import('/js/modules/http.js').then(({ installFetch }) => installFetch()).catch(() => {});
+
 // Format price to VND
 function formatPrice(price) {
     return new Intl.NumberFormat('vi-VN').format(price);
@@ -324,14 +326,15 @@ function setupSearch() {
 
                     let html = '';
                     data.forEach(item => {
-                        const imgSrc = item.thumbnail && item.thumbnail.startsWith('http') 
-                            ? item.thumbnail 
-                            : `/assets/images/products/${item.thumbnail || ''}`;
+                        const imgSrc = item.thumbnail && item.thumbnail.startsWith('http')
+                            ? item.thumbnail
+                            : `/assets/images/products/${encodeURIComponent(item.thumbnail || '')}`;
+                        const safeImgSrc = escapeHtml(imgSrc);
                         html += `
-                            <a href="/product/${item.id}" class="suggest-item">
-                                <img src="${imgSrc}" onerror="this.style.display='none'" class="suggest-img">
+                            <a href="/product/${encodeURIComponent(item.id)}" class="suggest-item">
+                                <img src="${safeImgSrc}" onerror="this.style.display='none'" class="suggest-img">
                                 <div class="suggest-info">
-                                    <div class="suggest-name">${item.name}</div>
+                                    <div class="suggest-name">${escapeHtml(item.name)}</div>
                                     <div class="suggest-price">${formatPrice(item.price)}đ</div>
                                 </div>
                             </a>`;
@@ -369,8 +372,8 @@ function showConfirm(title, message, onConfirm) {
     overlay.innerHTML = `
         <div class="confirm-dialog">
             <div class="confirm-icon"><i class="bi bi-question-circle-fill"></i></div>
-            <div class="confirm-title">${title}</div>
-            <div class="confirm-message">${message}</div>
+            <div class="confirm-title">${escapeHtml(title)}</div>
+            <div class="confirm-message">${escapeHtml(message)}</div>
             <div class="confirm-actions">
                 <button class="confirm-btn cancel" onclick="this.closest('.confirm-overlay').remove()">Hủy</button>
                 <button class="confirm-btn confirm">Xác nhận</button>

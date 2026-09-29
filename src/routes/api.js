@@ -1,5 +1,18 @@
 const express = require('express');
 const router = express.Router();
+const { validateBody, stringField, emailField, integerField } = require('../middleware/validate');
+
+const contactValidation = validateBody({
+    full_name: stringField({ required: true, min: 1, max: 100, disallowHtml: true, label: 'Họ tên' }),
+    email: emailField({ required: true }),
+    phone: stringField({ max: 30, disallowHtml: true, label: 'Số điện thoại' }),
+    message: stringField({ required: true, min: 1, max: 3000, disallowHtml: true, label: 'Nội dung' })
+});
+const reviewValidation = validateBody({
+    product_id: integerField({ required: true, min: 1, label: 'Sản phẩm' }),
+    rating: integerField({ required: true, min: 1, max: 5, label: 'Số sao' }),
+    comment: stringField({ required: true, min: 1, max: 2000, disallowHtml: true, label: 'Nội dung đánh giá' })
+});
 const multer = require('multer');
 const pool = require('../config/database');
 const { requireAdminApi: requireAdmin } = require('../middleware/auth');
@@ -80,7 +93,7 @@ router.get('/cart-count', async (req, res) => {
 });
 
 // Contact form (lưu user_id nếu đã đăng nhập để admin có thể reply chat 2 chiều)
-router.post('/contact', async (req, res) => {
+router.post('/contact', contactValidation, async (req, res) => {
     let connection;
     try {
         const { full_name, email, phone, message } = req.body;
@@ -162,7 +175,7 @@ router.post('/contact', async (req, res) => {
 });
 
 // Submit review
-router.post('/review', async (req, res) => {
+router.post('/review', reviewValidation, async (req, res) => {
     try {
         if (!req.session.user_id) {
             return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
@@ -212,6 +225,9 @@ router.post('/review', async (req, res) => {
         res.json({ success: true, message: 'Cảm ơn bạn đã đánh giá!' });
     } catch (error) {
         console.error('Review error:', error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: 'Bạn đã đánh giá sản phẩm này rồi!' });
+        }
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });
     }
 });

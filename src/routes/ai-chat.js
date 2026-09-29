@@ -1,6 +1,7 @@
 const express = require('express');
 const { runStoreAssistant, isStoreDataUnavailable } = require('../services/store-ai');
 const { createRateLimiter } = require('../middleware/rate-limit');
+const queue = require('../services/job-queue');
 
 const router = express.Router();
 const MAX_SESSION_HISTORY_MESSAGES = 100;
@@ -39,6 +40,14 @@ router.get('/ai/history', (req, res) => {
     res.json({ success: true, history: sessionHistory(req.session) });
 });
 
+router.get('/ai/jobs/:id', (req, res) => {
+    const job = queue.get(req.params.id);
+    if (!job || job.type !== 'ai_request') return res.status(404).json({ success: false, error: 'Không tìm thấy tác vụ AI.' });
+    if (job.status === 'failed') return res.status(502).json({ success: false, error: 'Trợ lý AI đang tạm gián đoạn.' });
+    if (job.status !== 'completed') return res.status(202).json({ success: false, pending: true, job_id: job.id });
+    return res.json({ success: true, ...job.result });
+});
+
 router.post('/ai', aiRateLimit, async (req, res) => {
     const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
     if (!message) return res.status(400).json({ success: false, error: 'Vui lòng nhập câu hỏi!' });
@@ -47,6 +56,14 @@ router.post('/ai', aiRateLimit, async (req, res) => {
     }
     try {
         const history = sessionHistory(req.session);
+        if (req.body?.async === true || message.length > 600) {
+            const jobId = queue.enqueue('ai_request', {
+                message,
+                history: history.length ? history : req.body.history,
+                userId: req.session?.user_id
+            });
+            return res.status(202).json({ success: true, pending: true, job_id: jobId });
+        }
         const result = await runStoreAssistant({
             message,
             history: history.length ? history : req.body.history,

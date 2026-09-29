@@ -20,7 +20,7 @@
             const icons = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', info: 'bi-info-circle-fill' };
             const toast = document.createElement('div');
             toast.className = `custom-toast ${type}`;
-            toast.innerHTML = `<i class="bi ${icons[type]}"></i><span>${message}</span>`;
+            toast.innerHTML = `<i class="bi ${icons[type] || icons.info}"></i><span>${escapeHtml(message)}</span>`;
             document.body.appendChild(toast);
             setTimeout(() => { toast.style.animation = 'toastSlideOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
         }

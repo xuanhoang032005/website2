@@ -504,8 +504,8 @@
                         <td>
                             <img src="${imgSrc}" class="product-img" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;" onerror="this.onerror=null;this.src='/images/no-image.svg'">
                         </td>
-                        <td><strong>${p.name}</strong><br><span style="color: var(--gray-500); font-size: 0.8rem;">${p.ram ? 'RAM: ' + p.ram : ''}${p.ram && p.storage ? ' | ' : ''}${p.storage ? 'ROM: ' + p.storage : ''}</span></td>
-                        <td>${p.brand_name || '-'}</td>
+                        <td><strong>${escapeHtml(p.name)}</strong><br><span style="color: var(--gray-500); font-size: 0.8rem;">${p.ram ? 'RAM: ' + escapeHtml(p.ram) : ''}${p.ram && p.storage ? ' | ' : ''}${p.storage ? 'ROM: ' + escapeHtml(p.storage) : ''}</span></td>
+                        <td>${escapeHtml(p.brand_name || '-')}</td>
                         <td style="font-weight: 700; color: var(--primary);">${formatPrice(p.price)}đ</td>
                         <td>${p.stock}</td>
                         <td><span class="badge ${stockClass}">${stockText}</span></td>

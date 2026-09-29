@@ -7,8 +7,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "migrate": "node src/config/migrate.js",
+    "lint": "node scripts/lint.js",
+    "format": "node scripts/format-check.js",
+    "backup": "node scripts/backup.js",
     "test": "node tests/product-regressions.test.js",
-    "check": "node --check server.js && node tests/product-regressions.test.js"
+    "check": "npm run lint && npm run format && node --check src/config/migrate.js && node tests/product-regressions.test.js"
   },
   "engines": {
     "node": ">=20"

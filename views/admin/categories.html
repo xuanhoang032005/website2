@@ -175,7 +175,7 @@
                 const userRes = await fetch('/api/auth/me', { credentials: 'include' });
                 const userData = await userRes.json();
                 if (userData.user) {
-                    document.getElementById('adminUser').innerHTML = `<div class="sidebar-avatar">${userData.user.full_name?.charAt(0) || 'A'}</div><div class="sidebar-user-info"><div class="sidebar-user-name">${userData.user.full_name || 'Admin'}</div><div class="sidebar-user-role">Quản trị viên</div></div>`;
+                    document.getElementById('adminUser').innerHTML = `<div class="sidebar-avatar">${escapeHtml(userData.user.full_name?.charAt(0) || 'A')}</div><div class="sidebar-user-info"><div class="sidebar-user-name">${escapeHtml(userData.user.full_name || 'Admin')}</div><div class="sidebar-user-role">Quản trị viên</div></div>`;
                 }
             } catch (e) {}
             loadCategories();
@@ -364,7 +364,7 @@
 
         function showAlert(message, type) {
             const box = document.getElementById('alertBox');
-            box.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            box.innerHTML = `<div class="alert alert-${type}">${escapeHtml(message)}</div>`;
             setTimeout(() => { box.innerHTML = ''; }, 3000);
         }
 

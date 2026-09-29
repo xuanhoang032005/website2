@@ -1,3 +1,5 @@
+import('/js/modules/http.js').then(({ installFetch }) => installFetch()).catch(() => {});
+
 (function () {
     'use strict';
 

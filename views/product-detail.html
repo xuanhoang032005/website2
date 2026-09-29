@@ -450,7 +450,7 @@
             }
 
             // Description
-            document.getElementById('tab-desc').innerHTML = '<h3>Mô tả sản phẩm</h3><div style="white-space:pre-line">' + (product.description || 'Chưa có mô tả cho sản phẩm này.') + '</div>';
+            document.getElementById('tab-desc').innerHTML = '<h3>Mô tả sản phẩm</h3><div style="white-space:pre-line">' + escapeHtml(product.description || 'Chưa có mô tả cho sản phẩm này.') + '</div>';
 
             // Specs table (lọc bỏ null/empty)
             const hasVal = v => v && v !== 'null' && v !== 'undefined' && String(v).trim() !== '';

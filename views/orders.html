@@ -142,7 +142,9 @@
             const toast = document.createElement('div');
             toast.className = 'toast ' + type;
             const icons = { success: 'check-circle-fill', error: 'exclamation-circle-fill', info: 'info-circle-fill' };
-            toast.innerHTML = '<i class="bi bi-' + icons[type] + '"></i> ' + message;
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-' + (icons[type] || icons.info);
+            toast.append(icon, document.createTextNode(' ' + String(message || '')));
             document.body.appendChild(toast);
             setTimeout(() => {
                 toast.style.opacity = '0';

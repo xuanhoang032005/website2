@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
-const { sendOrderEmail } = require('../config/mail');
+const queue = require('../services/job-queue');
 const { syncProductStock } = require('../core/product-variants');
+const ordersController = require('../controllers/orders-controller');
 
 const ONLINE_PAYMENT_METHODS = ['vnpay', 'momo'];
 const VIP_MIN_DELIVERED_SPEND = 30000000;
@@ -240,26 +241,7 @@ async function decreaseStock(db, items) {
 }
 
 function sendConfirmationEmail(orderId, userId) {
-    (async () => {
-        try {
-            const [[orderRows], [userRows], [items]] = await Promise.all([
-                pool.query('SELECT * FROM orders WHERE id = ?', [orderId]),
-                pool.query('SELECT id, full_name, email FROM users WHERE id = ?', [userId]),
-                pool.query(
-                    `SELECT oi.*, p.name, v.ram, v.storage, v.color
-                     FROM order_items oi JOIN products p ON p.id = oi.product_id
-                     LEFT JOIN product_variants v ON v.id = oi.variant_id
-                     WHERE oi.order_id = ?`,
-                    [orderId]
-                )
-            ]);
-            if (orderRows[0] && userRows[0]) {
-                await sendOrderEmail(orderRows[0], userRows[0], items);
-            }
-        } catch (error) {
-            console.error('Lỗi gửi email xác nhận:', error.message);
-        }
-    })();
+    return queue.enqueue('order_email', { orderId, userId });
 }
 
 // Create order
@@ -343,7 +325,11 @@ router.post('/', async (req, res) => {
 });
 
 // Get user's orders
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
+    if (!req.session.user_id) return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
+    try { return await ordersController.list(req, res); } catch (error) { return next(error); }
+});
+/*
     try {
         if (!req.session.user_id) {
             return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
@@ -364,10 +350,14 @@ router.get('/', async (req, res) => {
         console.error('Get orders error:', error);
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });
     }
-});
+});*/
 
 // Get single order
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req, res, next) => {
+    if (!req.session.user_id) return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
+    try { return await ordersController.detail(req, res); } catch (error) { return next(error); }
+});
+/*
     try {
         if (!req.session.user_id) {
             return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
@@ -400,7 +390,7 @@ router.get('/:id', async (req, res) => {
         console.error('Get order error:', error);
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });
     }
-});
+});*/
 
 // Cancel order
 router.put('/:id/cancel', async (req, res) => {

@@ -10,6 +10,7 @@ const { isAllowedImage } = require('../core/image-upload');
 const { parseReviewComment, serializeReviewComment } = require('../core/review-comment');
 const { parseVariantPayload, variantSummary, saveProductVariants, syncProductStock } = require('../core/product-variants');
 const { requireAdmin } = require('../middleware/auth');
+const adminController = require('../controllers/admin-controller');
 const {
     productCloudinaryStorage,
     bannerCloudinaryStorage,
@@ -211,7 +212,10 @@ async function generateUniqueSlug(name) {
 }
 
 // Dashboard stats
-router.get('/stats', requireAdmin, async (req, res) => {
+router.get('/stats', requireAdmin, async (req, res, next) => {
+    try { return await adminController.stats(req, res); } catch (error) { return next(error); }
+});
+/*
     try {
         const [products] = await pool.query('SELECT COUNT(*) as c FROM products');
         const [orders] = await pool.query('SELECT COUNT(*) as c FROM orders');
@@ -259,7 +263,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
         console.error('Stats error:', error);
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });
     }
-});
+});*/
 
 // Notifications for admin dashboard
 router.get('/notifications', requireAdmin, async (req, res) => {

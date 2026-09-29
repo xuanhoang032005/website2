@@ -1,4 +1,18 @@
 function securityHeaders(req, res, next) {
+    const directives = [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "form-action 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+        "img-src 'self' data: https://res.cloudinary.com https://www.gstatic.com",
+        "connect-src 'self' ws: wss:"
+    ];
+    if (process.env.NODE_ENV === 'production') directives.push('upgrade-insecure-requests');
+    res.setHeader('Content-Security-Policy', directives.join('; '));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');

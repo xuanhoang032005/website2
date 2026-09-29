@@ -25,7 +25,7 @@ function createRateLimiter({ windowMs, max, message = 'Bạn thao tác quá nhan
         res.setHeader('RateLimit-Reset', Math.ceil(record.resetAt / 1000));
         if (record.count > max) {
             res.setHeader('Retry-After', Math.ceil((record.resetAt - now) / 1000));
-            return res.status(429).json({ error: message });
+            return res.status(429).json({ success: false, code: 'RATE_LIMITED', error: message });
         }
         next();
     };

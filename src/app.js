@@ -11,10 +11,15 @@ const createPageRouter = require('./routes/pages');
 const { notFoundHandler, errorHandler } = require('./middleware/error-handler');
 const { apiRateLimit } = require('./middleware/rate-limit');
 const { securityHeaders } = require('./middleware/security');
+const { csrfProtection } = require('./middleware/csrf');
+const { requestId } = require('./middleware/observability');
+const { snapshot } = require('./config/metrics');
+const queue = require('./services/background-jobs');
 
 function createApp() {
     const app = express();
     app.disable('x-powered-by');
+    app.use(requestId);
     if (isProduction) app.set('trust proxy', 1);
     app.use(securityHeaders);
 
@@ -37,6 +42,7 @@ function createApp() {
     app.use(cors({ origin: corsOrigin, credentials: true }));
     app.use(express.json({ limit: '1mb' }));
     app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+    app.use(csrfProtection);
 
     app.use('/components', express.static(path.join(viewsDir, 'components')));
     app.use(express.static(publicDir));
@@ -49,6 +55,13 @@ function createApp() {
     app.get(['/favicon.ico', '/favicon.svg'], (req, res) => res.sendFile(path.join(publicDir, 'favicon.svg')));
 
     app.use('/api', apiRateLimit);
+    app.get('/metrics', (req, res) => {
+        const configuredToken = process.env.METRICS_TOKEN;
+        if (configuredToken && req.get('authorization') !== `Bearer ${configuredToken}`) {
+            return res.status(401).json({ success: false, code: 'METRICS_AUTH_REQUIRED', error: 'Unauthorized' });
+        }
+        res.json({ ...snapshot(), jobs: queue.snapshot() });
+    });
     registerRoutes(app);
     app.use(createPageRouter(passport, googleOAuthEnabled));
     app.use(notFoundHandler);

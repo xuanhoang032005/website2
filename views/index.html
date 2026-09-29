@@ -300,23 +300,26 @@
         }
 
         function createProductCard(p) {
+            const productId = Number.isSafeInteger(Number(p.id)) && Number(p.id) > 0 ? Number(p.id) : 0;
+            const productName = escapeHtml(p.name || 'Sản phẩm');
+            const brandName = escapeHtml(p.brand_name || '');
             const inStock = Number(p.stock) > 0;
             const badge = p.discount_percent > 0 ? '<span class="product-badge">-' + Math.round(p.discount_percent) + '%</span>' : '';
             const stockBadge = !inStock ? '<span class="product-badge product-stock-badge">Hết hàng</span>' : '';
             const cardImage = p.display_thumbnail || p.thumbnail;
-            const img = cardImage ? '<img src="' + getThumbUrl(cardImage) + '" alt="' + p.name + '" loading="lazy" onerror="this.onerror=null;this.src=&quot;/images/no-image.svg&quot;">' : '<i class="bi bi-phone" style="font-size: 4rem; color: var(--slate-300);"></i>';
+            const img = cardImage ? '<img src="' + escapeHtml(getThumbUrl(cardImage)) + '" alt="' + productName + '" loading="lazy" onerror="this.onerror=null;this.src=&quot;/images/no-image.svg&quot;">' : '<i class="bi bi-phone" style="font-size: 4rem; color: var(--slate-300);"></i>';
             const oldPrice = p.old_price ? '<span class="product-old-price">' + formatPrice(p.old_price) + 'đ</span>' : '';
             const cartButton = inStock
-                ? '<button class="btn-add-cart" onclick="addToCart(' + p.id + ')"><i class="bi bi-bag-plus"></i> Thêm vào giỏ</button>'
+                ? '<button class="btn-add-cart" onclick="addToCart(' + productId + ')"><i class="bi bi-bag-plus"></i> Thêm vào giỏ</button>'
                 : '<button class="btn-add-cart btn-out-of-stock" disabled><i class="bi bi-x"></i> Hết hàng</button>';
             
             return '<div class="product-card">' +
                 badge + stockBadge +
-                '<a href="/product/' + p.id + '"><div class="product-img-wrap">' + img + '</div></a>' +
+                '<a href="/product/' + productId + '"><div class="product-img-wrap">' + img + '</div></a>' +
                 '<div class="product-body">' +
-                    '<div class="product-brand">' + (p.brand_name || '') + '</div>' +
-                    '<a href="/product/' + p.id + '" style="text-decoration: none">' +
-                        '<div class="product-name">' + p.name + '</div>' +
+                    '<div class="product-brand">' + brandName + '</div>' +
+                    '<a href="/product/' + productId + '" style="text-decoration: none">' +
+                        '<div class="product-name">' + productName + '</div>' +
                     '</a>' +
                     '<div class="product-price-wrap">' +
                         '<span class="product-price">' + formatPrice(p.price) + 'đ</span>' +
@@ -487,18 +490,18 @@
 
             const mainPromo = promotions.find(p => p.banner_type === 'main');
             if (mainPromo) {
-                mainBanner.innerHTML = '<span class="banner-label"><i class="bi bi-lightning-fill"></i> ' + mainPromo.title + '</span>' +
-                    '<div class="banner-title">' + mainPromo.description + '<span>Siêu phẩm công nghệ 2026</span></div>' +
+                mainBanner.innerHTML = '<span class="banner-label"><i class="bi bi-lightning-fill"></i> ' + escapeHtml(mainPromo.title || '') + '</span>' +
+                    '<div class="banner-title">' + escapeHtml(mainPromo.description || '') + '<span>Siêu phẩm công nghệ 2026</span></div>' +
                     '<span class="btn-banner">Xem ngay <i class="bi bi-arrow-right"></i></span>';
-                mainBanner.href = mainPromo.link_url || '/products';
+                mainBanner.href = safeInternalLink(mainPromo.link_url);
             }
 
             const sidePromos = promotions.filter(p => p.banner_type === 'side').slice(0, 2);
             if (sidePromos.length > 0) {
                 sideBanners.innerHTML = sidePromos.map((p, i) => 
-                    '<a href="' + (p.link_url || '/products') + '" class="side-banner ' + (i === 1 ? 'side-2' : '') + '">' +
-                        '<span class="side-banner-tag">' + p.title + '</span>' +
-                        '<span class="side-banner-title">' + p.description + '</span>' +
+                    '<a href="' + escapeHtml(safeInternalLink(p.link_url)) + '" class="side-banner ' + (i === 1 ? 'side-2' : '') + '">' +
+                        '<span class="side-banner-tag">' + escapeHtml(p.title || '') + '</span>' +
+                        '<span class="side-banner-title">' + escapeHtml(p.description || '') + '</span>' +
                     '</a>'
                 ).join('');
             }
@@ -509,27 +512,14 @@
             const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
             return String(text).replace(/[&<>"']/g, c => map[c]);
         }
+
+        function safeInternalLink(value) {
+            const link = typeof value === 'string' ? value.trim() : '';
+            return link.startsWith('/') && !link.startsWith('//') ? link : '/products';
+        }
     </script>
     <script src="/socket.io/socket.io.js"></script>
     <div id="aiChatboxRoot"></div>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('/components/ai-chatbox.html')
-                .then(r => r.text())
-                .then(h => {
-                    var root = document.getElementById('aiChatboxRoot');
-                    if (root) {
-                        root.innerHTML = h;
-                        // Execute scripts manually (innerHTML doesn't run scripts)
-                        var scripts = root.querySelectorAll('script');
-                        scripts.forEach(function(oldScript) {
-                            var newScript = document.createElement('script');
-                            newScript.textContent = oldScript.textContent;
-                            oldScript.parentNode.replaceChild(newScript, oldScript);
-                        });
-                    }
-                });
-        });
-    </script>
+    <script type="module" src="/js/modules/ai-widget.js"></script>
 </body>
 </html>

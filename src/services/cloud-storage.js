@@ -75,7 +75,7 @@ function publicIdFromCloudinaryUrl(value) {
     }
 }
 
-async function destroyCloudinaryUrls(urls = []) {
+async function destroyCloudinaryUrlsNow(urls = []) {
     const publicIds = [...new Set(urls.map(publicIdFromCloudinaryUrl).filter(Boolean))];
     const results = await Promise.allSettled(publicIds.map(destroyPublicId));
     results.forEach((result, index) => {
@@ -83,6 +83,11 @@ async function destroyCloudinaryUrls(urls = []) {
             console.error(`Cloudinary cleanup error (${publicIds[index]}):`, result.reason?.message || result.reason);
         }
     });
+}
+
+function destroyCloudinaryUrls(urls = []) {
+    const queue = require('./job-queue');
+    return queue.enqueue('image_cleanup', { urls });
 }
 
 async function destroyUploadedFiles(files = []) {
@@ -123,6 +128,7 @@ module.exports = {
     destroyPublicId,
     publicIdFromCloudinaryUrl,
     destroyCloudinaryUrls,
+    destroyCloudinaryUrlsNow,
     destroyUploadedFiles,
     destroyUploadedProductFiles
 };

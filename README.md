@@ -76,21 +76,25 @@ mysql -u root -p -e "CREATE DATABASE anhtraisstore CHARACTER SET utf8mb4 COLLATE
 mysql -u root -p anhtraisstore < database/anhtraistore.sql
 ```
 
-#### Lưu ý tương thích schema liên hệ
+File SQL đã bao gồm `contacts.user_id`, các khóa ngoại, unique constraint và index phục vụ đơn hàng, giỏ hàng, đánh giá, coupon và chat.
 
-Mã nguồn hiện tại gắn form liên hệ với tài khoản đăng nhập qua `contacts.user_id`, trong khi snapshot `database/anhtraistore.sql` chưa khai báo cột này. Sau khi import, chạy một lần:
+Với database cũ, chạy migration theo thứ tự bằng lệnh:
 
-```sql
-ALTER TABLE contacts
-    ADD COLUMN user_id INT NULL AFTER id,
-    ADD INDEX idx_contacts_user_id (user_id),
-    ADD CONSTRAINT fk_contacts_user
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+```bash
+npm run migrate
 ```
 
-Nếu database đã có `contacts.user_id`, bỏ qua bước này.
+Trên phpMyAdmin, import lần lượt các file trong `database/migrations/` theo tên. Migration đã chạy được ghi vào bảng `schema_migrations` và không chạy lại; không sửa nội dung migration cũ sau khi đã áp dụng. Migration `002_unique_user_coupon.sql` sẽ dừng nếu lịch sử coupon có dữ liệu trùng để tránh tự động xóa dữ liệu.
 
 ### 3. Cấu hình môi trường
+
+### CI, log và vận hành
+
+`npm run lint`, `npm run format` và `npm test` được chạy tự động trong `.github/workflows/ci.yml`. Server ghi log JSON có `request_id`, phương thức, URL, status và thời gian xử lý. Endpoint `GET /metrics` trả snapshot request/error/latency để health monitor đọc; khi đặt `METRICS_TOKEN`, gửi thêm `Authorization: Bearer <token>`. Khi có lỗi 5xx, nếu đặt `ALERT_WEBHOOK_URL`, server sẽ gửi cảnh báo JSON đến webhook đó.
+
+Backup database thủ công bằng `npm run backup`; lệnh này gọi `mysqldump`, dùng `DB_*` trong `.env` và ghi file vào `BACKUP_DIR` (mặc định `./backups`). Nên chạy bằng Task Scheduler/cron và lưu thư mục backup sang storage riêng.
+
+Email xác nhận đơn, OTP và email chào mừng được đưa vào queue nền với retry/backoff. Dọn ảnh Cloudinary sau thao tác xóa cũng chạy nền. Yêu cầu AI dài (trên 600 ký tự hoặc gửi `async: true`) trả `202` kèm `job_id`; client poll `GET /api/chat/ai/jobs/:id`.
 
 Sao chép `.env.example` thành `.env`:
 
@@ -208,6 +212,8 @@ Các coupon mẫu gồm `WELCOME10`, `FREESHIP`, `VIP20`, `SALE5TR`, `PHONE15` v
 
 ## Cấu trúc dự án
 
+Các luồng đơn hàng và dashboard admin được tổ chức theo lớp `controller -> service -> repository`; route chỉ còn lo HTTP và quyền truy cập. Tích hợp Gemini dùng client riêng tại `src/services/ai/gemini-client.js`. JavaScript dùng chung cho request/CSRF và hộp chat nằm trong `public/js/modules/`, các trang mới nên dùng module này thay vì thêm script inline.
+
 ```text
 Website/
 ├── server.js                     # Entry point HTTP và Socket.IO
@@ -215,6 +221,7 @@ Website/
 ├── .env.example                  # Mẫu biến môi trường
 ├── database/
 │   └── anhtraistore.sql          # Schema 19 bảng, phiên bản sản phẩm và dữ liệu demo
+│   └── migrations/               # Nâng cấp schema có phiên bản cho database cũ
 ├── docs/
 │   └── bao-cao-do-an.md          # Báo cáo, use case và tài liệu thiết kế
 ├── public/
@@ -244,7 +251,7 @@ Database gồm 19 bảng, trong đó `product_variants` lưu riêng RAM, ROM, m�
 ## Kiểm tra dự án
 
 ```bash
-# Chạy 42 bài kiểm tra hồi quy
+# Chạy 47 bài kiểm tra hồi quy
 npm test
 
 # Kiểm tra cú pháp entry point rồi chạy test
@@ -269,10 +276,6 @@ Test hiện bao phủ các luồng quan trọng như lọc sản phẩm, giỏ h
 - Kiểm tra MySQL đã chạy và đúng host/port.
 - Kiểm tra `DB_USER`, `DB_PASS`, `DB_NAME` trong `.env`.
 - Mở `/ready` để phân biệt lỗi database với lỗi web server.
-
-### `Unknown column 'user_id' in 'contacts'`
-
-Chạy câu lệnh `ALTER TABLE contacts` ở phần **Lưu ý tương thích schema liên hệ**.
 
 ### Google OAuth quay lại trang đăng nhập
 

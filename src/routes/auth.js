@@ -3,7 +3,6 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const pool = require('../config/database');
-const { sendPasswordResetOTP } = require('../config/mail');
 const { projectRoot } = require('../core/paths');
 const { isAllowedImage } = require('../core/image-upload');
 const {
@@ -12,6 +11,40 @@ const {
     destroyUploadedFiles
 } = require('../services/cloud-storage');
 const { loginRateLimit, passwordResetRateLimit } = require('../middleware/rate-limit');
+const queue = require('../services/job-queue');
+const { validateBody, stringField, emailField, enumField } = require('../middleware/validate');
+
+const registerValidation = validateBody({
+    full_name: stringField({ required: true, min: 1, max: 100, disallowHtml: true, label: 'Họ tên' }),
+    email: emailField({ required: true }),
+    phone: stringField({ max: 30, disallowHtml: true, label: 'Số điện thoại' }),
+    password: stringField({ required: true, min: 6, max: 128, trim: false, label: 'Mật khẩu' })
+});
+const loginValidation = validateBody({
+    email: emailField({ required: true }),
+    password: stringField({ required: true, min: 1, max: 128, trim: false, label: 'Mật khẩu' })
+});
+const emailValidation = validateBody({ email: emailField({ required: true }) });
+const resetPasswordValidation = validateBody({
+    email: emailField({ required: true }),
+    otp: stringField({ required: true, min: 6, max: 6, pattern: /^\d{6}$/, label: 'Mã xác nhận' }),
+    password: stringField({ required: true, min: 6, max: 128, trim: false, label: 'Mật khẩu' })
+});
+const otpValidation = validateBody({
+    email: emailField({ required: true }),
+    otp: stringField({ required: true, min: 6, max: 6, pattern: /^\d{6}$/, label: 'Mã xác nhận' })
+});
+const profileValidation = validateBody({
+    full_name: stringField({ required: true, min: 1, max: 100, disallowHtml: true, label: 'Họ tên' }),
+    phone: stringField({ max: 30, disallowHtml: true, label: 'Số điện thoại' }),
+    address: stringField({ max: 500, disallowHtml: true, label: 'Địa chỉ' }),
+    birthdate: stringField({ max: 10, pattern: /^\d{4}-\d{2}-\d{2}$/, label: 'Ngày sinh' }),
+    gender: enumField(['male', 'female', 'other'], { label: 'Giới tính' })
+});
+const changePasswordValidation = validateBody({
+    old_password: stringField({ required: true, min: 1, max: 128, trim: false, label: 'Mật khẩu cũ' }),
+    new_password: stringField({ required: true, min: 6, max: 128, trim: false, label: 'Mật khẩu mới' })
+});
 
 // Store OTPs temporarily (in production, use Redis or database)
 const otpStore = new Map(); // { email: { otp, expires, attempts } }
@@ -44,7 +77,7 @@ function validateProfile({ full_name, phone, address, birthdate, gender }) {
 }
 
 // Register
-router.post('/register', loginRateLimit, async (req, res) => {
+router.post('/register', loginRateLimit, registerValidation, async (req, res) => {
     try {
         const { full_name, phone, password } = req.body;
         const email = normalizeEmail(req.body.email);
@@ -82,7 +115,7 @@ router.post('/register', loginRateLimit, async (req, res) => {
 });
 
 // Login
-router.post('/login', loginRateLimit, async (req, res) => {
+router.post('/login', loginRateLimit, loginValidation, async (req, res) => {
     try {
         const email = normalizeEmail(req.body.email);
         const { password } = req.body;
@@ -159,7 +192,7 @@ router.get('/me', async (req, res) => {
 });
 
 // Update profile
-router.put('/profile', async (req, res) => {
+router.put('/profile', profileValidation, async (req, res) => {
     try {
         if (!req.session.user_id) {
             return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
@@ -182,7 +215,7 @@ router.put('/profile', async (req, res) => {
 });
 
 // Alias: update-profile (backward compatibility)
-router.put('/update-profile', async (req, res) => {
+router.put('/update-profile', profileValidation, async (req, res) => {
     try {
         if (!req.session.user_id) {
             return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
@@ -207,7 +240,7 @@ router.put('/update-profile', async (req, res) => {
 // ============ FORGOT PASSWORD - OTP via Email ============
 
 // Step 1: Request OTP
-router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
+router.post('/forgot-password', passwordResetRateLimit, emailValidation, async (req, res) => {
     try {
         const email = normalizeEmail(req.body.email);
 
@@ -240,7 +273,7 @@ router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
 
         // Delete old tokens for this user
         // Send OTP via email
-        await sendPasswordResetOTP(email, otp, 5);
+        queue.enqueue('password_reset_email', { email, otp, expiresIn: 5 });
 
         res.json(passwordResetRequested);
     } catch (error) {
@@ -250,7 +283,7 @@ router.post('/forgot-password', passwordResetRateLimit, async (req, res) => {
 });
 
 // Step 2: Verify OTP and resend password
-router.post('/reset-password', passwordResetRateLimit, async (req, res) => {
+router.post('/reset-password', passwordResetRateLimit, resetPasswordValidation, async (req, res) => {
     try {
         const email = normalizeEmail(req.body.email);
         const { otp, password } = req.body;
@@ -309,7 +342,7 @@ router.post('/reset-password', passwordResetRateLimit, async (req, res) => {
 });
 
 // Verify OTP (check if valid without resetting password)
-router.post('/verify-otp', passwordResetRateLimit, async (req, res) => {
+router.post('/verify-otp', passwordResetRateLimit, otpValidation, async (req, res) => {
     try {
         const email = normalizeEmail(req.body.email);
         const { otp } = req.body;
@@ -344,7 +377,7 @@ router.post('/verify-otp', passwordResetRateLimit, async (req, res) => {
 });
 
 // Đổi mật khẩu khi đã đăng nhập (cần mật khẩu cũ)
-router.put('/change-password', async (req, res) => {
+router.put('/change-password', changePasswordValidation, async (req, res) => {
     try {
         if (!req.session.user_id) {
             return res.status(401).json({ error: 'Vui lòng đăng nhập!' });

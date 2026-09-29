@@ -1,10 +1,12 @@
+const { HttpError } = require('../core/http-error');
+
 function isAdmin(req) {
     return Boolean(req.session?.user_id && req.session.role === 'admin');
 }
 
 function requireAdminApi(req, res, next) {
-    if (!req.session?.user_id) return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
-    if (!isAdmin(req)) return res.status(403).json({ error: 'Chỉ quản trị viên được thực hiện thao tác này!' });
+    if (!req.session?.user_id) return next(new HttpError(401, 'AUTH_REQUIRED', 'Vui lòng đăng nhập!'));
+    if (!isAdmin(req)) return next(new HttpError(403, 'ADMIN_REQUIRED', 'Chỉ quản trị viên được thực hiện thao tác này!'));
     next();
 }
 
@@ -18,6 +20,8 @@ function requireAdmin(req, res, next) {
         || (req.get('accept') || '').includes('application/json');
     if (acceptsJson) {
         return res.status(401).json({
+            success: false,
+            code: 'AUTH_REQUIRED',
             error: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!',
             requireLogin: true
         });

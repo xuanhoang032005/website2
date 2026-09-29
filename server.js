@@ -7,6 +7,7 @@ const pool = require('./src/config/database');
 const mail = require('./src/config/mail');
 const { corsOrigin, port } = require('./src/config/runtime');
 const configureChatSocket = require('./src/realtime/chat-socket');
+const logger = require('./src/config/logger');
 
 function startServer() {
     const { app, sessionMiddleware } = createApp();
@@ -20,17 +21,17 @@ function startServer() {
     app.set('io', io);
 
     server.on('error', error => {
-        console.error('Không thể khởi động máy chủ:', error.message);
+        logger.error('server_error', { error: error.message });
         process.exitCode = 1;
     });
 
     server.listen(port, async () => {
-        console.log(`🚀 Server running on port ${port}`);
+        logger.info('server_started', { port });
         await mail.testConnection();
     });
 
     async function shutdown(signal) {
-        console.log(`${signal}: đang dừng máy chủ...`);
+        logger.info('server_stopping', { signal });
         io.close();
         server.close(async () => {
             await pool.end();
@@ -49,7 +50,7 @@ let runningServer;
 try {
     runningServer = startServer();
 } catch (error) {
-    console.error('Khởi động ứng dụng thất bại:', error.message);
+    logger.error('server_start_failed', { error: error.message });
     throw error;
 }
 

@@ -36,4 +36,4 @@ function sessionOptions() {
     };
 }
 
-module.exports = { isProduction, port, corsOrigin, sessionOptions };
+module.exports = { isProduction, port, allowedOrigins, corsOrigin, sessionOptions };
