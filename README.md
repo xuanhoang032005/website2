@@ -214,7 +214,7 @@ Website/
 ├── package.json                  # Dependencies và npm scripts
 ├── .env.example                  # Mẫu biến môi trường
 ├── database/
-│   └── anhtraistore.sql          # Schema 18 bảng và dữ liệu demo
+│   └── anhtraistore.sql          # Schema 19 bảng, phiên bản sản phẩm và dữ liệu demo
 ├── docs/
 │   └── bao-cao-do-an.md          # Báo cáo, use case và tài liệu thiết kế
 ├── public/
@@ -239,7 +239,7 @@ Website/
     └── *.html                    # 16 trang khách hàng
 ```
 
-Database gồm 18 bảng: `users`, `reset_tokens`, `categories`, `brands`, `products`, `product_images`, `orders`, `order_items`, `cart`, `reviews`, `wishlists`, `coupons`, `user_coupons`, `contacts`, `conversations`, `messages`, `promotions` và `banners`.
+Database gồm 19 bảng, trong đó `product_variants` lưu riêng RAM, ROM, màu sắc, SKU, giá và tồn kho của từng phiên bản sản phẩm.
 
 ## Kiểm tra dự án
 

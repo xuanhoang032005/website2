@@ -943,3 +943,44 @@ test('AI chat history is retained in the current Express session', () => {
         id: 2, name: 'Phone', price: 1000, old_price: null, thumbnail: '/phone.jpg'
     }]);
 });
+
+test('product variants validate combinations and derive the default catalog values', () => {
+    const { parseVariantPayload, variantSummary } = require('../src/core/product-variants');
+    const variants = parseVariantPayload(JSON.stringify([
+        { ram: '8GB', storage: '256GB', color: 'Đen', price: 20000000, old_price: 22000000, stock: 3 },
+        { ram: '12GB', storage: '512GB', color: 'Trắng', price: 25000000, old_price: 27000000, stock: 2, is_default: true }
+    ]));
+    assert.equal(variants[1].is_default, true);
+    assert.deepEqual(plain(variantSummary(variants, null)), {
+        price: 25000000,
+        old_price: 27000000,
+        discount_percent: 7,
+        stock: 5,
+        ram: '12GB',
+        storage: '512GB'
+    });
+    assert.throws(() => parseVariantPayload([
+        { ram: '8GB', storage: '256GB', color: 'Đen', price: 1, stock: 1 },
+        { ram: '8GB', storage: '256GB', color: 'Đen', price: 2, stock: 1 }
+    ]), /trùng RAM, ROM và màu sắc/);
+    assert.throws(() => parseVariantPayload([
+        { sku: 'PHONE-256-BLACK', storage: '256GB', color: 'Đen', price: 1, stock: 1 },
+        { sku: 'phone-256-black', storage: '256GB', color: 'Trắng', price: 2, stock: 1 }
+    ]), /SKU .* đang được dùng cho nhiều phiên bản/);
+});
+
+test('variant selection is connected from admin and product detail through cart and orders', () => {
+    const adminPage = fs.readFileSync(path.join(root, 'views', 'admin', 'products.html'), 'utf8');
+    const detailPage = fs.readFileSync(path.join(root, 'views', 'product-detail.html'), 'utf8');
+    const cartRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'cart.js'), 'utf8');
+    const orderRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'orders.js'), 'utf8');
+    assert.match(adminPage, /formData\.append\('variants', JSON\.stringify\(variants\)\)/);
+    assert.match(adminPage, /data-field="color"/);
+    assert.match(adminPage, /if \(savingProduct\) return/);
+    assert.match(detailPage, /variant_id: selectedVariant \? selectedVariant\.id : null/);
+    assert.match(detailPage, /updateVariantPriceAndStock\(selectedVariant\)/);
+    assert.match(detailPage, /const displayName = sku \? `\$\{baseName\} – \$\{sku\}` : baseName/);
+    assert.match(detailPage, /document\.getElementById\('productName'\)\.textContent = displayName/);
+    assert.match(cartRoute, /INSERT INTO cart \(user_id, product_id, variant_id, quantity\)/);
+    assert.match(orderRoute, /INSERT INTO order_items \(order_id, product_id, variant_id, quantity, price\)/);
+});

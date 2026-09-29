@@ -8,6 +8,7 @@ const fs = require('fs');
 const { projectRoot, viewsDir } = require('../core/paths');
 const { isAllowedImage } = require('../core/image-upload');
 const { parseReviewComment, serializeReviewComment } = require('../core/review-comment');
+const { parseVariantPayload, variantSummary, saveProductVariants, syncProductStock } = require('../core/product-variants');
 const { requireAdmin } = require('../middleware/auth');
 const {
     productCloudinaryStorage,
@@ -493,7 +494,18 @@ router.get('/products/:id', requireAdmin, async (req, res) => {
             'SELECT id, image_url, is_primary, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order',
             [id]
         );
-        res.json({ product: products[0], images });
+        let variants = [];
+        try {
+            [variants] = await pool.query(
+                `SELECT id, sku, ram, storage, color, price, old_price, stock, is_default, is_active
+                 FROM product_variants WHERE product_id = ?
+                 ORDER BY is_default DESC, id ASC`,
+                [id]
+            );
+        } catch (error) {
+            if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+        }
+        res.json({ product: products[0], images, variants });
     } catch (error) {
         console.error('Get product error:', error);
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });
@@ -512,10 +524,21 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
         if (!name || !name.trim()) {
             return productValidationError(req, res, 'Tên sản phẩm không được trống!');
         }
+        const variants = parseVariantPayload(req.body.variants);
         const numbers = parseProductNumbers(req.body);
+        if (variants.length) {
+            const summary = variantSummary(variants, null);
+            numbers.salePrice = summary.price;
+            numbers.oldPrice = summary.old_price;
+            numbers.stockValue = summary.stock;
+            numbers.discountValue = summary.discount_percent;
+        }
         const validationError = validateProductNumbers(numbers);
         if (validationError) return productValidationError(req, res, validationError);
         const { brandId, categoryId, salePrice, oldPrice, stockValue, discountValue } = numbers;
+        const variantBase = variants.length ? variantSummary(variants, null) : null;
+        const effectiveRam = variantBase ? variantBase.ram : (ram === 'null' ? null : (ram || null));
+        const effectiveStorage = variantBase ? variantBase.storage : (storage === 'null' ? null : (storage || null));
 
         // Generate unique slug from name
         const slug = await generateUniqueSlug(name);
@@ -539,10 +562,12 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
             [result] = await connection.query(
             `INSERT INTO products (name, slug, brand_id, category_id, price, old_price, discount_percent, description, thumbnail, ram, storage, stock, is_featured, os, chipset, cpu, gpu, screen_size, screen_resolution)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name.trim(), slug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, ram === 'null' ? null : (ram || null), storage === 'null' ? null : (storage || null), stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null)]
+            [name.trim(), slug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, effectiveRam, effectiveStorage, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null)]
             );
 
             const productId = result.insertId;
+
+            await saveProductVariants(connection, productId, variants);
 
         // Insert gallery images
         if (req.files && req.files.length > 0) {
@@ -571,7 +596,14 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
     } catch (error) {
         await destroyUploadedProductFiles(req.files);
         console.error('Create product error:', error);
-        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Sản phẩm có dữ liệu trùng, vui lòng kiểm tra lại tên sản phẩm!' });
+        if (error.code === 'ER_DUP_ENTRY') {
+            const isSkuConflict = /(?:product_variants\.)?sku/i.test(error.sqlMessage || error.message || '');
+            return res.status(409).json({
+                error: isSkuConflict
+                    ? 'SKU đã được sử dụng cho một phiên bản khác. Vui lòng nhập SKU duy nhất hoặc để trống!'
+                    : 'Đường dẫn sản phẩm bị trùng. Vui lòng đổi tên sản phẩm và thử lại!'
+            });
+        }
         if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.errno === 1452) return res.status(400).json({ error: 'Thương hiệu hoặc danh mục không tồn tại!' });
         res.status(500).json({ error: 'Không thể lưu sản phẩm!' });
     }
@@ -592,10 +624,21 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
         if (!Number.isInteger(productId) || productId < 1) return productValidationError(req, res, 'Mã sản phẩm không hợp lệ!');
         if (!name || !name.trim()) return productValidationError(req, res, 'Tên sản phẩm không được trống!');
 
+        const variants = parseVariantPayload(req.body.variants);
         const numbers = parseProductNumbers(req.body);
+        if (variants.length) {
+            const summary = variantSummary(variants, null);
+            numbers.salePrice = summary.price;
+            numbers.oldPrice = summary.old_price;
+            numbers.stockValue = summary.stock;
+            numbers.discountValue = summary.discount_percent;
+        }
         const validationError = validateProductNumbers(numbers);
         if (validationError) return productValidationError(req, res, validationError);
         const { brandId, categoryId, salePrice, oldPrice, stockValue, discountValue } = numbers;
+        const variantBase = variants.length ? variantSummary(variants, null) : null;
+        const effectiveRam = variantBase ? variantBase.ram : (ram === 'null' ? null : (ram || null));
+        const effectiveStorage = variantBase ? variantBase.storage : (storage === 'null' ? null : (storage || null));
 
         const [brandRows] = await pool.query('SELECT id FROM brands WHERE id = ? AND is_active = 1', [brandId]);
         const [categoryRows] = await pool.query('SELECT id FROM categories WHERE id = ? AND is_active = 1', [categoryId]);
@@ -674,13 +717,14 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
         let query, params;
         if (newSlug) {
             query = `UPDATE products SET name=?, slug=?, brand_id=?, category_id=?, price=?, old_price=?, discount_percent=?, description=?, thumbnail=?, stock=?, is_featured=?, os=?, chipset=?, cpu=?, gpu=?, screen_size=?, screen_resolution=?, ram=?, storage=? WHERE id=?`;
-            params = [name.trim(), newSlug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), ram === 'null' ? null : (ram || null), storage === 'null' ? null : (storage || null), productId];
+            params = [name.trim(), newSlug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), effectiveRam, effectiveStorage, productId];
         } else {
             query = `UPDATE products SET name=?, brand_id=?, category_id=?, price=?, old_price=?, discount_percent=?, description=?, thumbnail=?, stock=?, is_featured=?, os=?, chipset=?, cpu=?, gpu=?, screen_size=?, screen_resolution=?, ram=?, storage=? WHERE id=?`;
-            params = [name.trim(), brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), ram === 'null' ? null : (ram || null), storage === 'null' ? null : (storage || null), productId];
+            params = [name.trim(), brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), effectiveRam, effectiveStorage, productId];
         }
 
         await connection.query(query, params);
+        await saveProductVariants(connection, productId, variants);
         await connection.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
         if (finalGallery.length > 0) {
             const galleryValues = finalGallery.map((imageUrl, index) => [
@@ -720,7 +764,14 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
         }
         await destroyUploadedProductFiles(req.files);
         console.error('Update product error:', error);
-        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Sản phẩm có dữ liệu trùng!' });
+        if (error.code === 'ER_DUP_ENTRY') {
+            const isSkuConflict = /(?:product_variants\.)?sku/i.test(error.sqlMessage || error.message || '');
+            return res.status(409).json({
+                error: isSkuConflict
+                    ? 'SKU đã được sử dụng cho một phiên bản khác. Vui lòng nhập SKU duy nhất hoặc để trống!'
+                    : 'Đường dẫn sản phẩm bị trùng. Vui lòng đổi tên sản phẩm và thử lại!'
+            });
+        }
         if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.errno === 1452) return res.status(400).json({ error: 'Thương hiệu hoặc danh mục không tồn tại!' });
         res.status(error.status || 500).json({ error: error.status ? error.message : 'Không thể cập nhật sản phẩm!' });
     }
@@ -762,9 +813,12 @@ router.get('/orders/list', requireAdmin, async (req, res) => {
         const { status } = req.query;
         let query = `SELECT o.*, u.full_name AS customer_name,
                     COALESCE((
-                        SELECT GROUP_CONCAT(CONCAT(p.name, ' ×', oi.quantity) ORDER BY oi.id SEPARATOR ', ')
-                        FROM order_items oi
-                        LEFT JOIN products p ON p.id = oi.product_id
+                        SELECT GROUP_CONCAT(CONCAT(p.name,
+                            CASE WHEN v.id IS NULL THEN '' ELSE CONCAT(' (', CONCAT_WS(' / ', v.ram, v.storage, v.color), ')') END,
+                            ' ×', oi.quantity) ORDER BY oi.id SEPARATOR ', ')
+                         FROM order_items oi
+                         LEFT JOIN products p ON p.id = oi.product_id
+                         LEFT JOIN product_variants v ON v.id = oi.variant_id
                         WHERE oi.order_id = o.id
                     ), '') AS items
                     FROM orders o
@@ -802,9 +856,12 @@ router.get('/orders/:id', requireAdmin, async (req, res) => {
         }
 
         const [items] = await pool.query(
-            `SELECT oi.*, p.name AS product_name, p.thumbnail AS product_image
+            `SELECT oi.*, p.name AS product_name, p.thumbnail AS product_image,
+                    COALESCE(v.ram, p.ram) AS ram, COALESCE(v.storage, p.storage) AS storage,
+                    v.color, v.sku
              FROM order_items oi
              JOIN products p ON oi.product_id = p.id
+             LEFT JOIN product_variants v ON oi.variant_id = v.id
              WHERE oi.order_id = ?`,
             [id]
         );
@@ -847,7 +904,7 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
         }
 
         const [items] = await connection.query(
-            `SELECT oi.product_id, oi.quantity, p.name
+            `SELECT oi.product_id, oi.variant_id, oi.quantity, p.name
              FROM order_items oi JOIN products p ON p.id = oi.product_id
              WHERE oi.order_id = ?`,
             [id]
@@ -856,15 +913,21 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
         // Đơn online chỉ trừ kho khi được xác nhận; COD đã trừ kho lúc đặt hàng.
         if (order.status === 'pending' && status === 'confirmed' && ['momo', 'vnpay'].includes(order.payment_method)) {
             for (const item of items) {
-                const [updated] = await connection.query(
-                    'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
-                    [item.quantity, item.product_id, item.quantity]
-                );
+                const [updated] = item.variant_id
+                    ? await connection.query(
+                        'UPDATE product_variants SET stock = stock - ? WHERE id = ? AND product_id = ? AND is_active = 1 AND stock >= ?',
+                        [item.quantity, item.variant_id, item.product_id, item.quantity]
+                    )
+                    : await connection.query(
+                        'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
+                        [item.quantity, item.product_id, item.quantity]
+                    );
                 if (updated.affectedRows !== 1) {
                     const error = new Error(`Sản phẩm "${item.name}" không đủ hàng!`);
                     error.status = 400;
                     throw error;
                 }
+                if (item.variant_id) await syncProductStock(connection, item.product_id);
             }
 
             if (order.coupon_code && Number(order.discount_amount) > 0) {
@@ -911,10 +974,12 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
             && (order.status !== 'pending' || order.payment_method === 'cod');
         if (shouldRestoreStock) {
             for (const item of items) {
-                await connection.query(
-                    'UPDATE products SET stock = stock + ? WHERE id = ?',
-                    [item.quantity, item.product_id]
-                );
+                if (item.variant_id) {
+                    await connection.query('UPDATE product_variants SET stock = stock + ? WHERE id = ?', [item.quantity, item.variant_id]);
+                    await syncProductStock(connection, item.product_id);
+                } else {
+                    await connection.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+                }
             }
 
             if (order.coupon_code) {

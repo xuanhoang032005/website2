@@ -100,8 +100,14 @@ router.get('/', async (req, res) => {
         for (const [column, value] of [['ram', ram], ['storage', storage]]) {
             const values = [...new Set(filterValues(value).map(normalizeCapacity).map(v => v.replace(/GB/g, '')))];
             if (values.length > 0) {
-                where.push(`REPLACE(UPPER(REPLACE(TRIM(p.${column}), ' ', '')), 'GB', '') IN (${values.map(() => '?').join(',')})`);
-                params.push(...values);
+                const placeholders = values.map(() => '?').join(',');
+                where.push(`(REPLACE(UPPER(REPLACE(TRIM(p.${column}), ' ', '')), 'GB', '') IN (${placeholders})
+                    OR EXISTS (
+                        SELECT 1 FROM product_variants fv
+                        WHERE fv.product_id = p.id AND fv.is_active = 1
+                          AND REPLACE(UPPER(REPLACE(TRIM(fv.${column}), ' ', '')), 'GB', '') IN (${placeholders})
+                    ))`);
+                params.push(...values, ...values);
             }
         }
 
@@ -152,10 +158,18 @@ router.get('/', async (req, res) => {
         );
         const [categories] = await pool.query('SELECT id, name, slug FROM categories WHERE is_active = 1 ORDER BY name');
         const [rams] = await pool.query(
-            'SELECT DISTINCT ram FROM products WHERE ram IS NOT NULL AND ram != "" ORDER BY ram'
+            `SELECT DISTINCT ram FROM (
+                SELECT ram FROM products WHERE ram IS NOT NULL AND ram != ''
+                UNION ALL
+                SELECT ram FROM product_variants WHERE is_active = 1 AND ram IS NOT NULL AND ram != ''
+             ) values_ram ORDER BY ram`
         );
         const [storages] = await pool.query(
-            'SELECT DISTINCT storage FROM products WHERE storage IS NOT NULL AND storage != "" ORDER BY storage'
+            `SELECT DISTINCT storage FROM (
+                SELECT storage FROM products WHERE storage IS NOT NULL AND storage != ''
+                UNION ALL
+                SELECT storage FROM product_variants WHERE is_active = 1 AND storage IS NOT NULL AND storage != ''
+             ) values_storage ORDER BY storage`
         );
 
         res.json({
@@ -207,7 +221,10 @@ router.get('/:id', async (req, res) => {
         let variants = [];
         try {
             const [v] = await pool.query(
-                `SELECT * FROM product_variants WHERE product_id = ? AND is_active = 1 ORDER BY storage`,
+                `SELECT id, sku, ram, storage, color, price, old_price, stock, is_default
+                 FROM product_variants
+                 WHERE product_id = ? AND is_active = 1
+                 ORDER BY is_default DESC, ram, storage, color, id`,
                 [id]
             );
             variants = v;

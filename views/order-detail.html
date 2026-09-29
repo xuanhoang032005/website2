@@ -742,6 +742,7 @@
                         <a href="/product/${item.product_id}" style="text-decoration:none">
                             <div class="product-name">${item.name || 'Sản phẩm'}</div>
                         </a>
+                        ${[item.ram, item.storage, item.color].filter(Boolean).length ? `<div class="product-qty">${[item.ram, item.storage, item.color].filter(Boolean).join(' / ')}</div>` : ''}
                         <div class="product-qty">Số lượng: <strong>${item.quantity}</strong></div>
                     </div>
                     <div class="product-price">

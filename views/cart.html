@@ -452,8 +452,9 @@
                 const oldPrice = item.old_price ? '<span class="cart-item-old">' + formatPrice(item.old_price) + 'đ</span>' : '';
                 
                 // Display variant info if available
-                const variantInfo = (item.ram || item.storage) 
-                    ? '<div class="cart-item-variant"><i class="bi bi-memory"></i> ' + (item.ram || '') + (item.storage ? ' / ' + item.storage : '') + '</div>' 
+                const variantParts = [item.ram, item.storage, item.color].filter(Boolean);
+                const variantInfo = variantParts.length
+                    ? '<div class="cart-item-variant"><i class="bi bi-memory"></i> ' + variantParts.join(' / ') + '</div>'
                     : '';
                 
                 itemsHtml += '<div class="cart-item" id="item-' + item.id + '">' +
@@ -466,7 +467,7 @@
                         '<div><span class="cart-item-price">' + formatPrice(price) + 'đ</span>' + oldPrice + '</div>' +
                     '</div>' +
                     '<div class="cart-item-actions">' +
-                        '<div class="cart-item-subtotal" id="subtotal-' + item.id + '">' + formatPrice(item.price * item.quantity) + 'đ</div>' +
+                        '<div class="cart-item-subtotal" id="subtotal-' + item.id + '">' + formatPrice(price * item.quantity) + 'đ</div>' +
                         '<div class="qty-ctrl">' +
                             '<button onclick="changeQty(' + item.id + ', -1, ' + item.stock + ')">−</button>' +
                             '<input type="number" id="qty-' + item.id + '" value="' + item.quantity + '" min="1" max="' + item.stock + '" onchange="updateQty(' + item.id + ')">' +

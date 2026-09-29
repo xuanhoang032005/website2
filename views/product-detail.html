@@ -195,6 +195,34 @@
             font-weight: 600;
             margin-top: 8px;
         }
+        .variant-selectors { margin: 14px 0 18px; display: none; }
+        .variant-selectors.show { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; }
+        .variant-group { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+        .variant-group + .variant-group { margin-top: 0; }
+        .variant-group-label { display:block; margin:0 2px 0 0; color:var(--slate-600); font-size:.75rem; font-weight:700; white-space:nowrap; }
+        .variant-options { display:flex; flex-wrap:wrap; gap:6px; }
+        .variant-option {
+            min-width: 0;
+            min-height: 31px;
+            padding: 5px 10px;
+            border: 1px solid var(--slate-200);
+            border-radius: 6px;
+            background: var(--white);
+            color: var(--slate-600);
+            font-size: .78rem;
+            font-weight: 700;
+            line-height: 1.25;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+        }
+        .variant-option:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-bg); }
+        .variant-option:focus-visible { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-bg); }
+        .variant-option.active { border-color:var(--primary); color:#fff; background:var(--gradient-primary); box-shadow:0 2px 6px rgba(226,27,27,.2); }
+        .variant-option.out-of-stock { opacity:.48; text-decoration:line-through; }
 
         .detail-specs {
             display: grid;
@@ -868,6 +896,8 @@
                     <div class="detail-save" id="productSave"></div>
                 </div>
 
+                <div class="variant-selectors" id="variantSelectors"></div>
+
                 <div class="qty-section">
                     <span class="qty-label">Số lượng</span>
                     <div class="qty-control">
@@ -1236,9 +1266,7 @@
 
                 // Render product
                 renderProduct(data);
-                document.getElementById('qtyInput').max = data.product.stock || 999;
-                document.title = data.product.name + ' - AnhTraiStore';
-                document.getElementById('productBreadcrumb').textContent = data.product.name;
+                document.getElementById('qtyInput').max = Number((selectedVariant || data.product).stock) || 1;
                 
                 console.log('Product rendered successfully');
             } catch (error) {
@@ -1254,7 +1282,7 @@
         }
 
         function renderProduct(data) {
-            const { product, images, reviews, ratingStats, related } = data;
+            const { product, images, variants = [], reviews, ratingStats, related } = data;
             const inWishlist = data.inWishlist || false;
             currentProductId = product.id;
             window.currentProductData = product;
@@ -1298,56 +1326,25 @@
             // Info
             document.getElementById('productBrand').textContent = product.brand_name || '';
             document.getElementById('productName').textContent = product.name;
-            document.getElementById('productStock').textContent = product.stock;
-            document.getElementById('productPrice').textContent = formatPrice(product.price) + 'đ';
-
-            if (product.old_price) {
-                const saveAmount = product.old_price - product.price;
-                document.getElementById('productOldPrice').innerHTML = 
-                    '<span class="detail-old-price">' + formatPrice(product.old_price) + 'đ</span>' +
-                    (product.discount_percent > 0 ? '<span class="detail-discount-badge">Tiết kiệm ' + Math.round(product.discount_percent) + '%</span>' : '');
-            }
+            renderVariantSelectors(variants);
+            const selectedItem = selectedVariant || product;
+            updateVariantPriceAndStock(selectedItem);
             // Rating
             let stars = '';
             for (let i = 1; i <= 5; i++) {
                 stars += '<i class="bi bi-star' + (i <= Math.round(ratingStats.avgRating) ? '-fill' : '') + '"></i>';
             }
             const totalReviews = ratingStats.total || ratingStats.totalReviews || 0;
-            const stockStatus = product.stock > 0
+            const stockStatus = selectedItem.stock > 0
                 ? '<span style="color:var(--success)"><i class="bi bi-check-circle-fill"></i> Còn hàng</span>'
                 : '<span style="color:var(--danger)"><i class="bi bi-x-circle-fill"></i> Hết hàng</span>';
             document.getElementById('productRating').innerHTML = 
                 '<div class="detail-stars">' + stars + '</div>' +
                 '<span class="detail-rating-text"><strong>' + parseFloat(ratingStats.avgRating).toFixed(1) + '</strong>/5 (' + totalReviews + ' đánh giá)</span>' +
-                '<span style="margin-left:auto">' + stockStatus + '</span>';
+                '<span style="margin-left:auto" id="productStockStatus">' + stockStatus + '</span>';
 
             // Actions
-            if (product.stock > 0) {
-                document.getElementById('productActions').innerHTML = 
-                    '<button class="btn-add-cart-detail" onclick="addToCart(' + product.id + ', parseInt(document.getElementById(\'qtyInput\').value))">' +
-                        '<i class="bi bi-bag-plus"></i> Thêm vào giỏ hàng' +
-                    '</button>' +
-                    '<button class="btn-buy-now" onclick="buyNow(' + product.id + ')">' +
-                        '<i class="bi bi-lightning-fill"></i> Mua ngay' +
-                    '</button>' +
-                    '<button class="btn-wishlist ' + (inWishlist ? 'active' : '') + '" id="wishlistBtn-' + product.id + '" onclick="addToWishlist(' + product.id + ', this)" title="Yêu thích">' +
-                        '<i class="bi bi-heart' + (inWishlist ? '-fill' : '') + '"></i>' +
-                    '</button>' +
-                    '<button class="btn-wishlist" id="compareBtn-' + product.id + '" onclick="addToCompare(' + product.id + ', this)" title="So sánh">' +
-                        '<i class="bi bi-bar-chart"></i>' +
-                    '</button>';
-            } else {
-                document.getElementById('productActions').innerHTML = 
-                    '<button class="btn-add-cart-detail" disabled style="opacity:0.5;cursor:not-allowed">' +
-                        '<i class="bi bi-x-circle"></i> Sản phẩm hết hàng' +
-                    '</button>' +
-                    '<button class="btn-wishlist ' + (inWishlist ? 'active' : '') + '" id="wishlistBtn-' + product.id + '" onclick="addToWishlist(' + product.id + ', this)" title="Yêu thích">' +
-                        '<i class="bi bi-heart' + (inWishlist ? '-fill' : '') + '"></i>' +
-                    '</button>' +
-                    '<button class="btn-wishlist" id="compareBtn-' + product.id + '" onclick="addToCompare(' + product.id + ', this)" title="So sánh">' +
-                        '<i class="bi bi-bar-chart"></i>' +
-                    '</button>';
-            }
+            renderProductActions(product, inWishlist);
 
             // Update compare button state
             if (typeof isInCompare === 'function' && isInCompare(product.id)) {
@@ -1457,6 +1454,105 @@
         }
 
         // Selected variant state
+        let selectedVariant = null;
+        let selectedMemoryKey = '';
+
+        function memoryKey(variant) {
+            return (variant.ram || '') + '|' + (variant.storage || '');
+        }
+
+        function memoryLabel(variant) {
+            return [variant.ram, variant.storage].filter(Boolean).join(' / ') || 'Phiên bản chuẩn';
+        }
+
+        function renderVariantSelectors(variants) {
+            const container = document.getElementById('variantSelectors');
+            if (!Array.isArray(variants) || variants.length === 0) {
+                selectedVariant = null;
+                container.classList.remove('show');
+                container.innerHTML = '';
+                return;
+            }
+            selectedVariant = variants.find(variant => Number(variant.is_default) === 1) || variants.find(variant => Number(variant.stock) > 0) || variants[0];
+            selectedMemoryKey = memoryKey(selectedVariant);
+            drawVariantSelectors();
+        }
+
+        function drawVariantSelectors() {
+            const variants = productData.variants || [];
+            const container = document.getElementById('variantSelectors');
+            const memoryVariants = [];
+            const seenMemory = new Set();
+            variants.forEach(variant => {
+                const key = memoryKey(variant);
+                if (!seenMemory.has(key)) { seenMemory.add(key); memoryVariants.push(variant); }
+            });
+            const colorVariants = variants.filter(variant => memoryKey(variant) === selectedMemoryKey);
+            container.classList.add('show');
+            container.innerHTML = `
+                ${memoryVariants.length > 1 || memoryLabel(memoryVariants[0]) !== 'Phiên bản chuẩn' ? `<div class="variant-group"><span class="variant-group-label">Bộ nhớ</span><div class="variant-options" id="memoryOptions">${memoryVariants.map((variant, index) => `<button type="button" class="variant-option ${memoryKey(variant) === selectedMemoryKey ? 'active' : ''}" data-memory-index="${index}">${escapeHtml(memoryLabel(variant))}</button>`).join('')}</div></div>` : ''}
+                ${colorVariants.some(variant => variant.color) ? `<div class="variant-group"><span class="variant-group-label">Màu sắc</span><div class="variant-options" id="colorOptions">${colorVariants.map(variant => `<button type="button" class="variant-option ${Number(variant.id) === Number(selectedVariant.id) ? 'active' : ''} ${Number(variant.stock) < 1 ? 'out-of-stock' : ''}" data-variant-id="${variant.id}">${escapeHtml(variant.color || 'Mặc định')}</button>`).join('')}</div></div>` : ''}`;
+            container.querySelectorAll('[data-memory-index]').forEach(button => button.addEventListener('click', () => {
+                const target = memoryVariants[Number(button.dataset.memoryIndex)];
+                selectedMemoryKey = memoryKey(target);
+                const choices = variants.filter(variant => memoryKey(variant) === selectedMemoryKey);
+                selectedVariant = choices.find(variant => Number(variant.stock) > 0) || choices[0];
+                drawVariantSelectors();
+                applySelectedVariant();
+            }));
+            container.querySelectorAll('[data-variant-id]').forEach(button => button.addEventListener('click', () => {
+                selectedVariant = variants.find(variant => Number(variant.id) === Number(button.dataset.variantId)) || selectedVariant;
+                drawVariantSelectors();
+                applySelectedVariant();
+            }));
+        }
+
+        function updateVariantPriceAndStock(item) {
+            const price = Number(item.price || 0);
+            const oldPrice = Number(item.old_price || 0);
+            const stock = Number(item.stock || 0);
+            updateVariantIdentity(item);
+            document.getElementById('productStock').textContent = stock;
+            document.getElementById('productPrice').textContent = formatPrice(price) + 'đ';
+            document.getElementById('productOldPrice').innerHTML = oldPrice > price
+                ? '<span class="detail-old-price">' + formatPrice(oldPrice) + 'đ</span><span class="detail-discount-badge">Tiết kiệm ' + Math.round((1 - price / oldPrice) * 100) + '%</span>'
+                : '';
+            document.getElementById('productSave').textContent = oldPrice > price ? 'Tiết kiệm ' + formatPrice(oldPrice - price) + 'đ' : '';
+            const qty = document.getElementById('qtyInput');
+            qty.max = Math.max(1, stock);
+            if (Number(qty.value) > stock) qty.value = stock > 0 ? stock : 1;
+            const status = document.getElementById('productStockStatus');
+            if (status) status.innerHTML = stock > 0
+                ? '<span style="color:var(--success)"><i class="bi bi-check-circle-fill"></i> Còn hàng</span>'
+                : '<span style="color:var(--danger)"><i class="bi bi-x-circle-fill"></i> Hết hàng</span>';
+        }
+
+        function updateVariantIdentity(item) {
+            const baseName = String(productData?.product?.name || '').trim();
+            const sku = String(item?.sku || '').trim();
+            const displayName = sku ? `${baseName} – ${sku}` : baseName;
+            document.getElementById('productName').textContent = displayName;
+            document.getElementById('productBreadcrumb').textContent = displayName;
+            document.title = displayName + ' - AnhTraiStore';
+        }
+
+        function renderProductActions(product, inWishlist) {
+            const item = selectedVariant || product;
+            const variantId = selectedVariant ? selectedVariant.id : null;
+            const purchase = Number(item.stock) > 0
+                ? '<button class="btn-add-cart-detail" onclick="addToCart(' + product.id + ', parseInt(document.getElementById(\'qtyInput\').value), ' + (variantId || 'null') + ')"><i class="bi bi-bag-plus"></i> Thêm vào giỏ hàng</button>' +
+                  '<button class="btn-buy-now" onclick="buyNow(' + product.id + ')"><i class="bi bi-lightning-fill"></i> Mua ngay</button>'
+                : '<button class="btn-add-cart-detail" disabled style="opacity:0.5;cursor:not-allowed"><i class="bi bi-x-circle"></i> Phiên bản hết hàng</button>';
+            document.getElementById('productActions').innerHTML = purchase +
+                '<button class="btn-wishlist ' + (inWishlist ? 'active' : '') + '" id="wishlistBtn-' + product.id + '" onclick="addToWishlist(' + product.id + ', this)" title="Yêu thích"><i class="bi bi-heart' + (inWishlist ? '-fill' : '') + '"></i></button>' +
+                '<button class="btn-wishlist" id="compareBtn-' + product.id + '" onclick="addToCompare(' + product.id + ', this)" title="So sánh"><i class="bi bi-bar-chart"></i></button>';
+        }
+
+        function applySelectedVariant() {
+            if (!selectedVariant) return;
+            updateVariantPriceAndStock(selectedVariant);
+            renderProductActions(productData.product, productData.inWishlist || false);
+        }
 
         function switchTab(btn, tabId) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1470,7 +1566,7 @@
         function changeQty(delta) {
             const input = document.getElementById('qtyInput');
             let val = parseInt(input.value) + delta;
-            const maxStock = productData.product.stock;
+            const maxStock = Number((selectedVariant || productData.product).stock);
             
             if (val < 1) val = 1;
             if (val > maxStock) {
@@ -1486,7 +1582,7 @@
         
         // Validate when user types directly
         document.getElementById('qtyInput').addEventListener('change', function() {
-            const maxStock = productData.product.stock;
+            const maxStock = Number((selectedVariant || productData.product).stock);
             let val = parseInt(this.value);
             if (isNaN(val) || val < 1) val = 1;
             if (val > maxStock) {
@@ -1559,7 +1655,7 @@
 
         async function buyNow(id) {
             const qty = parseInt(document.getElementById('qtyInput').value);
-            const maxStock = productData.product.stock;
+            const maxStock = Number((selectedVariant || productData.product).stock);
             
             // Validate quantity
             if (qty > maxStock) {
@@ -1588,10 +1684,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ 
-                        product_id: id, 
+                        product_id: id,
+                        variant_id: selectedVariant ? selectedVariant.id : null,
                         quantity: qty,
                         product_name: productData.product.name,
-                        price: productData.product.price,
+                        price: (selectedVariant || productData.product).price,
                         thumbnail: productData.product.thumbnail
                     })
                 });

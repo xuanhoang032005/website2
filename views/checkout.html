@@ -834,11 +834,15 @@
                         items: [{
                             cart_id: 'buy_now',
                             product_id: data.buyNow.product_id,
+                            variant_id: data.buyNow.variant_id,
                             name: data.buyNow.product_name,
                             price: data.buyNow.price,
                             quantity: data.buyNow.quantity,
                             thumbnail: data.buyNow.thumbnail,
-                            stock: data.buyNow.stock
+                            stock: data.buyNow.stock,
+                            ram: data.buyNow.ram,
+                            storage: data.buyNow.storage,
+                            color: data.buyNow.color
                         }],
                         total: data.buyNow.price * data.buyNow.quantity
                     };
@@ -1220,6 +1224,7 @@
                         <div class="summary-item-img">${img}</div>
                         <div class="summary-item-info">
                             <div class="summary-item-name">${item.name}</div>
+                            ${[item.ram, item.storage, item.color].filter(Boolean).length ? `<div class="summary-item-qty">${[item.ram, item.storage, item.color].filter(Boolean).join(' / ')}</div>` : ''}
                             <div class="summary-item-qty">x${item.quantity}</div>
                         </div>
                         <div class="summary-item-price">${formatPrice(item.price * item.quantity)}đ</div>

@@ -86,7 +86,7 @@ async function sendOrderEmail(order, user, items) {
     
     const itemsHtml = items.map(item => `
         <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #eee;">${escapeHtml(item.name)}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">${escapeHtml(item.name)}${[item.ram, item.storage, item.color].filter(Boolean).length ? `<br><small>${escapeHtml([item.ram, item.storage, item.color].filter(Boolean).join(' / '))}</small>` : ''}</td>
             <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
             <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price)}</td>
             <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.price * item.quantity)}</td>

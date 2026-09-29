@@ -227,7 +227,7 @@
                             </div>
                         </div>
 
-                        <div class="form-row">
+                        <div class="form-row legacy-base-fields">
                             <div class="form-group">
                                 <label class="form-label">RAM</label>
                                 <select class="form-control" id="ram">
@@ -258,7 +258,7 @@
                     </div>
 
                     <!-- Section: Giá & Kho -->
-                    <div class="product-form-section">
+                    <div class="product-form-section legacy-base-fields">
                         <div class="section-title"><i class="fas fa-tags"></i> Giá & Tồn kho</div>
 
                         <div class="form-row">
@@ -283,6 +283,18 @@
                                 <input type="text" class="form-control" id="discount_percent" readonly style="background: rgba(16, 185, 129, 0.1); color: var(--success); font-weight: 700; text-align: center;">
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Section: Phiên bản sản phẩm -->
+                    <div class="product-form-section">
+                        <div class="variant-section-header">
+                            <div class="section-title"><i class="fas fa-layer-group"></i> Phiên bản RAM / ROM / màu sắc</div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addProductVariant()">
+                                <i class="fas fa-plus"></i> Thêm phiên bản
+                            </button>
+                        </div>
+                        <p class="variant-help">Mỗi tổ hợp RAM, ROM và màu có giá bán, giá niêm yết và tồn kho riêng. Chọn một phiên bản mặc định để hiển thị trên danh sách sản phẩm.</p>
+                        <div id="variantsContainer" class="variant-list"></div>
                     </div>
 
                     <!-- Section: Hình ảnh -->
@@ -325,7 +337,7 @@
                     <i class="fas fa-times"></i>
                     Hủy bỏ
                 </button>
-                <button class="btn btn-primary" onclick="saveProduct()">
+                <button class="btn btn-primary" id="saveProductButton" onclick="saveProduct()">
                     <i class="fas fa-save"></i>
                     Lưu sản phẩm
                 </button>
@@ -520,6 +532,8 @@
             document.getElementById('productForm').reset();
             document.getElementById('discount_percent').value = '0%';
             document.getElementById('priceError').style.display = 'none';
+            productVariants = [emptyProductVariant(true)];
+            renderProductVariants();
 
             // Reset gallery
             galleryImages = [];
@@ -586,6 +600,26 @@
                 safeSetValue('screen_resolution', p.screen_resolution && p.screen_resolution !== 'null' ? p.screen_resolution : '');
                 safeSetValue('ram', p.ram && p.ram !== 'null' ? p.ram : '');
                 safeSetValue('storage', p.storage && p.storage !== 'null' ? p.storage : '');
+
+                productVariants = Array.isArray(data.variants) && data.variants.length
+                    ? data.variants.map(variant => ({
+                        id: variant.id,
+                        sku: variant.sku || '',
+                        ram: variant.ram || '',
+                        storage: variant.storage || '',
+                        color: variant.color || '',
+                        old_price: variant.old_price == null ? '' : Number(variant.old_price),
+                        price: Number(variant.price),
+                        stock: Number(variant.stock),
+                        is_default: Number(variant.is_default) === 1,
+                        is_active: Number(variant.is_active) !== 0
+                    }))
+                    : [{
+                        id: null, sku: '', ram: p.ram || '', storage: p.storage || '', color: '',
+                        old_price: p.old_price == null ? '' : Number(p.old_price), price: Number(p.price),
+                        stock: Number(p.stock), is_default: true, is_active: true
+                    }];
+                renderProductVariants();
 
                 calculateDiscount();
 
@@ -707,6 +741,102 @@
 
         // Product Variants Management
         let productVariants = [];
+        let savingProduct = false;
+
+        function emptyProductVariant(isDefault = false) {
+            return { id: null, sku: '', ram: '', storage: '', color: '', old_price: '', price: '', stock: 0, is_default: isDefault, is_active: true };
+        }
+
+        function variantAttr(value) {
+            return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function renderProductVariants() {
+            const container = document.getElementById('variantsContainer');
+            if (!container) return;
+            container.innerHTML = productVariants.map((variant, index) => `
+                <div class="variant-row" data-index="${index}">
+                    <div class="variant-row-head">
+                        <label class="variant-default">
+                            <input type="radio" name="variantDefault" value="${index}" ${variant.is_default ? 'checked' : ''}>
+                            Phiên bản mặc định
+                        </label>
+                        <button type="button" class="variant-remove" onclick="removeProductVariant(${index})" title="Xóa phiên bản" ${productVariants.length === 1 ? 'disabled' : ''}>
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="variant-grid">
+                        <div class="form-group"><label class="form-label">RAM</label><input class="form-control" data-field="ram" value="${variantAttr(variant.ram)}" placeholder="8GB"></div>
+                        <div class="form-group"><label class="form-label">ROM</label><input class="form-control" data-field="storage" value="${variantAttr(variant.storage)}" placeholder="256GB"></div>
+                        <div class="form-group"><label class="form-label">Màu sắc</label><input class="form-control" data-field="color" value="${variantAttr(variant.color)}" placeholder="Titan tự nhiên"></div>
+                        <div class="form-group"><label class="form-label">SKU</label><input class="form-control" data-field="sku" value="${variantAttr(variant.sku)}" placeholder="IP15PM-8-256-TN"></div>
+                        <div class="form-group"><label class="form-label">Giá niêm yết</label><input class="form-control" data-field="old_price" value="${variant.old_price === '' ? '' : Number(variant.old_price).toLocaleString('vi-VN')}" placeholder="32.990.000" oninput="formatPriceInput(this)"></div>
+                        <div class="form-group"><label class="form-label">Giá bán *</label><input class="form-control" data-field="price" value="${variant.price === '' ? '' : Number(variant.price).toLocaleString('vi-VN')}" placeholder="28.990.000" oninput="formatPriceInput(this)"></div>
+                        <div class="form-group"><label class="form-label">Tồn kho *</label><input type="number" min="0" class="form-control" data-field="stock" value="${Number(variant.stock) || 0}"></div>
+                        <div class="form-group"><label class="form-label">Trạng thái</label><label class="variant-default"><input type="checkbox" data-field="is_active" ${variant.is_active ? 'checked' : ''}> Đang bán</label></div>
+                    </div>
+                </div>`).join('');
+        }
+
+        function collectProductVariants(showErrors = true) {
+            const rows = [...document.querySelectorAll('#variantsContainer .variant-row')];
+            const defaultIndex = Number(document.querySelector('input[name="variantDefault"]:checked')?.value || 0);
+            const variants = rows.map((row, index) => {
+                const value = field => row.querySelector(`[data-field="${field}"]`)?.value.trim() || '';
+                return {
+                    id: productVariants[index]?.id || null,
+                    sku: value('sku'), ram: value('ram'), storage: value('storage'), color: value('color'),
+                    old_price: getRawNumber(value('old_price')) || null,
+                    price: getRawNumber(value('price')),
+                    stock: Number(value('stock')),
+                    is_default: index === defaultIndex,
+                    is_active: !!row.querySelector('[data-field="is_active"]')?.checked
+                };
+            });
+            for (let index = 0; index < variants.length; index++) {
+                const variant = variants[index];
+                if (!variant.ram && !variant.storage && !variant.color) {
+                    if (showErrors) showAlert(`Phiên bản ${index + 1} phải có RAM, ROM hoặc màu sắc!`, 'error');
+                    return null;
+                }
+                if (!Number.isSafeInteger(variant.price) || variant.price <= 0 || !Number.isSafeInteger(variant.stock) || variant.stock < 0) {
+                    if (showErrors) showAlert(`Giá bán hoặc tồn kho của phiên bản ${index + 1} không hợp lệ!`, 'error');
+                    return null;
+                }
+                if (variant.old_price && variant.old_price < variant.price) {
+                    if (showErrors) showAlert(`Giá niêm yết của phiên bản ${index + 1} phải lớn hơn hoặc bằng giá bán!`, 'error');
+                    return null;
+                }
+            }
+            const usedSkus = new Set();
+            for (const variant of variants) {
+                if (!variant.sku) continue;
+                const skuKey = variant.sku.toLocaleLowerCase('vi-VN');
+                if (usedSkus.has(skuKey)) {
+                    if (showErrors) showAlert(`SKU "${variant.sku}" đang được dùng cho nhiều phiên bản!`, 'error');
+                    return null;
+                }
+                usedSkus.add(skuKey);
+            }
+            return variants;
+        }
+
+        function addProductVariant() {
+            const current = collectProductVariants(false);
+            if (current) productVariants = current;
+            productVariants.push(emptyProductVariant(productVariants.length === 0));
+            renderProductVariants();
+        }
+
+        function removeProductVariant(index) {
+            const current = collectProductVariants(false);
+            if (current) productVariants = current;
+            if (productVariants.length <= 1) return;
+            const removedDefault = productVariants[index]?.is_default;
+            productVariants.splice(index, 1);
+            if (removedDefault && productVariants[0]) productVariants[0].is_default = true;
+            renderProductVariants();
+        }
 
         // Drag & drop for image upload (galleryUploadArea)
         const imageUploadArea = document.getElementById('galleryUploadArea');
@@ -730,8 +860,18 @@
         }
 
         async function saveProduct() {
-            const price = getRawNumber(document.getElementById('price').value);
-            const salePrice = getRawNumber(document.getElementById('sale_price').value);
+            if (savingProduct) return;
+            const variants = collectProductVariants();
+            if (!variants || variants.length === 0) return;
+            productVariants = variants;
+            const defaultVariant = variants.find(variant => variant.is_default) || variants[0];
+            const price = defaultVariant.old_price || defaultVariant.price;
+            const salePrice = defaultVariant.price;
+            document.getElementById('price').value = price;
+            document.getElementById('sale_price').value = salePrice;
+            document.getElementById('stock').value = variants.filter(variant => variant.is_active).reduce((sum, variant) => sum + variant.stock, 0);
+            document.getElementById('ram').value = defaultVariant.ram || '';
+            document.getElementById('storage').value = defaultVariant.storage || '';
             
             if (salePrice > price && price > 0) {
                 showAlert('Giá bán không được lớn hơn giá niêm yết!', 'error');
@@ -770,6 +910,7 @@
             formData.append('screen_resolution', document.getElementById('screen_resolution').value.trim() || null);
             formData.append('ram', document.getElementById('ram').value || null);
             formData.append('storage', document.getElementById('storage').value || null);
+            formData.append('variants', JSON.stringify(variants));
 
             // Add gallery images as files
             const newGalleryImages = galleryImages.filter(img => img.isNew && img.file);
@@ -787,6 +928,14 @@
             const primaryIndex = galleryImages.findIndex(img => img.isPrimary);
             if (primaryIndex >= 0) {
                 formData.append('primaryImageIndex', primaryIndex.toString());
+            }
+
+            const saveButton = document.getElementById('saveProductButton');
+            const originalButtonHtml = saveButton?.innerHTML;
+            savingProduct = true;
+            if (saveButton) {
+                saveButton.disabled = true;
+                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
             }
 
             try {
@@ -821,6 +970,12 @@
                 }
             } catch (e) {
                 showAlert('Lỗi khi lưu sản phẩm!', 'error');
+            } finally {
+                savingProduct = false;
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = originalButtonHtml;
+                }
             }
         }
 

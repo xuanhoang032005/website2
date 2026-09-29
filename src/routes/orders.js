@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const { sendOrderEmail } = require('../config/mail');
+const { syncProductStock } = require('../core/product-variants');
 
 const ONLINE_PAYMENT_METHODS = ['vnpay', 'momo'];
 const VIP_MIN_DELIVERED_SPEND = 30000000;
@@ -34,23 +35,39 @@ async function getCheckoutItems(db, userId, itemIds, buyNow) {
 
     if (itemIds.length > 0) {
         [items] = await db.query(
-            `SELECT c.id AS cart_id, c.product_id, c.quantity, p.price, p.stock, p.name
+            `SELECT c.id AS cart_id, c.product_id, c.variant_id, v.id AS active_variant_id, c.quantity,
+                    COALESCE(v.price, p.price) AS price, COALESCE(v.stock, p.stock) AS stock,
+                    COALESCE(v.ram, p.ram) AS ram, COALESCE(v.storage, p.storage) AS storage,
+                    v.color, p.name
              FROM cart c
              JOIN products p ON c.product_id = p.id
+             LEFT JOIN product_variants v ON c.variant_id = v.id AND v.is_active = 1
              WHERE c.user_id = ? AND c.id IN (?)`,
             [userId, itemIds]
         );
     } else if (buyNow) {
-        const [products] = await db.query(
-            'SELECT id AS product_id, name, price, stock FROM products WHERE id = ?',
-            [buyNow.product_id]
-        );
+        const [products] = buyNow.variant_id
+            ? await db.query(
+                `SELECT p.id AS product_id, p.name, v.id AS variant_id, v.price, v.stock,
+                        v.ram, v.storage, v.color
+                 FROM products p JOIN product_variants v ON v.product_id = p.id
+                 WHERE p.id = ? AND v.id = ? AND v.is_active = 1`,
+                [buyNow.product_id, buyNow.variant_id]
+            )
+            : await db.query(
+                'SELECT id AS product_id, name, price, stock, ram, storage, NULL AS variant_id, NULL AS color FROM products WHERE id = ?',
+                [buyNow.product_id]
+            );
         items = products.map(product => ({ ...product, quantity: Number(buyNow.quantity), cart_id: 'buy_now' }));
     } else {
         [items] = await db.query(
-            `SELECT c.id AS cart_id, c.product_id, c.quantity, p.price, p.stock, p.name
+            `SELECT c.id AS cart_id, c.product_id, c.variant_id, v.id AS active_variant_id, c.quantity,
+                    COALESCE(v.price, p.price) AS price, COALESCE(v.stock, p.stock) AS stock,
+                    COALESCE(v.ram, p.ram) AS ram, COALESCE(v.storage, p.storage) AS storage,
+                    v.color, p.name
              FROM cart c
              JOIN products p ON c.product_id = p.id
+             LEFT JOIN product_variants v ON c.variant_id = v.id AND v.is_active = 1
              WHERE c.user_id = ?`,
             [userId]
         );
@@ -63,6 +80,11 @@ async function getCheckoutItems(db, userId, itemIds, buyNow) {
     }
 
     for (const item of items) {
+        if (item.variant_id && !item.active_variant_id) {
+            const error = new Error(`Phiên bản của sản phẩm "${item.name}" đã ngừng bán!`);
+            error.status = 400;
+            throw error;
+        }
         const quantity = Number(item.quantity);
         if (!Number.isInteger(quantity) || quantity < 1) {
             const error = new Error(`Số lượng của sản phẩm "${item.name}" không hợp lệ!`);
@@ -199,15 +221,21 @@ async function releaseCoupon(db, order) {
 
 async function decreaseStock(db, items) {
     for (const item of items) {
-        const [updated] = await db.query(
-            'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
-            [item.quantity, item.product_id, item.quantity]
-        );
+        const [updated] = item.variant_id
+            ? await db.query(
+                'UPDATE product_variants SET stock = stock - ? WHERE id = ? AND product_id = ? AND is_active = 1 AND stock >= ?',
+                [item.quantity, item.variant_id, item.product_id, item.quantity]
+            )
+            : await db.query(
+                'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
+                [item.quantity, item.product_id, item.quantity]
+            );
         if (updated.affectedRows !== 1) {
             const error = new Error(`Sản phẩm "${item.name || item.product_id}" không đủ hàng!`);
             error.status = 400;
             throw error;
         }
+        if (item.variant_id) await syncProductStock(db, item.product_id);
     }
 }
 
@@ -218,8 +246,9 @@ function sendConfirmationEmail(orderId, userId) {
                 pool.query('SELECT * FROM orders WHERE id = ?', [orderId]),
                 pool.query('SELECT id, full_name, email FROM users WHERE id = ?', [userId]),
                 pool.query(
-                    `SELECT oi.*, p.name
+                    `SELECT oi.*, p.name, v.ram, v.storage, v.color
                      FROM order_items oi JOIN products p ON p.id = oi.product_id
+                     LEFT JOIN product_variants v ON v.id = oi.variant_id
                      WHERE oi.order_id = ?`,
                     [orderId]
                 )
@@ -272,8 +301,8 @@ router.post('/', async (req, res) => {
 
         for (const item of cartItems) {
             await connection.query(
-                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
-                [orderId, item.product_id, item.quantity, item.price]
+                'INSERT INTO order_items (order_id, product_id, variant_id, quantity, price) VALUES (?, ?, ?, ?, ?)',
+                [orderId, item.product_id, item.variant_id || null, item.quantity, item.price]
             );
         }
         await decreaseStock(connection, cartItems);
@@ -356,9 +385,12 @@ router.get('/:id', async (req, res) => {
         }
 
         const [items] = await pool.query(
-            `SELECT oi.*, p.name, p.thumbnail
+            `SELECT oi.*, p.name, p.thumbnail,
+                    COALESCE(v.ram, p.ram) AS ram, COALESCE(v.storage, p.storage) AS storage,
+                    v.color, v.sku
              FROM order_items oi
              JOIN products p ON oi.product_id = p.id
+             LEFT JOIN product_variants v ON oi.variant_id = v.id
              WHERE oi.order_id = ?`,
             [id]
         );
@@ -411,14 +443,16 @@ router.put('/:id/cancel', async (req, res) => {
         // COD giữ hàng ngay khi đặt; đơn online pending chưa trừ kho.
         if (order.payment_method === 'cod') {
             const [orderItems] = await connection.query(
-                'SELECT product_id, quantity FROM order_items WHERE order_id = ?',
+                'SELECT product_id, variant_id, quantity FROM order_items WHERE order_id = ?',
                 [id]
             );
             for (const item of orderItems) {
-                await connection.query(
-                    'UPDATE products SET stock = stock + ? WHERE id = ?',
-                    [item.quantity, item.product_id]
-                );
+                if (item.variant_id) {
+                    await connection.query('UPDATE product_variants SET stock = stock + ? WHERE id = ?', [item.quantity, item.variant_id]);
+                    await syncProductStock(connection, item.product_id);
+                } else {
+                    await connection.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
+                }
             }
 
         }
@@ -476,8 +510,8 @@ router.post('/initiate', async (req, res) => {
 
         for (const item of cartItems) {
             await connection.query(
-                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
-                [orderId, item.product_id, item.quantity, item.price]
+                'INSERT INTO order_items (order_id, product_id, variant_id, quantity, price) VALUES (?, ?, ?, ?, ?)',
+                [orderId, item.product_id, item.variant_id || null, item.quantity, item.price]
             );
         }
 
@@ -580,7 +614,7 @@ router.post('/:id/complete', async (req, res) => {
         }
 
         const [orderItems] = await connection.query(
-            `SELECT oi.product_id, oi.quantity, oi.price, p.name
+            `SELECT oi.product_id, oi.variant_id, oi.quantity, oi.price, p.name
              FROM order_items oi JOIN products p ON p.id = oi.product_id
              WHERE oi.order_id = ?`,
             [id]

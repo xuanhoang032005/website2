@@ -30,11 +30,19 @@ router.get('/', async (req, res) => {
 
         const [items] = await pool.query(
             `SELECT c.id, c.id AS cart_id, c.quantity,
-                    p.id AS product_id, p.name, p.price, p.old_price,
-                    p.discount_percent, p.thumbnail, p.stock,
+                    c.variant_id, p.id AS product_id, p.name,
+                    COALESCE(v.price, p.price) AS price,
+                    COALESCE(v.old_price, p.old_price) AS old_price,
+                    CASE WHEN COALESCE(v.old_price, p.old_price) > COALESCE(v.price, p.price)
+                         THEN ROUND((1 - COALESCE(v.price, p.price) / COALESCE(v.old_price, p.old_price)) * 100)
+                         ELSE 0 END AS discount_percent,
+                    p.thumbnail, COALESCE(v.stock, p.stock) AS stock,
+                    COALESCE(v.ram, p.ram) AS ram, COALESCE(v.storage, p.storage) AS storage,
+                    v.color, v.sku,
                     b.name AS brand_name
              FROM cart c
              JOIN products p ON c.product_id = p.id
+             LEFT JOIN product_variants v ON c.variant_id = v.id
              LEFT JOIN brands b ON p.brand_id = b.id
              WHERE c.user_id = ?
              ORDER BY c.id DESC`,
@@ -58,6 +66,8 @@ router.post('/add', async (req, res) => {
         }
 
         const productId = Number.parseInt(req.body.product_id, 10);
+        const requestedVariantId = req.body.variant_id == null || req.body.variant_id === ''
+            ? null : Number.parseInt(req.body.variant_id, 10);
         const quantity = Number(req.body.qty ?? 1);
         const user_id = req.session.user_id;
 
@@ -74,7 +84,26 @@ router.post('/add', async (req, res) => {
             return res.status(400).json({ error: 'Sản phẩm không tồn tại!' });
         }
 
-        const { stock } = products[0];
+        let selectedVariant = null;
+        if (requestedVariantId !== null && (!Number.isInteger(requestedVariantId) || requestedVariantId < 1)) {
+            return res.status(400).json({ error: 'Phiên bản sản phẩm không hợp lệ!' });
+        }
+        const [variants] = await pool.query(
+            `SELECT id, stock, ram, storage, color FROM product_variants
+             WHERE product_id = ? AND is_active = 1
+             ORDER BY is_default DESC, id ASC`,
+            [productId]
+        );
+        if (variants.length) {
+            selectedVariant = requestedVariantId
+                ? variants.find(variant => Number(variant.id) === requestedVariantId)
+                : variants[0];
+            if (!selectedVariant) return res.status(400).json({ error: 'Phiên bản sản phẩm không tồn tại hoặc đã ngừng bán!' });
+        } else if (requestedVariantId !== null) {
+            return res.status(400).json({ error: 'Sản phẩm này không có phiên bản đã chọn!' });
+        }
+
+        const stock = Number(selectedVariant ? selectedVariant.stock : products[0].stock);
         
         if (stock < 1) {
             return res.status(400).json({ error: 'Sản phẩm đã hết hàng!' });
@@ -85,8 +114,8 @@ router.post('/add', async (req, res) => {
         }
 
         const [existing] = await pool.query(
-            'SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ?',
-            [user_id, productId]
+            'SELECT id, quantity FROM cart WHERE user_id = ? AND product_id = ? AND variant_id <=> ?',
+            [user_id, productId, selectedVariant?.id || null]
         );
 
         if (existing.length > 0) {
@@ -107,8 +136,8 @@ router.post('/add', async (req, res) => {
 
         // Insert new
         await pool.query(
-            'INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)',
-            [user_id, productId, quantity]
+            'INSERT INTO cart (user_id, product_id, variant_id, quantity) VALUES (?, ?, ?, ?)',
+            [user_id, productId, selectedVariant?.id || null, quantity]
         );
 
         res.json({ success: true, message: 'Đã thêm vào giỏ hàng!' });
@@ -134,9 +163,10 @@ router.put('/:id', async (req, res) => {
 
         // Get cart item and product stock
         const [cartItems] = await pool.query(
-            `SELECT c.*, p.stock, p.name 
+            `SELECT c.*, COALESCE(v.stock, p.stock) AS stock, p.name
              FROM cart c 
-             JOIN products p ON c.product_id = p.id 
+             JOIN products p ON c.product_id = p.id
+             LEFT JOIN product_variants v ON c.variant_id = v.id
              WHERE c.id = ? AND c.user_id = ?`,
             [id, req.session.user_id]
         );
@@ -215,6 +245,8 @@ router.post('/buy-now', async (req, res) => {
         }
 
         const productId = Number.parseInt(req.body.product_id, 10);
+        const requestedVariantId = req.body.variant_id == null || req.body.variant_id === ''
+            ? null : Number.parseInt(req.body.variant_id, 10);
         const quantity = Number(req.body.quantity);
 
         // Validate
@@ -224,15 +256,34 @@ router.post('/buy-now', async (req, res) => {
 
         // Check stock
         const [products] = await pool.query(
-            'SELECT id, stock, name, price, thumbnail FROM products WHERE id = ?',
+            'SELECT id, stock, name, price, old_price, ram, storage, thumbnail FROM products WHERE id = ?',
             [productId]
         );
         if (products.length === 0) {
             return res.status(400).json({ error: 'Sản phẩm không tồn tại!' });
         }
 
-        if (products[0].stock < quantity) {
-            return res.status(400).json({ error: 'Số lượng vượt quá kho (' + products[0].stock + ')!' });
+        if (requestedVariantId !== null && (!Number.isInteger(requestedVariantId) || requestedVariantId < 1)) {
+            return res.status(400).json({ error: 'Phiên bản sản phẩm không hợp lệ!' });
+        }
+        const [variants] = await pool.query(
+            `SELECT id, sku, ram, storage, color, price, old_price, stock
+             FROM product_variants WHERE product_id = ? AND is_active = 1
+             ORDER BY is_default DESC, id ASC`,
+            [productId]
+        );
+        const selectedVariant = variants.length
+            ? (requestedVariantId ? variants.find(variant => Number(variant.id) === requestedVariantId) : variants[0])
+            : null;
+        if (variants.length && !selectedVariant) {
+            return res.status(400).json({ error: 'Phiên bản sản phẩm không tồn tại hoặc đã ngừng bán!' });
+        }
+        if (!variants.length && requestedVariantId !== null) {
+            return res.status(400).json({ error: 'Sản phẩm này không có phiên bản đã chọn!' });
+        }
+        const chosen = selectedVariant || products[0];
+        if (Number(chosen.stock) < quantity) {
+            return res.status(400).json({ error: 'Số lượng vượt quá kho (' + chosen.stock + ')!' });
         }
 
         // Tạo token ngẫu nhiên
@@ -242,11 +293,17 @@ router.post('/buy-now', async (req, res) => {
         req.session.buyNow = {
             token: token,
             product_id: productId,
+            variant_id: selectedVariant?.id || null,
             quantity,
             product_name: products[0].name,
-            price: Number(products[0].price),
+            price: Number(chosen.price),
+            old_price: chosen.old_price == null ? null : Number(chosen.old_price),
+            ram: chosen.ram || null,
+            storage: chosen.storage || null,
+            color: chosen.color || null,
+            sku: chosen.sku || null,
             thumbnail: products[0].thumbnail,
-            stock: products[0].stock,
+            stock: Number(chosen.stock),
             created_at: Date.now()
         };
 

@@ -100,6 +100,26 @@ CREATE TABLE IF NOT EXISTS product_images (
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
+-- Các phiên bản RAM / ROM / màu sắc của sản phẩm
+CREATE TABLE IF NOT EXISTS product_variants (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    product_id INT NOT NULL,
+    sku VARCHAR(100) NULL UNIQUE,
+    ram VARCHAR(50) NULL,
+    storage VARCHAR(50) NULL,
+    color VARCHAR(100) NULL,
+    price DECIMAL(15,0) NOT NULL,
+    old_price DECIMAL(15,0) NULL,
+    stock INT NOT NULL DEFAULT 0,
+    is_default TINYINT(1) NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_product_variants_product (product_id, is_active),
+    INDEX idx_product_variants_options (ram, storage, color),
+    CONSTRAINT fk_product_variants_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
 -- 
 -- 7. ORDERS TABLE (đơn hàng)
 -- 
@@ -132,10 +152,13 @@ CREATE TABLE IF NOT EXISTS order_items (
     id INT PRIMARY KEY AUTO_INCREMENT,
     order_id INT NOT NULL,
     product_id INT NOT NULL,
+    variant_id INT NULL,
     quantity INT NOT NULL,
     price DECIMAL(15,0) NOT NULL,
+    INDEX idx_order_items_variant (variant_id),
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id)
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    CONSTRAINT fk_order_items_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
 );
 
 -- 
@@ -145,9 +168,12 @@ CREATE TABLE IF NOT EXISTS cart (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
     product_id INT NOT NULL,
+    variant_id INT NULL,
     quantity INT DEFAULT 1,
+    INDEX idx_cart_variant (variant_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cart_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
 );
 
 -- 
@@ -421,6 +447,14 @@ INSERT INTO products (id, name, slug, category_id, brand_id, price, old_price, d
 (79, 'Casio G-Shock GA-2100', 'casio-g-shock-ga-2100', 9, 11, 3590000, 3990000, 10, 50, 'Casio G-Shock GA-2100 thiết kế mỏng nhẹ, chống va đập, chống nước 200m.', NULL, NULL, 'casio-g-shock.jpg', 0, '2026-04-19 12:24:00'),
 (80, 'Casio Edifice EQB-600D', 'casio-edifice-eqb-600d', 9, 11, 8990000, 9990000, 10, 20, 'Casio Edifice EQB-600D – Kết nối smartphone, auto time', NULL, NULL, 'casio-edifice.jpg', 0, '2026-04-19 12:25:00');
 
+-- Tạo một phiên bản mặc định cho toàn bộ sản phẩm mẫu. Admin có thể thêm
+-- RAM / ROM / màu và mức giá riêng sau khi import.
+SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE product_variants;
+SET FOREIGN_KEY_CHECKS = 1;
+INSERT INTO product_variants (product_id, ram, storage, price, old_price, stock, is_default, is_active)
+SELECT id, ram, storage, price, old_price, stock, 1, 1 FROM products;
+
 -- 
 -- DỮ LIỆU MẪU - PRODUCT_IMAGES (gallery cho sản phẩm)
 -- 
@@ -596,6 +630,7 @@ SELECT '========================================' AS '';
 SELECT 'Database setup completed!' AS status;
 SELECT 'New features:' AS '';
 SELECT '  - product_images: Gallery nhiều ảnh/sản phẩm' AS '';
+SELECT '  - product_variants: RAM / ROM / màu / SKU theo phiên bản' AS '';
 SELECT '========================================' AS '';
 SELECT 'Admin Account:' AS '';
 SELECT 'Email: adminanhtrai@gmail.com' AS '';

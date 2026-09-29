@@ -976,3 +976,19 @@ body.admin-shell .modal-body .gallery-empty i {
     display: block;
     margin-bottom: 8px;
 }
+.legacy-base-fields { display: none !important; }
+.variant-section-header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:6px; }
+.variant-section-header .section-title { margin-bottom:0; }
+.variant-help { margin:0 0 14px; color:var(--gray-500); font-size:.84rem; line-height:1.5; }
+.variant-list { display:flex; flex-direction:column; gap:12px; }
+.variant-row { border:1px solid var(--gray-200); border-radius:10px; padding:14px; background:var(--gray-50); }
+.variant-row-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+.variant-default { display:flex; align-items:center; gap:7px; font-weight:600; color:var(--gray-700); cursor:pointer; }
+.variant-default input { accent-color:var(--primary); }
+.variant-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.variant-grid .form-group { margin:0; }
+.variant-grid .form-label { font-size:.76rem; }
+.variant-remove { border:0; background:transparent; color:var(--danger); cursor:pointer; padding:5px 8px; border-radius:6px; }
+.variant-remove:hover { background:rgba(239,68,68,.1); }
+@media (max-width:1000px) { .variant-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) { .variant-grid { grid-template-columns:1fr; } .variant-section-header { align-items:flex-start; flex-direction:column; } }
