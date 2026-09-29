@@ -10,6 +10,7 @@ cloudinary.config({
 const productFolder = process.env.CLOUDINARY_PRODUCT_FOLDER || 'anhtraisstore/products';
 const bannerFolder = process.env.CLOUDINARY_BANNER_FOLDER || 'anhtraisstore/banners';
 const avatarFolder = process.env.CLOUDINARY_AVATAR_FOLDER || 'anhtraisstore/avatars';
+const categoryFolder = process.env.CLOUDINARY_CATEGORY_FOLDER || 'anhtraisstore/categories';
 
 function ensureConfigured() {
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
@@ -111,11 +112,13 @@ function createCloudinaryStorage(folder, errorMessage) {
 
 const productCloudinaryStorage = createCloudinaryStorage(productFolder, 'Không thể tải ảnh sản phẩm lên cloud!');
 const bannerCloudinaryStorage = createCloudinaryStorage(bannerFolder, 'Không thể tải ảnh banner lên cloud!');
+const categoryCloudinaryStorage = createCloudinaryStorage(categoryFolder, 'Không thể tải ảnh danh mục lên cloud!');
 const avatarCloudinaryStorage = createCloudinaryStorage(avatarFolder, 'Không thể tải ảnh đại diện lên cloud!');
 
 module.exports = {
     productCloudinaryStorage,
     bannerCloudinaryStorage,
+    categoryCloudinaryStorage,
     avatarCloudinaryStorage,
     destroyPublicId,
     publicIdFromCloudinaryUrl,

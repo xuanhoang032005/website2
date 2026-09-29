@@ -109,6 +109,50 @@ function validateProductNumbers(values) {
     return null;
 }
 
+function isMissingProductImageAltText(error) {
+    if (error?.code !== 'ER_BAD_FIELD_ERROR') return false;
+    const details = `${error.sqlMessage || ''} ${error.message || ''}`;
+    return /\balt_text\b/i.test(details);
+}
+
+async function loadProductImages(database, productId) {
+    try {
+        const [images] = await database.query(
+            'SELECT id, image_url, alt_text, is_primary, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order',
+            [productId]
+        );
+        return images;
+    } catch (error) {
+        if (!isMissingProductImageAltText(error)) throw error;
+        const [images] = await database.query(
+            'SELECT id, image_url, is_primary, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order',
+            [productId]
+        );
+        return images.map(image => ({ ...image, alt_text: null }));
+    }
+}
+
+async function insertProductImages(database, galleryValues) {
+    try {
+        return await database.query(
+            'INSERT INTO product_images (product_id, image_url, alt_text, is_primary, sort_order) VALUES ?',
+            [galleryValues]
+        );
+    } catch (error) {
+        if (!isMissingProductImageAltText(error)) throw error;
+        const legacyValues = galleryValues.map(([productId, imageUrl, , isPrimary, sortOrder]) => [
+            productId,
+            imageUrl,
+            isPrimary,
+            sortOrder
+        ]);
+        return database.query(
+            'INSERT INTO product_images (product_id, image_url, is_primary, sort_order) VALUES ?',
+            [legacyValues]
+        );
+    }
+}
+
 // Multer chạy trước handler nên lỗi file sẽ không đi qua try/catch bên dưới.
 // Trả về 400 rõ ràng để giao diện không hiển thị lỗi 500 mơ hồ.
 const productUpload = (req, res, next) => uploadProductImage.array('galleryFiles', 20)(req, res, (error) => {
@@ -490,10 +534,7 @@ router.get('/products/:id', requireAdmin, async (req, res) => {
             return res.status(404).json({ error: 'Sản phẩm không tồn tại!' });
         }
         // Lấy gallery images
-        const [images] = await pool.query(
-            'SELECT id, image_url, is_primary, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order',
-            [id]
-        );
+        const images = await loadProductImages(pool, id);
         let variants = [];
         try {
             [variants] = await pool.query(
@@ -570,19 +611,20 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
             await saveProductVariants(connection, productId, variants);
 
         // Insert gallery images
+        let galleryColors = [];
+        try { galleryColors = JSON.parse(req.body.galleryColors || '[]'); } catch (error) { galleryColors = []; }
+        if (!Array.isArray(galleryColors)) galleryColors = [];
         if (req.files && req.files.length > 0) {
             const galleryValues = req.files.map((file, index) => [
                 productId,
                 file.path,
+                typeof galleryColors[index] === 'string' ? galleryColors[index].slice(0, 255) || null : null,
                 index === primaryImageIndex ? 1 : 0, // is_primary
                 index + 1 // sort_order
             ]);
             
             if (galleryValues.length > 0) {
-                await connection.query(
-                    `INSERT INTO product_images (product_id, image_url, is_primary, sort_order) VALUES ?`,
-                    [galleryValues]
-                );
+                await insertProductImages(connection, galleryValues);
             }
             }
             await connection.commit();
@@ -654,6 +696,13 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
         if (!Array.isArray(manifest) || manifest.length > 20) {
             return productValidationError(req, res, 'Danh sách ảnh sản phẩm không hợp lệ!');
         }
+        let galleryColors;
+        try { galleryColors = JSON.parse(req.body.galleryColors || '[]'); } catch (error) {
+            return productValidationError(req, res, 'Liên kết màu sắc của ảnh không hợp lệ!');
+        }
+        if (!Array.isArray(galleryColors) || (galleryColors.length && galleryColors.length !== manifest.length)) {
+            return productValidationError(req, res, 'Liên kết màu sắc của ảnh không hợp lệ!');
+        }
 
         connection = await pool.getConnection();
         await connection.beginTransaction();
@@ -681,20 +730,20 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
                     throw Object.assign(new Error('Danh sách ảnh cũ không hợp lệ!'), { status: 400 });
                 }
                 usedExistingIds.add(imageId);
-                finalGallery.push(oldById.get(imageId).image_url);
+                finalGallery.push({ url: oldById.get(imageId).image_url, color: galleryColors[finalGallery.length] || null });
             } else if (item && item.type === 'new') {
                 const uploadIndex = Number(item.uploadIndex);
                 if (!Number.isInteger(uploadIndex) || !req.files?.[uploadIndex] || usedUploadIndexes.has(uploadIndex)) {
                     throw Object.assign(new Error('Danh sách ảnh mới không hợp lệ!'), { status: 400 });
                 }
                 usedUploadIndexes.add(uploadIndex);
-                finalGallery.push(req.files[uploadIndex].path);
+                finalGallery.push({ url: req.files[uploadIndex].path, color: galleryColors[finalGallery.length] || null });
             } else if (item && item.type === 'current_thumbnail') {
                 if (usedCurrentThumbnail || !current[0].thumbnail) {
                     throw Object.assign(new Error('Ảnh đại diện cũ không hợp lệ!'), { status: 400 });
                 }
                 usedCurrentThumbnail = true;
-                finalGallery.push(current[0].thumbnail);
+                finalGallery.push({ url: current[0].thumbnail, color: galleryColors[finalGallery.length] || null });
             } else {
                 throw Object.assign(new Error('Danh sách ảnh sản phẩm không hợp lệ!'), { status: 400 });
             }
@@ -706,7 +755,7 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
         const requestedPrimary = Number.parseInt(req.body.primaryImageIndex, 10);
         const primaryImageIndex = Number.isInteger(requestedPrimary) && requestedPrimary >= 0 && requestedPrimary < finalGallery.length
             ? requestedPrimary : 0;
-        const thumbnail = finalGallery.length > 0 ? finalGallery[primaryImageIndex] : null;
+        const thumbnail = finalGallery.length > 0 ? finalGallery[primaryImageIndex].url : null;
 
         // Update slug only if name changed
         let newSlug = null;
@@ -727,20 +776,17 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
         await saveProductVariants(connection, productId, variants);
         await connection.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
         if (finalGallery.length > 0) {
-            const galleryValues = finalGallery.map((imageUrl, index) => [
-                productId, imageUrl, index === primaryImageIndex ? 1 : 0, index + 1
+            const galleryValues = finalGallery.map((image, index) => [
+                productId, image.url, image.color, index === primaryImageIndex ? 1 : 0, index + 1
             ]);
-            await connection.query(
-                'INSERT INTO product_images (product_id, image_url, is_primary, sort_order) VALUES ?',
-                [galleryValues]
-            );
+            await insertProductImages(connection, galleryValues);
         }
 
         await connection.commit();
         connection.release();
         connection = null;
 
-        const retainedUrls = new Set(finalGallery);
+        const retainedUrls = new Set(finalGallery.map(image => image.url));
         const previousImageUrls = new Set([
             current[0].thumbnail,
             ...oldImages.map(image => image.image_url)
@@ -1418,6 +1464,23 @@ router.put('/banners/:id', requireAdmin, async (req, res) => {
     } catch (error) {
         console.error('Update banner error:', error);
         res.status(500).json({ error: 'Lỗi khi cập nhật banner!' });
+    }
+});
+
+router.delete('/banners/:id', requireAdmin, async (req, res) => {
+    try {
+        const [banners] = await pool.query('SELECT image_url FROM banners WHERE id = ?', [req.params.id]);
+        if (!banners.length) return res.status(404).json({ error: 'Banner không tồn tại!' });
+        await pool.query('DELETE FROM banners WHERE id = ?', [req.params.id]);
+        const [references] = await pool.query(
+            'SELECT (SELECT COUNT(*) FROM banners WHERE image_url = ?) + (SELECT COUNT(*) FROM product_images WHERE image_url = ?) AS total',
+            [banners[0].image_url, banners[0].image_url]
+        );
+        if (!Number(references[0]?.total)) await removeStoredBanner(banners[0].image_url);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete banner error:', error);
+        res.status(500).json({ error: 'Lỗi khi xóa banner!' });
     }
 });
 

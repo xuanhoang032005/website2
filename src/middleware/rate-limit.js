@@ -31,7 +31,14 @@ function createRateLimiter({ windowMs, max, message = 'Bạn thao tác quá nhan
     };
 }
 
-const apiRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 300 });
+// The storefront makes several API calls during each page load (session, cart,
+// wishlist, products, banners, and chat). Keep a generous shared API ceiling so
+// normal browsing/local QA does not throttle unrelated endpoints; auth and
+// password-reset routes retain their much stricter dedicated limits below.
+const apiRateLimit = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: process.env.NODE_ENV === 'production' ? 1200 : 5000
+});
 const loginRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau!' });
 const passwordResetRateLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5, message: 'Bạn đã yêu cầu quá nhiều mã xác nhận. Vui lòng thử lại sau!' });
 

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20260914-5">
+    <link rel="stylesheet" href="/css/admin.css?v=20260930-3">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -309,6 +309,7 @@
                                 <small style="color: var(--gray-500); display: block; margin-top: 4px;">JPG, PNG, WEBP</small>
                             </div>
                         </div>
+                        <small class="form-hint">Gắn màu cho từng ảnh để khi khách chọn màu, gallery tự chuyển đến ảnh tương ứng.</small>
                         <div id="galleryPreview" class="gallery-preview"></div>
                     </div>
 
@@ -641,6 +642,7 @@
                     galleryImages = storedImages.map((img, index) => ({
                         id: img.id,
                         url: resolveAdminProductImageUrl(img.image_url),
+                        color: img.alt_text || '',
                         isPrimary: hasStoredPrimary ? img.is_primary == 1 : index === 0,
                         isLegacyThumbnail: img.isLegacyThumbnail === true,
                         isNew: false,
@@ -657,7 +659,7 @@
         }
 
         // Gallery Images Management
-        let galleryImages = []; // Array of { url, isPrimary, isNew, id }
+        let galleryImages = []; // Array of { url, color, isPrimary, isNew, id }
 
         function handleGalleryUpload(input) {
             if (input.files) {
@@ -677,6 +679,7 @@
                         reader.onload = function(e) {
                             addGalleryImage({
                                 url: e.target.result,
+                                color: '',
                                 isPrimary: galleryImages.length === 0,
                                 isNew: true,
                                 id: 'new_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
@@ -709,6 +712,18 @@
             renderGalleryPreview();
         }
 
+        function setGalleryImageColor(id, color) {
+            const image = galleryImages.find(img => String(img.id) === String(id));
+            if (image) image.color = color;
+        }
+
+        function galleryColorOptions(selectedColor) {
+            const colors = [...new Set(productVariants.map(variant => String(variant.color || '').trim()).filter(Boolean))];
+            const options = ['<option value="">Không gắn màu</option>', ...colors.map(color => `<option value="${variantAttr(color)}" ${color === selectedColor ? 'selected' : ''}>${variantAttr(color)}</option>`)];
+            if (selectedColor && !colors.includes(selectedColor)) options.push(`<option value="${variantAttr(selectedColor)}" selected>${variantAttr(selectedColor)}</option>`);
+            return options.join('');
+        }
+
         function renderGalleryPreview() {
             const container = document.getElementById('galleryPreview');
             if (galleryImages.length === 0) {
@@ -727,6 +742,7 @@
             const imagesHtml = galleryImages.map((img, index) => `
                 <div class="gallery-item ${img.isPrimary ? 'primary' : ''}">
                     <img src="${img.url}" alt="Ảnh ${index + 1}" onerror="this.onerror=null;this.src='/images/no-image.svg'">
+                    <select class="gallery-color-select" aria-label="Màu của ảnh ${index + 1}" onchange="setGalleryImageColor('${img.id}', this.value)">${galleryColorOptions(img.color || '')}</select>
                     ${img.isPrimary ? '<span class="gallery-badge-primary"><i class="fas fa-star"></i> Chính</span>' : ''}
                     <div class="gallery-item-actions">
                         ${!img.isPrimary ? `<button type="button" onclick="event.stopPropagation(); setPrimaryImage('${img.id}')" title="Đặt làm ảnh chính"><i class="fas fa-star"></i></button>` : ''}
@@ -776,6 +792,12 @@
                         <div class="form-group"><label class="form-label">Trạng thái</label><label class="variant-default"><input type="checkbox" data-field="is_active" ${variant.is_active ? 'checked' : ''}> Đang bán</label></div>
                     </div>
                 </div>`).join('');
+            container.querySelectorAll('[data-field="color"]').forEach(input => input.addEventListener('blur', () => {
+                const updated = collectProductVariants(false);
+                if (updated) productVariants = updated;
+                renderGalleryPreview();
+            }));
+            if (typeof galleryImages !== 'undefined') renderGalleryPreview();
         }
 
         function collectProductVariants(showErrors = true) {
@@ -924,6 +946,7 @@
                     ? { type: 'current_thumbnail' }
                     : { type: 'existing', id: Number(img.id) }
             )));
+            formData.append('galleryColors', JSON.stringify(galleryImages.map(img => img.color || '')));
             // Send primary image index
             const primaryIndex = galleryImages.findIndex(img => img.isPrimary);
             if (primaryIndex >= 0) {

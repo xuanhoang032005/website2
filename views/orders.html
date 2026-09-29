@@ -9,460 +9,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/css/style.css?v=2">
-    <link rel="stylesheet" href="/css/chatbox.css">
-    <style>
-        /* ===== PAGE HEADER ===== */
-        .page-header {
-            background: var(--white);
-            padding: 20px 0;
-            position: relative;
-            overflow: hidden;
-            border-bottom: 1px solid var(--slate-200);
-        }
-        .page-header::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            display: none;
-        }
-        .page-header-inner {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 24px;
-            position: relative;
-            z-index: 1;
-        }
-        .page-breadcrumb {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.8rem;
-            color: var(--slate-500);
-            margin-bottom: 10px;
-        }
-        .page-breadcrumb a { color: var(--slate-500); font-weight: 500; }
-        .page-breadcrumb a:hover { color: var(--primary); }
-        .page-breadcrumb i { font-size: 0.6rem; color: var(--slate-400); }
-        .page-title-wrap {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        .page-title {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-        .page-title-icon {
-            width: 48px;
-            height: 48px;
-            background: var(--primary-bg);
-            border: 0;
-            border-radius: var(--radius-lg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.3rem;
-            color: var(--primary);
-            box-shadow: none;
-        }
-        .page-title h1 {
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: var(--dark);
-            letter-spacing: -0.02em;
-        }
-        .page-title p {
-            font-size: 0.875rem;
-            color: var(--slate-500);
-            margin-top: 4px;
-        }
-        .page-count-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--primary-bg);
-            border: 1px solid #c7d2fe;
-            padding: 10px 20px;
-            border-radius: var(--radius-full);
-            color: var(--slate-600);
-            font-size: 0.875rem;
-            font-weight: 600;
-            box-shadow: none;
-        }
-        .page-count-badge span {
-            background: var(--primary);
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.8rem;
-        }
-
-        /* ===== MAIN CONTENT ===== */
-        .page-main {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 32px 24px 60px;
-        }
-
-        /* ===== FILTER TABS ===== */
-        .filter-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 28px;
-            overflow-x: auto;
-            padding-bottom: 8px;
-            scrollbar-width: thin;
-        }
-        .filter-tab {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: var(--white);
-            border: 1px solid var(--slate-100);
-            border-radius: var(--radius-full);
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--slate-600);
-            cursor: pointer;
-            transition: all 0.25s ease;
-            white-space: nowrap;
-        }
-        .filter-tab:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-        .filter-tab.active {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: #fff;
-        }
-        .filter-tab .count {
-            background: rgba(0,0,0,0.08);
-            color: var(--slate-600);
-            padding: 2px 8px;
-            border-radius: 50px;
-            font-size: 0.7rem;
-            font-weight: 800;
-        }
-        .filter-tab.active .count {
-            background: rgba(255,255,255,0.25);
-            color: #fff;
-        }
-
-        /* ===== ORDER CARD ===== */
-        .order-card {
-            background: var(--white);
-            border-radius: var(--radius-xl);
-            border: 1px solid var(--slate-100);
-            margin-bottom: 20px;
-            transition: all 0.3s ease;
-            overflow: hidden;
-        }
-        .order-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-lg);
-            border-color: transparent;
-        }
-
-        .order-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 18px 24px;
-            background: var(--slate-50);
-            border-bottom: 1px solid var(--slate-100);
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-        .order-code {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 700;
-            color: var(--dark);
-            font-size: 0.95rem;
-        }
-        .order-code i {
-            color: var(--primary);
-            font-size: 1.1rem;
-        }
-        .order-date {
-            font-size: 0.8rem;
-            color: var(--slate-500);
-        }
-
-        /* Status Badge */
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 14px;
-            border-radius: var(--radius-full);
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-        .status-badge i { font-size: 0.85rem; }
-        .status-pending { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
-        .status-confirmed { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
-        .status-shipping { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
-        .status-delivered { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-        .status-cancelled { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-
-        /* Order Body */
-        .order-card-body {
-            padding: 20px 24px;
-        }
-        .order-products {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        .order-product-imgs {
-            display: flex;
-            align-items: center;
-        }
-        .order-product-img {
-            width: 56px;
-            height: 56px;
-            border-radius: var(--radius-md);
-            object-fit: cover;
-            background: var(--slate-50);
-            border: 2px solid var(--white);
-            margin-left: -12px;
-            box-shadow: var(--shadow-sm);
-        }
-        .order-product-img:first-child { margin-left: 0; }
-        .order-product-more {
-            width: 56px;
-            height: 56px;
-            border-radius: var(--radius-md);
-            background: var(--slate-100);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-left: -12px;
-            font-weight: 800;
-            color: var(--slate-600);
-            font-size: 0.85rem;
-            border: 2px solid var(--white);
-        }
-        .order-info-list {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 4px;
-        }
-        .order-info-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
-            color: var(--slate-600);
-        }
-        .order-info-item i {
-            color: var(--slate-400);
-            width: 16px;
-        }
-        .order-info-item strong { color: var(--dark); }
-
-        /* Order Footer */
-        .order-card-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
-            border-top: 1px solid var(--slate-100);
-            flex-wrap: wrap;
-            gap: 12px;
-            background: linear-gradient(135deg, #fafbfc 0%, #fff 100%);
-        }
-        .order-total-wrap {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        .order-total-label {
-            font-size: 0.75rem;
-            color: var(--slate-500);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .order-total-value {
-            font-size: 1.2rem;
-            font-weight: 800;
-            color: var(--primary);
-        }
-        .order-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        .btn-order {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 18px;
-            border-radius: var(--radius-md);
-            font-weight: 600;
-            font-size: 0.85rem;
-            text-decoration: none;
-            transition: all 0.25s ease;
-            cursor: pointer;
-            border: none;
-        }
-        .btn-order-detail {
-            background: var(--gradient-primary);
-            color: #fff;
-            box-shadow: 0 4px 12px rgba(99,102,241,0.3);
-        }
-        .btn-order-detail:hover {
-            color: #fff;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(99,102,241,0.4);
-        }
-        .btn-order-cancel {
-            background: var(--white);
-            color: var(--danger);
-            border: 1px solid var(--danger);
-        }
-        .btn-order-cancel:hover {
-            background: var(--danger);
-            color: #fff;
-        }
-        .btn-order-reorder {
-            background: var(--success);
-            color: #fff;
-        }
-        .btn-order-reorder:hover {
-            background: #059669;
-            color: #fff;
-        }
-
-        /* ===== EMPTY STATE ===== */
-        .empty-state {
-            text-align: center;
-            padding: 80px 24px;
-            background: var(--white);
-            border-radius: var(--radius-xl);
-            border: 2px dashed var(--slate-200);
-        }
-        .empty-icon {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, var(--slate-50) 0%, var(--slate-100) 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 24px;
-        }
-        .empty-icon i { font-size: 3rem; color: var(--slate-300); }
-        .empty-state h3 { font-size: 1.35rem; font-weight: 800; color: var(--dark); margin-bottom: 10px; }
-        .empty-state p { color: var(--slate-500); margin-bottom: 28px; max-width: 400px; margin-left: auto; margin-right: auto; }
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 14px 32px;
-            background: var(--gradient-primary);
-            color: #fff;
-            border-radius: var(--radius-lg);
-            font-weight: 700;
-            font-size: 0.9rem;
-            transition: all 0.25s ease;
-            box-shadow: 0 4px 14px rgba(99,102,241,0.35);
-        }
-        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(99,102,241,0.45); color: #fff; }
-
-        /* ===== TOAST ===== */
-        .toast {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            padding: 14px 22px;
-            border-radius: var(--radius-md);
-            font-size: 0.875rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            z-index: 99999;
-            animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: var(--shadow-xl);
-        }
-        .toast.success { background: linear-gradient(135deg, var(--success), #059669); color: #fff; }
-        .toast.error { background: linear-gradient(135deg, var(--danger), #dc2626); color: #fff; }
-        .toast.info { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
-        @keyframes slideInRight { from { opacity: 0; transform: translateX(120%); } to { opacity: 1; transform: translateX(0); } }
-
-        /* ===== LOADING ===== */
-        .loading-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 80px 24px;
-        }
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid var(--slate-200);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-state p { margin-top: 16px; color: var(--slate-500); font-size: 0.875rem; }
-
-        /* ===== RESPONSIVE ===== */
-        @media (max-width: 768px) {
-            .page-header { padding: 20px 0; }
-            .page-title h1 { font-size: 1.35rem; }
-            .page-title-icon { width: 44px; height: 44px; font-size: 1.2rem; }
-            .order-card-header { padding: 14px 16px; }
-            .order-card-body { padding: 16px; }
-            .order-card-footer { padding: 14px 16px; }
-            .order-products { flex-direction: column; }
-        }
-        @media (max-width: 480px) {
-            .page-title-wrap { flex-direction: column; align-items: flex-start; }
-            .order-card-footer { flex-direction: column; align-items: stretch; }
-            .order-actions { justify-content: stretch; }
-            .btn-order { flex: 1; justify-content: center; }
-        }
-    </style>
+    <link rel="stylesheet" href="/css/style.css?v=7">
+    <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
+    <link rel="stylesheet" href="/css/pages/orders.css?v=1">
+    <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
     <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-inner">
             <a href="/" class="navbar-brand">AnhTrai<span>Store</span></a>
-            <div class="search-wrap">
-                <input type="text" placeholder="Tìm kiếm sản phẩm..." id="searchInput" autocomplete="off">
-                <button class="search-btn"><i class="bi bi-search"></i></button>
-                <div id="searchResults" class="search-results"></div>
-            </div>
-            <div class="navbar-actions">
-                <a href="/wishlist" class="navbar-action" title="Yêu thích">
-                    <i class="bi bi-heart"></i>
-                    <span id="wishlistBadge" class="action-badge" style="display:none">0</span>
-                </a>
-                <a href="/cart" class="navbar-action" title="Giỏ hàng">
-                    <i class="bi bi-bag"></i>
-                    <span id="cartBadge" class="action-badge" style="display:none">0</span>
-                </a>
-                <div id="userMenu"></div>
-            </div>
+            <div class="search-wrap"><button class="search-btn"><i class="bi bi-search"></i></button><input type="text" placeholder="Bạn muốn tìm gì hôm nay?" id="searchInput" autocomplete="off"><div id="searchSuggest" class="search-suggest"></div></div>
+            <ul class="nav-links"><li><a href="/products" class="nav-link"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a></li><li><a href="/promotions" class="nav-link"><i class="bi bi-tag"></i> Khuyến mãi</a></li><li><a href="/policy" class="nav-link"><i class="bi bi-file-text"></i> Chính sách</a></li><li><a href="/contact" class="nav-link"><i class="bi bi-headset"></i> Liên hệ</a></li></ul>
+            <a href="/wishlist" class="wishlist-link" title="Yêu thích"><i class="bi bi-heart"></i><span class="wishlist-badge" id="wishlistBadge">0</span></a><a href="/compare" class="compare-link" title="So sánh"><i class="bi bi-bar-chart"></i><span class="compare-badge" id="compareBadge">0</span></a><a href="/cart" class="cart-link"><i class="bi bi-bag"></i><span>Giỏ hàng</span><span class="cart-badge" id="cartBadge">0</span></a><div id="userArea"></div>
             <button class="hamburger-nav" onclick="openMobileMenu()"><i class="bi bi-list"></i></button>
         </div>
     </nav>
@@ -481,36 +40,15 @@
             <a href="/policy" class="mobile-nav-item"><i class="bi bi-file-text"></i> Chính sách</a>
             <a href="/contact" class="mobile-nav-item"><i class="bi bi-headset"></i> Liên hệ</a>
             <div class="mobile-nav-divider"></div>
+            <a href="/wishlist" class="mobile-nav-item"><i class="bi bi-heart"></i> Yêu thích</a>
+            <a href="/compare" class="mobile-nav-item"><i class="bi bi-bar-chart"></i> So sánh</a>
             <a href="/cart" class="mobile-nav-item"><i class="bi bi-bag"></i> Giỏ hàng</a>
             <div id="mobileUserArea"></div>
         </nav>
     </div>
 
     <!-- Page Header -->
-    <div class="page-header">
-        <div class="page-header-inner">
-            <div class="page-breadcrumb">
-                <a href="/"><i class="bi bi-house"></i> Trang chủ</a>
-                <i class="bi bi-chevron-right"></i>
-                <span>Đơn hàng của tôi</span>
-            </div>
-            <div class="page-title-wrap">
-                <div class="page-title">
-                    <div class="page-title-icon">
-                        <i class="bi bi-receipt-cutoff"></i>
-                    </div>
-                    <div>
-                        <h1>Đơn hàng của tôi</h1>
-                        <p>Theo dõi và quản lý tất cả đơn hàng của bạn</p>
-                    </div>
-                </div>
-                <div class="page-count-badge">
-                    <i class="bi bi-collection"></i>
-                    Tổng <span id="totalBadge">0</span> đơn
-                </div>
-            </div>
-        </div>
-    </div>
+    <div class="breadcrumb-bar"><div class="container"><a href="/">Trang chủ</a><i class="bi bi-chevron-right"></i><span>Đơn hàng của tôi</span></div></div>
 
     <!-- Main Content -->
     <div class="page-main">
@@ -582,7 +120,7 @@
     </footer>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/js/app.js"></script>
+    <script src="/js/app.js?v=20260930-2"></script>
     <script>
         let allOrders = [];
         let currentFilter = 'all';
@@ -644,7 +182,8 @@
             allOrders.forEach(o => {
                 if (counts[o.status] !== undefined) counts[o.status]++;
             });
-            document.getElementById('totalBadge').textContent = counts.all;
+            const totalBadge = document.getElementById('totalBadge');
+            if (totalBadge) totalBadge.textContent = counts.all;
             document.getElementById('countAll').textContent = counts.all;
             document.getElementById('countPending').textContent = counts.pending;
             document.getElementById('countConfirmed').textContent = counts.confirmed;
@@ -776,15 +315,13 @@
         }
 
         async function cancelOrder(orderId) {
-            if (!confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
-            const reason = prompt('Lý do hủy (không bắt buộc):') || '';
-
-            try {
+            showConfirm('Hủy đơn hàng?', 'Bạn có chắc muốn hủy đơn hàng này không?', async () => {
+              try {
                 const response = await fetch(`/api/orders/${orderId}/cancel`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ reason })
+                    body: JSON.stringify({ reason: '' })
                 });
                 const data = await response.json();
                 if (data.success) {
@@ -793,9 +330,10 @@
                 } else {
                     showToast(data.error || 'Không thể hủy đơn hàng!', 'error');
                 }
-            } catch (error) {
+              } catch (error) {
                 showToast('Lỗi kết nối!', 'error');
-            }
+              }
+            });
         }
 
         async function reorder(orderId) {

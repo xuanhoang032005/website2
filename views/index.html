@@ -10,361 +10,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/css/style.css?v=5">
-    <link rel="stylesheet" href="/css/chatbox.css?v=3">
-    <style>
-        /* ===== HERO ENHANCED ===== */
-        .hero-section {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-            padding: 80px 0;
-            position: relative;
-            overflow: hidden;
-        }
-        .hero-section::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: 
-                radial-gradient(ellipse at 20% 0%, rgba(99,102,241,0.25) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 100%, rgba(236,72,153,0.2) 0%, transparent 50%);
-        }
-        .hero-section::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        }
-        .hero-inner {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 24px;
-            display: grid;
-            grid-template-columns: 1fr 360px;
-            gap: 24px;
-            position: relative;
-            z-index: 1;
-        }
-        .main-banner {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            border-radius: var(--radius-2xl);
-            padding: 40px 40px 46px;
-            min-height: 420px;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            justify-content: flex-end;
-            box-shadow: 0 25px 50px -12px rgba(99,102,241,0.4);
-            cursor: pointer;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            width: 100%;
-            height: 100%;
-            box-sizing: border-box;
-        }
-        .main-banner-wrap { position: relative; min-width: 0; }
-        .main-banner:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 32px 64px -12px rgba(99,102,241,0.5);
-        }
-        .main-banner::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
-            animation: float 15s ease-in-out infinite;
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-30px) rotate(5deg); }
-        }
-        .banner-label {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(255,255,255,0.2);
-            backdrop-filter: blur(8px);
-            color: #fff;
-            font-size: 0.68rem;
-            font-weight: 700;
-            padding: 6px 11px;
-            border-radius: var(--radius-full);
-            margin-bottom: 12px;
-            width: fit-content;
-        }
-        .banner-title {
-            font-size: 2rem;
-            font-weight: 800;
-            color: #fff;
-            line-height: 1.18;
-            margin-bottom: 16px;
-            letter-spacing: -0.02em;
-            position: relative;
-            z-index: 1;
-        }
-        .banner-title span { display: block; font-size: 1rem; font-weight: 600; color: rgba(255,255,255,0.85); margin-top: 6px; }
-        .btn-banner {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            background: #fff;
-            color: var(--primary);
-            padding: 10px 18px;
-            border-radius: var(--radius-lg);
-            font-weight: 700;
-            font-size: 0.82rem;
-            transition: all 0.3s ease;
-            width: fit-content;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.15);
-        }
-        .btn-banner:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
-        
-        /* ===== SIDE BANNERS ===== */
-        .side-banners { display: flex; flex-direction: column; gap: 20px; }
-        .side-banner {
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            border-radius: var(--radius-2xl);
-            padding: 28px;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 10px 30px -5px rgba(245,158,11,0.4);
-            cursor: pointer;
-            transition: transform 0.3s ease;
-        }
-        .side-banner:hover { transform: translateY(-4px) scale(1.02); }
-        .side-banner.side-2 { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 10px 30px -5px rgba(16,185,129,0.4); }
-        .side-banner::before { content: ''; position: absolute; top: -50%; right: -30%; width: 200px; height: 200px; background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%); }
-        .side-banner-tag { font-size: 0.7rem; font-weight: 700; color: rgba(0,0,0,0.5); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
-        .side-banner-title { font-size: 1.2rem; font-weight: 800; color: #000; line-height: 1.3; }
-
-        /* Banner có ảnh từ admin */
-        .main-banner.has-image {
-            background: #1e293b;
-        }
-        .main-banner.has-image::before { display: none; }
-        .main-banner.has-image .banner-img {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            z-index: 0;
-        }
-        .main-banner.has-image .banner-overlay {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 100%);
-            z-index: 1;
-        }
-        .main-banner.has-image > *:not(.banner-img):not(.banner-overlay) {
-            position: relative;
-            z-index: 2;
-        }
-        .side-banner.has-image {
-            background: #1e293b;
-            color: white;
-        }
-        .side-banner.has-image::before { display: none; }
-        .side-banner.has-image .banner-img {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            z-index: 0;
-        }
-        .side-banner.has-image .banner-overlay {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 100%);
-            z-index: 1;
-        }
-        .side-banner.has-image > *:not(.banner-img):not(.banner-overlay) {
-            position: relative;
-            z-index: 2;
-        }
-        .side-banner.has-image .side-banner-tag,
-        .side-banner.has-image .side-banner-title { color: white; }
-        .banner-dots {
-            position: absolute !important;
-            right: auto;
-            bottom: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 3 !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0;
-            width: fit-content;
-            padding: 3px 5px;
-            border: 1px solid rgba(255,255,255,.22);
-            border-radius: 999px;
-            background: rgba(15,23,42,.34);
-            box-shadow: 0 4px 14px rgba(15,23,42,.2);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-        }
-        .banner-dots[hidden] { display: none; }
-        .banner-dot {
-            width: 18px;
-            height: 18px;
-            padding: 0;
-            border: 0;
-            background: transparent;
-            border-radius: 999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-        .banner-dot::before {
-            content: '';
-            width: 5px;
-            height: 5px;
-            background: rgba(255,255,255,.58);
-            border-radius: 999px;
-            box-shadow: 0 1px 3px rgba(15,23,42,.2);
-            transition: width .22s ease, background .22s ease, transform .22s ease;
-        }
-        .banner-dot:hover::before,
-        .banner-dot:focus-visible::before { background: rgba(255,255,255,.9); transform: scale(1.15); }
-        .banner-dot:focus-visible { outline: 1.5px solid rgba(255,255,255,.9); outline-offset: -1px; }
-        .banner-dot.active::before { width: 13px; background: #fff; }
-        
-        /* ===== FEATURES SECTION ===== */
-        .features-section {
-            background: var(--white);
-            padding: 80px 0;
-            margin-top: -40px;
-            position: relative;
-            z-index: 10;
-        }
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 24px;
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-        .feature-card {
-            background: var(--white);
-            border-radius: var(--radius-xl);
-            padding: 32px 24px;
-            text-align: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-            border: 1px solid var(--slate-200);
-            transition: all 0.3s ease;
-        }
-        .feature-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 20px 40px rgba(99,102,241,0.15);
-            border-color: var(--primary);
-        }
-        .feature-icon {
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 2rem;
-            transition: transform 0.3s ease;
-        }
-        .feature-card:hover .feature-icon { transform: scale(1.1) rotate(5deg); }
-        .feature-icon.primary { background: var(--primary-bg); color: var(--primary); }
-        .feature-icon.success { background: var(--success-bg); color: var(--success); }
-        .feature-icon.warning { background: var(--warning-bg); color: var(--warning); }
-        .feature-icon.info { background: var(--info-bg); color: var(--info); }
-        .feature-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; color: var(--dark); }
-        .feature-desc { font-size: 0.875rem; color: var(--slate-500); line-height: 1.6; }
-
-        /* ===== CATEGORIES ===== */
-        .categories-section { padding: 80px 0; }
-        .categories-grid {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 20px;
-        }
-        .category-card {
-            background: var(--white);
-            border-radius: var(--radius-xl);
-            padding: 24px;
-            text-align: center;
-            border: 1px solid var(--slate-200);
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .category-card:hover {
-            transform: translateY(-6px);
-            border-color: var(--primary);
-            box-shadow: 0 15px 30px rgba(99,102,241,0.15);
-        }
-        .category-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: var(--radius-lg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 12px;
-            font-size: 1.75rem;
-            background: var(--primary-bg);
-            color: var(--primary);
-        }
-        .category-name { font-weight: 700; font-size: 0.9rem; color: var(--dark); }
-        .category-count { font-size: 0.8rem; color: var(--slate-500); margin-top: 4px; }
-
-        /* ===== BRANDS ===== */
-        .brands-section {
-            background: var(--white);
-            padding: 60px 0;
-        }
-        .brands-grid {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 60px;
-            flex-wrap: wrap;
-        }
-        .brand-item {
-            opacity: 0.6;
-            filter: grayscale(100%);
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        .brand-item:hover { opacity: 1; filter: grayscale(0); transform: scale(1.1); }
-
-        /* ===== RESPONSIVE ===== */
-        @media (max-width: 1200px) {
-            .categories-grid { grid-template-columns: repeat(3, 1fr); }
-            .features-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 1024px) {
-            .hero-inner { grid-template-columns: 1fr; }
-            .side-banners { display: none; }
-        }
-        @media (max-width: 768px) {
-            .hero-section { padding: 48px 0; }
-            .main-banner { min-height: 300px; padding: 24px 24px 42px; }
-            .banner-title { font-size: 1.55rem; }
-            .banner-title span { font-size: 0.9rem; }
-            .features-grid { grid-template-columns: 1fr; }
-            .categories-grid { grid-template-columns: repeat(2, 1fr); }
-            .brands-grid { gap: 30px; }
-        }
-    </style>
+    <link rel="stylesheet" href="/css/style.css?v=7">
+    <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
+    <link rel="stylesheet" href="/css/pages/index.css?v=1">
+    <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
+    <link rel="stylesheet" href="/css/pages/home-theme.css?v=1">
 </head>
 <body>
+    <div class="store-topline"><div class="container"><span><i class="bi bi-truck"></i> Giao hàng nhanh · Hỗ trợ khách hàng 24/7</span></div></div>
     <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-inner">
@@ -430,112 +83,7 @@
         </div>
     </div>
 
-    <style>
-        .login-modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(4px);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: fadeIn 0.2s ease;
-        }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .login-modal {
-            background: #fff;
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 420px;
-            width: 90%;
-            text-align: center;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
-            animation: slideUp 0.3s ease;
-            position: relative;
-        }
-        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .login-modal-close {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            background: var(--slate-100);
-            border: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 1.1rem;
-            color: var(--slate-500);
-            transition: all 0.2s;
-        }
-        .login-modal-close:hover { background: var(--slate-200); color: var(--dark); }
-        .login-modal-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, var(--primary) 0%, #ff6b6b 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 24px;
-            font-size: 2.5rem;
-            color: #fff;
-            box-shadow: 0 10px 30px rgba(226,27,27,0.35);
-        }
-        .login-modal-header h3 {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: var(--dark);
-            margin-bottom: 12px;
-        }
-        .login-modal-header p {
-            font-size: 0.95rem;
-            color: var(--slate-500);
-            line-height: 1.6;
-            margin-bottom: 32px;
-        }
-        .login-modal-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .btn-login-modal {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 16px 24px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            color: #fff;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 700;
-            text-decoration: none;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(226,27,27,0.35);
-        }
-        .btn-login-modal:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(226,27,27,0.45);
-        }
-        .btn-register-modal {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 14px 24px;
-            background: var(--slate-100);
-            color: var(--slate-600);
-            border: none;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .btn-register-modal:hover { background: var(--slate-200); }
-    </style>
+    <link rel="stylesheet" href="/css/pages/login-modal.css?v=1">
     <script>
         function showLoginModal() {
             document.getElementById('loginModal').style.display = 'flex';
@@ -552,64 +100,25 @@
     </script>
 
     <!-- Hero Banner -->
-    <section class="hero-section">
-        <div class="hero-inner">
-            <div class="main-banner-wrap">
-                <a href="/products" class="main-banner" id="mainBanner">
-                    <span class="banner-label"><i class="bi bi-lightning-fill"></i> Khuyến mãi đặc biệt</span>
-                    <div class="banner-title">
-                        iPhone 17 Pro Max
-                        <span>Siêu phẩm công nghệ 2026</span>
-                    </div>
-                    <span class="btn-banner">Xem ngay <i class="bi bi-arrow-right"></i></span>
-                </a>
-                <div class="banner-dots" id="mainBannerControls" aria-label="Chọn banner" hidden></div>
-            </div>
-            <div class="side-banners" id="sideBanners">
-                <a href="/products?sort=newest" class="side-banner">
-                    <span class="side-banner-tag">Hàng mới về</span>
-                    <span class="side-banner-title">Sản phẩm mới nhất 2026</span>
-                </a>
-                <a href="/promotions" class="side-banner side-2">
-                    <span class="side-banner-tag">Giảm giá</span>
-                    <span class="side-banner-title">Ưu đãi lên đến 20%</span>
-                </a>
-            </div>
+    <section class="hero-section home-hero-section">
+        <div class="home-hero-shell">
+            <a href="/products" class="home-hero" id="homeHeroLink">
+                <span class="home-hero-copy">
+                    <span class="home-hero-kicker" id="homeHeroKicker">AnhTraiStore · Sản phẩm nổi bật</span>
+                    <h1 class="home-hero-title" id="homeHeroTitle">Khám phá công nghệ mới</h1>
+                    <span class="home-hero-subtitle" id="homeHeroSubtitle">Điện thoại và phụ kiện chính hãng</span>
+                    <span class="home-hero-price" id="homeHeroPrice"></span>
+                    <span class="home-hero-actions"><span class="home-hero-buy">Mua ngay</span><span class="home-hero-learn">Tìm hiểu thêm</span></span>
+                </span>
+                <img class="home-hero-image" id="homeHeroImage" src="/images/no-image.svg" alt="Sản phẩm nổi bật">
+            </a>
+            <div class="home-hero-controls" id="homeHeroControls" aria-label="Chọn banner"></div>
         </div>
     </section>
 
-    <!-- Featured Products -->
-    <section class="section">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title"><i class="bi bi-fire"></i> Sản phẩm nổi bật</h2>
-                <a href="/products" class="section-link">Xem tất cả <i class="bi bi-arrow-right"></i></a>
-            </div>
-            <div class="products-grid" id="featuredProducts"></div>
-        </div>
-    </section>
-
-    <!-- New Products -->
-    <section class="section section-alt">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title"><i class="bi bi-sparkles"></i> Sản phẩm mới</h2>
-                <a href="/products?sort=newest" class="section-link">Xem tất cả <i class="bi bi-arrow-right"></i></a>
-            </div>
-            <div class="products-grid" id="newProducts"></div>
-        </div>
-    </section>
-
-    <!-- Promotion Products -->
-    <section class="section">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title"><i class="bi bi-lightning-charge"></i> Giảm giá sốc</h2>
-                <a href="/promotions" class="section-link">Xem tất cả <i class="bi bi-arrow-right"></i></a>
-            </div>
-            <div class="products-grid" id="promoProducts"></div>
-        </div>
-    </section>
+    <section class="home-category-section"><div class="container"><div class="section-header"><h2 class="section-title">Danh mục nổi bật</h2><a href="/products" class="section-link">Tất cả danh mục <i class="bi bi-arrow-right"></i></a></div><div class="home-category-grid" id="homeCategories"></div></div></section>
+    <section class="home-promo-section"><div class="container"><div class="section-header"><h2 class="section-title">Khám phá sản phẩm</h2><a href="/products" class="section-link">Xem tất cả <i class="bi bi-arrow-right"></i></a></div><div class="home-promo-grid" id="homePromoTiles"></div></div></section>
+    <section class="home-trending"><div class="container"><div class="home-trending-head"><div class="section-header"><h2 class="section-title">Sản phẩm được quan tâm</h2></div><div class="home-trending-tabs" role="tablist" aria-label="Nhóm sản phẩm"><button class="home-trending-tab active" type="button" data-home-tab="new">Mới về</button><button class="home-trending-tab" type="button" data-home-tab="featured">Nổi bật</button><button class="home-trending-tab" type="button" data-home-tab="deals">Ưu đãi</button></div></div><div class="home-product-rail" id="homeProductRail"></div></div></section>
 
     <!-- Footer -->
     <!-- Footer -->
@@ -647,39 +156,139 @@
         </div>
     </footer>
 
-    <script src="/js/app.js?v=3"></script>
+    <script src="/js/app.js?v=20260930-2"></script>
     <script>
+        let homeProductSets = { new: [], featured: [], deals: [] };
+        let homeBannerSlides = [];
+        let homeBannerIndex = 0;
+        let homeBannerTimer = null;
+        let homeBannerActive = false;
+        let homeHeroFallbackImage = '/images/no-image.svg';
         document.addEventListener('DOMContentLoaded', async () => {
             await initApp();
             await loadHomeData();
+            document.querySelectorAll('[data-home-tab]').forEach(button => button.addEventListener('click', () => {
+                document.querySelectorAll('[data-home-tab]').forEach(tab => tab.classList.toggle('active', tab === button));
+                renderHomeRail(homeProductSets[button.dataset.homeTab] || []);
+            }));
         });
 
         async function loadHomeData() {
             try {
                 const res = await fetch('/api/products/home/featured');
                 const data = await res.json();
+                homeProductSets = { new: data.newProducts || [], featured: data.products || [], deals: data.promoProducts || [] };
+                renderHomeHero((data.products && data.products[0]) || (data.newProducts && data.newProducts[0]));
                 
                 if (data.categories && data.categories.length > 0) {
                     renderCategories(data.categories);
                 }
-                if (data.products && data.products.length > 0) {
-                    renderFeaturedProducts(data.products);
-                }
-                if (data.newProducts && data.newProducts.length > 0) {
-                    renderNewProducts(data.newProducts);
-                }
-                if (data.promoProducts && data.promoProducts.length > 0) {
-                    renderPromoProducts(data.promoProducts);
-                }
-                // Luôn gọi renderBanners để load banner từ bảng banners (kể cả khi không có promotions)
-                renderBanners(data.promotions || []);
+                renderHomePromoTiles(data.newProducts || []);
+                renderHomeRail(homeProductSets.new.length ? homeProductSets.new : homeProductSets.featured);
+                loadAdminHomeBanners();
             } catch (error) {
                 console.error('Error loading home data:', error);
             }
         }
 
         function renderCategories(categories) {
-            // Categories could be added here if needed
+            const target = document.getElementById('homeCategories');
+            if (!target) return;
+            const icons = [/điện thoại|smart phone/i, /tai nghe|headphone/i, /sạc|cáp/i, /ốp|case/i, /máy tính bảng|tablet/i, /máy tính bàn|pc/i, /laptop|xách tay/i, /đồng hồ|watch/i, /màn hình/i];
+            const iconFor = name => {
+                const index = icons.findIndex(pattern => pattern.test(name));
+                return ['bi-phone','bi-headphones','bi-plug','bi-shield','bi-tablet','bi-pc-display','bi-laptop','bi-smartwatch','bi-display'][index] || 'bi-grid';
+            };
+            target.innerHTML = categories.slice(0, 9).map(category => {
+                const icon = category.image
+                    ? '<img src="' + escapeHtml(/^https?:\/\//i.test(category.image) ? category.image : (category.image.startsWith('/') ? category.image : '/' + category.image)) + '" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'i\'),{className:\'bi ' + iconFor(category.name || '') + '\'}))">'
+                    : '<i class="bi ' + iconFor(category.name || '') + '"></i>';
+                return '<a class="home-category-card" href="/products?category=' + encodeURIComponent(category.slug || category.id) + '"><span class="home-category-icon">' + icon + '</span><span class="home-category-name">' + escapeHtml(category.name || 'Danh mục') + '</span></a>';
+            }).join('');
+        }
+
+        function renderHomeHero(product) {
+            if (!product) return;
+            const link = document.getElementById('homeHeroLink');
+            const image = document.getElementById('homeHeroImage');
+            link.href = '/product/' + encodeURIComponent(product.id);
+            document.getElementById('homeHeroTitle').textContent = product.name || 'Sản phẩm nổi bật';
+            document.getElementById('homeHeroSubtitle').textContent = (product.brand_name ? product.brand_name + ' · ' : '') + 'Khám phá sản phẩm chính hãng';
+            document.getElementById('homeHeroPrice').textContent = product.price ? 'Từ ' + formatPrice(product.price) + 'đ' : '';
+            const fallbackImage = getThumbUrl(product.display_thumbnail || product.thumbnail) || '/images/no-image.svg';
+            homeHeroFallbackImage = fallbackImage;
+            image.onerror = () => { image.onerror = null; image.src = fallbackImage; };
+            image.src = fallbackImage;
+            image.alt = product.name || 'Sản phẩm nổi bật';
+            fetch('/api/products/' + encodeURIComponent(product.id))
+                .then(response => response.ok ? response.json() : null)
+                .then(details => {
+                    const galleryImage = details && details.images && (details.images.find(item => Number(item.is_primary) !== 1) || details.images[0]);
+                    if (!homeBannerActive && galleryImage && galleryImage.image_url) {
+                        homeHeroFallbackImage = getThumbUrl(galleryImage.image_url);
+                        image.src = homeHeroFallbackImage;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function loadAdminHomeBanners() {
+            fetch('/api/banners/active', { cache: 'no-store' })
+                .then(response => response.ok ? response.json() : { banners: [] })
+                .then(data => {
+                    homeBannerSlides = (data.banners || []).filter(banner => banner.position === 0 || banner.position === '0' || banner.position === 'hero').slice(0, 10);
+                    homeBannerActive = homeBannerSlides.length > 0;
+                    if (!homeBannerActive) return;
+                    renderHomeBannerSlide(0);
+                    if (homeBannerTimer) clearInterval(homeBannerTimer);
+                    if (homeBannerSlides.length > 1) homeBannerTimer = setInterval(() => renderHomeBannerSlide(homeBannerIndex + 1), 2000);
+                })
+                .catch(() => {});
+        }
+
+        function renderHomeBannerSlide(index) {
+            if (!homeBannerSlides.length) return;
+            homeBannerIndex = (index + homeBannerSlides.length) % homeBannerSlides.length;
+            const banner = homeBannerSlides[homeBannerIndex];
+            const link = document.getElementById('homeHeroLink');
+            const image = document.getElementById('homeHeroImage');
+            link.href = !banner.link || banner.link === '/product' ? '/products' : banner.link;
+            document.getElementById('homeHeroKicker').textContent = 'Sản phẩm nổi bật';
+            document.getElementById('homeHeroTitle').textContent = banner.title || 'Ưu đãi tại AnhTraiStore';
+            document.getElementById('homeHeroSubtitle').textContent = banner.subtitle || 'Khám phá các sản phẩm công nghệ chính hãng';
+            document.getElementById('homeHeroPrice').textContent = '';
+            const imageUrl = banner.image_url ? resolveImageUrl(banner.image_url) : homeHeroFallbackImage;
+            image.onerror = () => { image.onerror = null; image.src = homeHeroFallbackImage; };
+            image.src = imageUrl;
+            image.alt = banner.title || 'Banner khuyến mãi';
+            const controls = document.getElementById('homeHeroControls');
+            controls.replaceChildren(...homeBannerSlides.map((slide, slideIndex) => {
+                const dot = document.createElement('button');
+                dot.type = 'button';
+                dot.className = 'home-hero-dot' + (slideIndex === homeBannerIndex ? ' active' : '');
+                dot.setAttribute('aria-label', 'Hiển thị banner ' + (slideIndex + 1));
+                dot.addEventListener('click', () => renderHomeBannerSlide(slideIndex));
+                return dot;
+            }));
+        }
+
+        function renderHomePromoTiles(products) {
+            const target = document.getElementById('homePromoTiles');
+            if (!target) return;
+            const seen = new Set();
+            const unique = products.filter(product => product && !seen.has(String(product.id)) && seen.add(String(product.id))).slice(0, 6);
+            target.innerHTML = unique.map((product, index) => {
+                const image = (product.display_thumbnail || product.thumbnail) ? '<img src="' + escapeHtml(getThumbUrl(product.display_thumbnail || product.thumbnail)) + '" alt="' + escapeHtml(product.name) + '" loading="lazy" onerror="this.remove()">' : '';
+                const tag = Number(product.discount_percent) > 0 ? 'Ưu đãi ' + Math.round(product.discount_percent) + '%' : (product.brand_name || 'Chính hãng');
+                return '<a class="home-promo-card" href="/product/' + encodeURIComponent(product.id) + '"><span class="home-promo-copy"><span class="home-promo-tag">' + escapeHtml(tag) + '</span><span class="home-promo-title">' + escapeHtml(product.name || 'Sản phẩm nổi bật') + '</span><span class="home-promo-price">Từ ' + formatPrice(product.price) + 'đ</span><span class="home-promo-action">Khám phá</span></span>' + image + '</a>';
+            }).join('');
+            if (!unique.length) target.innerHTML = '<a class="home-promo-card" href="/products"><span class="home-promo-copy"><span class="home-promo-tag">AnhTraiStore</span><span class="home-promo-title">Khám phá các sản phẩm công nghệ</span><span class="home-promo-action">Mua sắm ngay</span></span></a>';
+        }
+
+        function renderHomeRail(products) {
+            const rail = document.getElementById('homeProductRail');
+            if (!rail) return;
+            rail.innerHTML = products && products.length ? products.slice(0, 12).map(createProductCard).join('') : '<div class="home-trending-empty">Chưa có sản phẩm trong danh mục này.</div>';
         }
 
         function getThumbUrl(thumb) {
@@ -694,7 +303,8 @@
             const inStock = Number(p.stock) > 0;
             const badge = p.discount_percent > 0 ? '<span class="product-badge">-' + Math.round(p.discount_percent) + '%</span>' : '';
             const stockBadge = !inStock ? '<span class="product-badge product-stock-badge">Hết hàng</span>' : '';
-            const img = p.thumbnail ? '<img src="' + getThumbUrl(p.thumbnail) + '" alt="' + p.name + '" loading="lazy" onerror="this.onerror=null;this.src=&quot;/images/no-image.svg&quot;">' : '<i class="bi bi-phone" style="font-size: 4rem; color: var(--slate-300);"></i>';
+            const cardImage = p.display_thumbnail || p.thumbnail;
+            const img = cardImage ? '<img src="' + getThumbUrl(cardImage) + '" alt="' + p.name + '" loading="lazy" onerror="this.onerror=null;this.src=&quot;/images/no-image.svg&quot;">' : '<i class="bi bi-phone" style="font-size: 4rem; color: var(--slate-300);"></i>';
             const oldPrice = p.old_price ? '<span class="product-old-price">' + formatPrice(p.old_price) + 'đ</span>' : '';
             const cartButton = inStock
                 ? '<button class="btn-add-cart" onclick="addToCart(' + p.id + ')"><i class="bi bi-bag-plus"></i> Thêm vào giỏ</button>'

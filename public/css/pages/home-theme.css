@@ -1,0 +1,36 @@
+/* Home-only storefront theme. */
+.home-hero-section { padding:0 !important; background:#e9edef !important; }
+.home-hero-shell { position:relative; width:100%; min-height:310px; margin:0 auto; padding:0; }
+.home-hero { position:relative; display:flex; width:100%; min-height:310px; align-items:center; overflow:hidden; padding:42px max(9%,calc((100vw - 1280px)/2 + 9%)); color:#181a1d; text-decoration:none; background:#e9edef; }
+.home-hero-copy { position:relative; z-index:2; width:48%; }
+.home-hero-kicker { display:inline-block; margin-bottom:13px; color:#1676d2; font-size:.72rem; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+.home-hero-title { margin:0 0 8px; color:#17191c; font-size:clamp(2rem,3vw,2.8rem); font-weight:750; line-height:1.08; letter-spacing:-.045em; }
+.home-hero-subtitle { margin:0 0 6px; color:#4d535b; font-size:1rem; }
+.home-hero-price { display:block; margin:0 0 18px; color:#202226; font-size:1.05rem; font-weight:650; }
+.home-hero-actions { display:flex; align-items:center; gap:16px; }
+.home-hero-buy { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:0 18px; border-radius:999px; color:#fff; background:#1676d2; font-size:.75rem; font-weight:700; }
+.home-hero-learn { color:#272a2e; font-size:.72rem; font-weight:650; text-decoration:underline; text-underline-offset:3px; }
+.home-hero-image { position:absolute; right:8%; top:4%; width:43%; height:92%; object-fit:contain; mix-blend-mode:multiply; }
+.home-hero-controls { position:absolute; right:50%; bottom:22px; display:flex; gap:6px; }
+.home-hero-controls:empty { display:none; }
+.home-hero-dot { width:8px; height:8px; padding:0; border:0; border-radius:50%; background:#aeb7c0; cursor:pointer; }
+.home-hero-dot.active { background:#1676d2; }
+.home-category-grid { grid-template-columns:repeat(9,minmax(0,1fr)); }
+
+@media(max-width:768px) {
+    .home-category-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .home-hero-shell { min-height:280px; padding:0; }
+    .home-hero { min-height:280px; padding:30px 22px 46px; }
+    .home-hero-copy { width:65%; }
+    .home-hero-title { font-size:1.8rem; }
+    .home-hero-subtitle { font-size:.82rem; }
+    .home-hero-price { font-size:.9rem; }
+    .home-hero-image { right:0; width:48%; height:82%; opacity:.95; }
+    .home-hero-controls { right:auto; left:50%; bottom:14px; }
+}
+@media(max-width:420px) {
+    .home-hero-copy { width:70%; }
+    .home-hero-title { font-size:1.5rem; }
+    .home-hero-image { right:-7%; width:48%; }
+    .home-hero-buy { min-height:33px; padding:0 13px; font-size:.7rem; }
+}

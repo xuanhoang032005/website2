@@ -1,0 +1,32 @@
+/* Shared auth-only storefront theme. */
+.auth-page { background:#f2f3f4 !important; min-height:calc(100vh - 60px) !important; }
+body:has(.auth-page)::before { display:none !important; }
+body:has(.auth-breadcrumb) .breadcrumb-bar.auth-breadcrumb { display:none !important; }
+body:has(.auth-breadcrumb) .auth-page { min-height:100vh !important; }
+.auth-page a[class*="btn"],.auth-page button[class*="btn"],.auth-page [type=submit] { background:#1676d2 !important; color:#fff !important; box-shadow:none !important; }
+.auth-container { overflow:hidden; border-radius:5px !important; box-shadow:0 8px 30px rgba(18,29,40,.07) !important; }
+.auth-container button,.auth-container .btn,.auth-container [type=submit] { border-radius:4px !important; }
+.auth-container [style*="#e21b1b"],.auth-container [style*="#ff4444"] { color:#1676d2 !important; }
+.auth-container .perk-check { background:#e7f2fd !important; }
+.auth-container .perk-check i,.auth-container .perks-title i { color:#1676d2 !important; }
+.auth-container input:not([type=checkbox]):not([type=radio]) { border-radius:5px !important; border-color:#d7dee5 !important; }
+.auth-container input:focus { border-color:#1676d2 !important; box-shadow:0 0 0 3px rgba(22,118,210,.12) !important; }
+.auth-container h1,.auth-container h2,.auth-container h3 { color:#20252b !important; }
+.auth-left { background:linear-gradient(145deg,#f4f8fc,#e8f1f9) !important; }
+.auth-left::before,.auth-left::after { background:radial-gradient(circle,rgba(22,118,210,.07) 0%,transparent 70%) !important; }
+.auth-left [style*="#e21b1b"],.auth-left [style*="#ff4444"] { color:#1676d2 !important; }
+.auth-left .step-item.active .step-circle,.auth-left .brand-mark { background:#1676d2 !important; box-shadow:none !important; }
+.auth-left .step-item.active .step-circle { color:#fff !important; }
+.auth-container .brand-mark,.auth-container .step-dot.active { background:#1676d2 !important; }
+.auth-container .brand-text span,.auth-container .auth-title .accent,
+.auth-container .perks-title i,.auth-container .tips-title i,
+.auth-container .perk-check i,.auth-container .tip-check i,
+.auth-container .email-display i,.auth-container .terms a,
+.auth-container .password-toggle:hover,.auth-container .resend-link:not(.disabled),
+.auth-container .back-link,.auth-container .forgot-link,
+.auth-container .auth-footer a { color:#1676d2 !important; }
+.auth-container .hero-headline .highlight { background-image:linear-gradient(135deg,#2388e5 0%,#126bc2 100%) !important; -webkit-text-fill-color:transparent !important; }
+.auth-container .form-control:focus,.auth-container input:focus { border-color:#1676d2 !important; box-shadow:0 0 0 3px rgba(22,118,210,.12) !important; }
+.auth-container input[type=checkbox] { accent-color:#1676d2 !important; }
+.auth-container svg [fill="#e21b1b"],.auth-container svg [fill="#ff4444"],
+.auth-container svg stop[stop-color="#e21b1b"],.auth-container svg stop[stop-color="#ff4444"] { fill:#1676d2 !important; stop-color:#1676d2 !important; }

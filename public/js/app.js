@@ -12,11 +12,19 @@ function escapeHtml(value) {
 // Toast Notification
 function showToast(message, type = 'success') {
     const icons = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', info: 'bi-info-circle-fill', warning: 'bi-exclamation-circle-fill' };
+    document.querySelectorAll('.custom-toast[data-storefront-toast="true"]').forEach(item => item.remove());
     const toast = document.createElement('div');
     toast.className = `custom-toast ${type}`;
+    toast.dataset.storefrontToast = 'true';
     toast.innerHTML = `<i class="bi ${icons[type]}"></i><span>${escapeHtml(message)}</span>`;
     document.body.appendChild(toast);
     setTimeout(() => { toast.style.animation = 'toastSlideOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+function showLoginPrompt(message, redirect = window.location.pathname + window.location.search) {
+    showConfirm('Đăng nhập để tiếp tục', message, () => {
+        window.location.href = '/login?redirect=' + encodeURIComponent(redirect);
+    });
 }
 
 // Initialize app
@@ -67,7 +75,6 @@ async function loadUserInfo() {
                         <div class="user-dropdown-divider"></div>
                         ${adminLink}
                         <a href="/orders" class="user-dropdown-item"><i class="bi bi-bag-check"></i> Đơn hàng của tôi</a>
-                        <a href="/wishlist" class="user-dropdown-item"><i class="bi bi-heart"></i> Yêu thích</a>
                         <a href="/profile" class="user-dropdown-item"><i class="bi bi-gear"></i> Cài đặt tài khoản</a>
                         <div class="user-dropdown-divider"></div>
                         <a href="javascript:void(0)" class="user-dropdown-item user-dropdown-logout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Đăng xuất</a>
@@ -88,9 +95,9 @@ async function loadUserInfo() {
                 </div>
                 ${data.user.role === 'admin' ? '<a href="/admin" class="mobile-nav-item"><i class="bi bi-speedometer2"></i> Trang quản trị</a>' : ''}
                 <a href="/orders" class="mobile-nav-item"><i class="bi bi-bag-check"></i> Đơn hàng của tôi</a>
-                <a href="/wishlist" class="mobile-nav-item"><i class="bi bi-heart"></i> Yêu thích</a>
+                ${document.querySelector('#mobileMenu a[href="/wishlist"]') ? '' : '<a href="/wishlist" class="mobile-nav-item"><i class="bi bi-heart"></i> Yêu thích</a>'}
                 <a href="/profile" class="mobile-nav-item"><i class="bi bi-gear"></i> Cài đặt tài khoản</a>
-                <a href="javascript:void(0)" class="mobile-nav-item" style="color:#EF4444" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Đăng xuất</a>`;
+                <a href="javascript:void(0)" class="mobile-nav-item" style="color:var(--slate-600)" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Đăng xuất</a>`;
 
             if (userArea) userArea.innerHTML = userHtml;
             if (mobileUserArea) mobileUserArea.innerHTML = mobileUserHtml;
@@ -188,7 +195,7 @@ function toggleCompare(productId, btn) {
         showToast('Đã xóa khỏi so sánh', 'info');
     } else {
         if (list.length >= MAX_COMPARE) {
-            showToast(`Chỉ có thể so sánh tối đa ${MAX_COMPARE} sản phẩm!`, 'error');
+            showToast(`Bạn chỉ có thể thêm tối đa ${MAX_COMPARE} sản phẩm vào danh sách so sánh.`, 'warning');
             return false;
         }
         list.push(productId);
@@ -234,12 +241,7 @@ async function addToCart(productId, quantity = 1, variantId = null) {
 
         if (data.error) {
             if (data.error.includes('đăng nhập')) {
-                // Gọi modal đăng nhập nếu có
-                if (typeof showLoginModal === 'function') {
-                    showLoginModal();
-                } else if (confirm('Bạn cần đăng nhập để thêm vào giỏ hàng. Đăng nhập ngay?')) {
-                    window.location.href = '/login';
-                }
+                showLoginPrompt('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.');
             } else {
                 showToast(data.error, 'error');
             }
@@ -267,11 +269,7 @@ async function toggleWishlist(productId, btn) {
         const data = await response.json();
 
         if (data.need_login || (data.error && data.error.includes('đăng nhập'))) {
-            if (typeof showLoginModal === 'function') {
-                showLoginModal();
-            } else if (confirm('Bạn cần đăng nhập để thêm vào yêu thích. Đăng nhập ngay?')) {
-                window.location.href = '/login';
-            }
+            showLoginPrompt('Vui lòng đăng nhập để lưu sản phẩm vào danh sách yêu thích.');
             return;
         }
 
@@ -291,11 +289,11 @@ async function toggleWishlist(productId, btn) {
             showToast(data.message || 'Thành công!', data.action === 'added' ? 'success' : 'info');
             loadWishlistBadge();
         } else {
-            alert(data.error || 'Có lỗi xảy ra!');
+            showToast(data.error || 'Có lỗi xảy ra!', 'error');
         }
     } catch (error) {
         console.error('Toggle wishlist error:', error);
-        alert('Lỗi kết nối!');
+        showToast('Lỗi kết nối!', 'error');
     }
 }
 

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20260914-5">
+    <link rel="stylesheet" href="/css/admin.css?v=20260930-3">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -112,124 +112,19 @@
                     <div style="display: flex; align-items: center; gap: 14px; padding: 4px;">
                         <i class="fas fa-lightbulb" style="font-size: 1.5rem; color: #f59e0b;"></i>
                         <div>
-                            <h3 style="margin: 0; font-size: 1rem; color: #e21b1b;">Quản lý 3 banner trang chủ</h3>
+                            <h3 style="margin: 0; font-size: 1rem; color: #1676d2;">Quản lý banner trang chủ</h3>
                             <p style="margin: 4px 0 0; font-size: 0.85rem; color: #e21b1b;">
-                                Banner chính hiển thị lớn ở giữa, 2 banner phụ nhỏ xếp bên phải. Click "Chỉnh sửa" để thay đổi ảnh, tiêu đề, mô tả và liên kết.
+                                Trang chủ chỉ dùng một khu vực banner rộng dạng carousel. Mỗi ảnh là một slide riêng, có liên kết sản phẩm và trạng thái hiển thị riêng.
                             </p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Banner chính -->
-                <div class="banner-grid">
-                    <div class="banner-card" id="mainBannerCard">
-                        <div class="banner-label" style="margin: 16px 20px 0;">
-                            <i class="fas fa-image"></i>
-                            Banner chính
-                        </div>
-                        <div style="padding: 16px 20px 0;">
-                            <div class="banner-preview main" id="mainPreview">
-                                <div class="placeholder">
-                                    <i class="fas fa-image"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Controls luôn hiển thị -->
-                        <div class="banner-controls" id="mainControls">
-                            <div class="banner-toggle">
-                                <span>Hiển thị:</span>
-                                <div class="switch active" id="mainSwitch" onclick="toggleBanner('main')">
-                                </div>
-                                <span class="toggle-label" id="mainToggleLabel">Đang hiển thị</span>
-                            </div>
-                            <div class="banner-actions">
-                                <button class="btn-action primary" onclick="editBanner('main')">
-                                    <i class="fas fa-edit"></i>
-                                    Chỉnh sửa
-                                </button>
-                                <button class="btn-action" onclick="previewBanner('main')">
-                                    <i class="fas fa-external-link-alt"></i>
-                                    Xem
-                                </button>
-                            </div>
-                            <div class="banner-link-info" id="mainLinkInfo">
-                                <i class="fas fa-link"></i> <span>Đang tải...</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="banner-side-stack">
-                        <!-- Side banner 1 -->
-                        <div class="banner-card" id="side1BannerCard">
-                            <div class="banner-label" style="margin: 16px 20px 0;">
-                                <i class="fas fa-image"></i>
-                                Banner phụ 1
-                            </div>
-                            <div style="padding: 16px 20px 0;">
-                                <div class="banner-preview" id="side1Preview">
-                                    <div class="placeholder">
-                                        <i class="fas fa-image"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="banner-controls">
-                                <div class="banner-toggle">
-                                    <span>Hiển thị:</span>
-                                    <div class="switch active" id="side1Switch" onclick="toggleBanner('side1')">
-                                    </div>
-                                    <span class="toggle-label" id="side1ToggleLabel">Đang hiển thị</span>
-                                </div>
-                                <div class="banner-actions">
-                                    <button class="btn-action primary" onclick="editBanner('side1')">
-                                        <i class="fas fa-edit"></i>
-                                        Sửa
-                                    </button>
-                                    <button class="btn-action" onclick="previewBanner('side1')">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                <div class="banner-link-info" id="side1LinkInfo">
-                                    <i class="fas fa-link"></i> <span>Đang tải...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Side banner 2 -->
-                        <div class="banner-card" id="side2BannerCard">
-                            <div class="banner-label" style="margin: 16px 20px 0;">
-                                <i class="fas fa-image"></i>
-                                Banner phụ 2
-                            </div>
-                            <div style="padding: 16px 20px 0;">
-                                <div class="banner-preview" id="side2Preview">
-                                    <div class="placeholder">
-                                        <i class="fas fa-image"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="banner-controls">
-                                <div class="banner-toggle">
-                                    <span>Hiển thị:</span>
-                                    <div class="switch active" id="side2Switch" onclick="toggleBanner('side2')">
-                                    </div>
-                                    <span class="toggle-label" id="side2ToggleLabel">Đang hiển thị</span>
-                                </div>
-                                <div class="banner-actions">
-                                    <button class="btn-action primary" onclick="editBanner('side2')">
-                                        <i class="fas fa-edit"></i>
-                                        Sửa
-                                    </button>
-                                    <button class="btn-action" onclick="previewBanner('side2')">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                <div class="banner-link-info" id="side2LinkInfo">
-                                    <i class="fas fa-link"></i> <span>Đang tải...</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="banner-manager-head">
+                    <p>Mỗi ảnh có thể trỏ tới một sản phẩm khác nhau. Thứ tự nhỏ hơn sẽ hiển thị trước.</p>
+                    <button class="btn-action primary" onclick="editBanner()"><i class="fas fa-plus"></i> Thêm banner chính</button>
                 </div>
+                <div class="banner-list-grid" id="mainBannerList"></div>
             </div>
         </main>
     </div>
@@ -314,23 +209,10 @@
     </div>
 
     <script>
-        // Cache banners theo slot
-        let bannersCache = {
-            main: [],      // tối đa 10 ảnh hero
-            side1: null,   // side
-            side2: null    // quick
-        };
+        let bannersCache = [];
         let uploadedImageUrls = [];
         let bannerUploadPromise = null;
         let bannerUploadVersion = 0;
-
-        function getSlot(position) {
-            // Hỗ trợ cả số (0,1,2) và chuỗi ('hero','side','quick')
-            if (position === 0 || position === '0' || position === 'hero') return 'main';
-            if (position === 1 || position === '1' || position === 'side') return 'side1';
-            if (position === 2 || position === '2' || position === 'quick') return 'side2';
-            return null;
-        }
 
         // Hiển thị ngày
         document.addEventListener('DOMContentLoaded', async () => {
@@ -374,117 +256,55 @@
         }
 
         function renderBanners(banners) {
-            // Reset cache
-            bannersCache = { main: [], side1: null, side2: null };
-
-            // Phân loại banner vào 3 slot
-            banners.forEach(b => {
-                const pos = b.position;
-                // Đơn giản: 0=main, 1=side1, 2=side2
-                if ((pos === 0 || pos === '0' || pos === 'hero') && bannersCache.main.length < 10) {
-                    bannersCache.main.push(b);
-                } else if ((pos === 1 || pos === '1' || pos === 'side') && !bannersCache.side1) {
-                    bannersCache.side1 = b;
-                } else if ((pos === 2 || pos === '2' || pos === 'quick') && !bannersCache.side2) {
-                    bannersCache.side2 = b;
-                }
-            });
-
-            // Render từng slot
-            ['main', 'side1', 'side2'].forEach(slot => {
-                renderSlot(slot, bannersCache[slot]);
-            });
-        }
-
-        function renderSlot(slot, bannerValue) {
-            const mainBanners = slot === 'main' && Array.isArray(bannerValue) ? bannerValue : [];
-            const banner = slot === 'main' ? mainBanners[0] : bannerValue;
-            const previewId = slot === 'main' ? 'mainPreview' : slot + 'Preview';
-            const switchId = slot + 'Switch';
-            const toggleLabelId = slot + 'ToggleLabel';
-            const linkInfoId = slot + 'LinkInfo';
-
-            // Render preview
-            const el = document.getElementById(previewId);
-            if (el) {
-                if (banner && banner.image_url) {
-                    const url = resolveImageUrl(banner.image_url);
-                    el.style.backgroundImage = `url('${url}')`;
-                    el.innerHTML = `
-                        <div class="banner-preview-overlay">
-                            <div class="preview-content">
-                                <h3>${escapeHtml(banner.title || '')}</h3>
-                                <p>${escapeHtml(banner.subtitle || '')}${slot === 'main' ? ` · ${mainBanners.length}/10 ảnh` : ''}</p>
-                            </div>
+            bannersCache = banners.filter(b => ['0', 'hero'].includes(String(b.position))).sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+            const container = document.getElementById('mainBannerList');
+            container.innerHTML = bannersCache.length ? bannersCache.map((banner, index) => `
+                <article class="banner-slide-card">
+                    <div class="banner-slide-image">
+                        <img src="${escapeHtml(resolveImageUrl(banner.image_url))}" alt="${escapeHtml(banner.title || 'Banner trang chủ')}">
+                        <span class="banner-slide-order">${index + 1}</span>
+                        ${banner.is_active == 1 ? '' : '<span class="banner-hidden-tag">Đang ẩn</span>'}
+                    </div>
+                    <div class="banner-slide-content">
+                        <strong>${escapeHtml(banner.title || 'Banner chưa có tiêu đề')}</strong>
+                        <span class="banner-slide-link"><i class="fas fa-link"></i> ${escapeHtml(banner.link || 'Chưa gắn liên kết sản phẩm')}</span>
+                        <div class="banner-slide-actions">
+                            <button class="btn-action primary" onclick="editBanner('${banner.id}')"><i class="fas fa-edit"></i> Sửa</button>
+                            <button class="btn-action" onclick="previewBanner('${banner.id}')"><i class="fas fa-external-link-alt"></i> Xem</button>
+                            <button class="btn-action" onclick="toggleBanner('${banner.id}')">${banner.is_active == 1 ? 'Ẩn' : 'Hiện'}</button>
+                            <button class="btn-action danger" onclick="deleteBanner('${banner.id}')"><i class="fas fa-trash"></i></button>
                         </div>
-                        ${!banner.is_active ? '<div style="position:absolute;top:10px;right:10px;background:rgba(239,68,68,0.9);color:white;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;z-index:2;"><i class="fas fa-eye-slash"></i> Đang ẩn</div>' : ''}
-                    `;
-                } else {
-                    el.style.backgroundImage = '';
-                    el.innerHTML = `<div class="placeholder"><i class="fas fa-image"></i></div>`;
-                }
-            }
-
-            // Render switch
-            const switchEl = document.getElementById(switchId);
-            const labelEl = document.getElementById(toggleLabelId);
-            const linkInfoEl = document.getElementById(linkInfoId);
-
-            if (switchEl && labelEl) {
-                if (banner && (slot !== 'main' ? banner.is_active == 1 : mainBanners.some(item => item.is_active == 1))) {
-                    switchEl.classList.add('active');
-                    labelEl.textContent = 'Đang hiển thị';
-                    labelEl.style.color = '#10b981';
-                } else {
-                    switchEl.classList.remove('active');
-                    labelEl.textContent = 'Đang ẩn';
-                    labelEl.style.color = '#6b7280';
-                }
-            }
-
-            // Render link info
-            if (linkInfoEl) {
-                if (banner) {
-                    linkInfoEl.innerHTML = '<i class="fas fa-link"></i> <span>' + escapeHtml(banner.link || 'Chưa có liên kết') + '</span>';
-                } else {
-                    linkInfoEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#f59e0b;"></i> <span>Chưa tạo banner</span>';
-                }
-            }
+                    </div>
+                </article>`).join('') : '<div class="banner-list-empty">Chưa có banner. Hãy thêm slide đầu tiên.</div>';
         }
 
-        // Toggle banner (slot-based)
-        async function toggleBanner(slot) {
-            const slotValue = bannersCache[slot];
-            const banners = slot === 'main' ? slotValue : (slotValue ? [slotValue] : []);
-            const banner = banners[0];
-            if (!banner) {
-                showToast('Banner chưa được tạo!', true);
-                return;
-            }
+        async function toggleBanner(id) {
+            const banner = bannersCache.find(item => String(item.id) === String(id));
+            if (!banner) return;
             try {
-                const newStatus = !banners.some(item => item.is_active == 1);
-                const results = await Promise.all(banners.map(item => fetch(`/admin/banners/${item.id}/toggle`, {
-                    method: 'PUT', credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ is_active: newStatus })
-                }).then(res => res.json())));
-                if (results.every(data => data.success)) {
-                    banners.forEach(item => { item.is_active = newStatus ? 1 : 0; });
-                    renderSlot(slot, slotValue);
-                    showToast(newStatus ? 'Đã bật banner!' : 'Đã tắt banner!');
-                } else {
-                    const failed = results.find(data => !data.success);
-                    showToast(failed?.error || 'Lỗi khi cập nhật!', true);
-                }
-            } catch (e) {
-                console.error(e);
-                showToast('Lỗi khi cập nhật!', true);
-            }
+                const res = await fetch(`/admin/banners/${id}/toggle`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: banner.is_active != 1 }) });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Không thể cập nhật banner');
+                await loadBanners();
+                showToast(banner.is_active == 1 ? 'Đã ẩn banner!' : 'Đã bật banner!');
+            } catch (error) { showToast(error.message || 'Lỗi khi cập nhật!', true); }
         }
 
-        // Preview banner
-        function previewBanner(slot) {
-            const banner = slot === 'main' ? bannersCache.main[0] : bannersCache[slot];
+        function deleteBanner(id) {
+            const banner = bannersCache.find(item => String(item.id) === String(id));
+            showConfirm('Xóa banner?', `Banner “${banner?.title || 'không tiêu đề'}” sẽ bị xóa khỏi trang chủ.`, async () => {
+                try {
+                    const res = await fetch(`/admin/banners/${id}`, { method: 'DELETE', credentials: 'include' });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error || 'Không thể xóa banner');
+                    await loadBanners();
+                    showToast('Đã xóa banner!');
+                } catch (error) { showToast(error.message || 'Lỗi khi xóa banner!', true); }
+            });
+        }
+
+        function previewBanner(id) {
+            const banner = bannersCache.find(item => String(item.id) === String(id));
             if (!banner || !banner.link) {
                 showToast('Banner chưa có liên kết!', true);
                 return;
@@ -492,29 +312,16 @@
             window.open(banner.link, '_blank');
         }
 
-        // Edit banner (slot-based)
-        async function editBanner(slot) {
-            const mainBanners = slot === 'main' ? bannersCache.main : [];
-            const banner = slot === 'main' ? mainBanners[0] : bannersCache[slot];
-            uploadedImageUrls = slot === 'main'
-                ? mainBanners.map(item => item.image_url).slice(0, 10)
-                : (banner?.image_url ? [banner.image_url] : []);
-
-            document.getElementById('bannerSlot').value = slot;
+        async function editBanner(id = '') {
+            const banner = id ? bannersCache.find(item => String(item.id) === String(id)) : null;
+            uploadedImageUrls = banner?.image_url ? [banner.image_url] : [];
+            document.getElementById('bannerSlot').value = 'main';
             document.getElementById('bannerId').value = banner ? banner.id : '';
-            // Đơn giản: slot tương ứng với position số
-            const positionMap = { 'main': 'hero', 'side1': 'side', 'side2': 'quick' };
-            document.getElementById('bannerPosition').value = banner
-                ? (positionMap[getSlot(banner.position)] || 'hero')
-                : (positionMap[slot] || 'hero');
-            document.getElementById('imageInput').multiple = slot === 'main';
+            document.getElementById('bannerPosition').value = 'hero';
+            document.getElementById('imageInput').multiple = false;
             document.getElementById('imageInput').value = '';
-            document.getElementById('uploadPrompt').textContent = slot === 'main'
-                ? 'Chọn từ 1 đến 10 ảnh cho banner chính'
-                : 'Chọn 1 ảnh';
-            document.getElementById('uploadHint').textContent = slot === 'main'
-                ? 'Carousel tự đổi mỗi 2 giây, khách có thể chọn bằng các chấm · tối đa 10 ảnh, 5MB/ảnh'
-                : 'JPG, PNG, WEBP (tối đa 5MB)';
+            document.getElementById('uploadPrompt').textContent = 'Chọn một ảnh cho slide này';
+            document.getElementById('uploadHint').textContent = 'JPG, PNG, WEBP (tối đa 5MB)';
             document.getElementById('uploadZone').classList.remove('has-image');
             document.getElementById('uploadPlaceholder').style.display = 'block';
 
@@ -528,7 +335,7 @@
                 document.getElementById('bannerLink').value = banner.link || '';
                 document.getElementById('bannerSort').value = banner.sort_order || 0;
                 document.getElementById('bannerActive').checked = banner.is_active == 1;
-                document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Chỉnh sửa Banner ' + (slot === 'main' ? 'chính' : 'phụ ' + (slot === 'side1' ? '1' : '2'));
+                document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Chỉnh sửa banner chính';
 
                 if (uploadedImageUrls.length) {
                     showPreviewImages(uploadedImageUrls.map(resolveImageUrl));
@@ -537,7 +344,7 @@
                 document.getElementById('bannerTitle').value = '';
                 document.getElementById('bannerSubtitle').value = '';
                 document.getElementById('bannerLink').value = '';
-                document.getElementById('bannerSort').value = slot === 'side1' ? 1 : slot === 'side2' ? 2 : 0;
+                document.getElementById('bannerSort').value = bannersCache.length;
                 document.getElementById('bannerActive').checked = true;
                 document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus"></i> Tạo Banner mới';
             }
@@ -556,9 +363,8 @@
                 const file = e.target.files[0];
                 const files = Array.from(e.target.files || []);
                 if (!file || !files.length) return;
-                const isMain = document.getElementById('bannerSlot').value === 'main';
-                if ((isMain && files.length > 10) || (!isMain && files.length > 1)) {
-                    showToast(isMain ? 'Banner chính chỉ được chọn tối đa 10 ảnh!' : 'Banner phụ chỉ được chọn 1 ảnh!', true);
+                if (files.length > 1) {
+                    showToast('Mỗi slide chỉ chọn một ảnh!', true);
                     input.value = '';
                     return;
                 }
@@ -577,18 +383,18 @@
 
                 // Upload
                 const formData = new FormData();
-                files.forEach(selectedFile => formData.append(isMain ? 'images' : 'image', selectedFile));
+                formData.append('image', file);
 
                 const currentUpload = (async () => {
                     try {
-                    const res = await fetch(isMain ? '/admin/banners/upload-many' : '/admin/banners/upload', {
+                    const res = await fetch('/admin/banners/upload', {
                         method: 'POST',
                         credentials: 'include',
                         body: formData
                     });
                     const data = await res.json();
                     if (data.success && uploadVersion === bannerUploadVersion) {
-                        uploadedImageUrls = isMain ? data.urls : [data.url];
+                        uploadedImageUrls = [data.url];
                         showPreviewImages(uploadedImageUrls.map(resolveImageUrl));
                         showToast(`Đã tải ${uploadedImageUrls.length} ảnh lên Cloudinary. Hãy lưu thay đổi.`);
                     } else {
@@ -644,7 +450,6 @@
                 await bannerUploadPromise;
             }
             const id = document.getElementById('bannerId').value;
-            const slot = document.getElementById('bannerSlot').value;
             const position = document.getElementById('bannerPosition').value;
             const title = document.getElementById('bannerTitle').value.trim();
             const subtitle = document.getElementById('bannerSubtitle').value.trim();
@@ -659,14 +464,7 @@
 
             try {
                 let res;
-                if (slot === 'main') {
-                    res = await fetch('/admin/banners/hero-set', {
-                        method: 'PUT',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title, subtitle, link, image_urls: uploadedImageUrls, is_active })
-                    });
-                } else if (id) {
+                if (id) {
                     // Update
                     res = await fetch(`/admin/banners/${id}`, {
                         method: 'PUT',
@@ -685,7 +483,7 @@
                 }
                 const data = await res.json();
                 if (data.success) {
-                    showToast(slot === 'main' ? `Đã lưu ${uploadedImageUrls.length} ảnh banner chính!` : (id ? 'Đã cập nhật banner!' : 'Đã tạo banner mới!'));
+                    showToast(id ? 'Đã cập nhật banner!' : 'Đã tạo banner mới!');
                     closeModal();
                     // Reload để cập nhật cache và UI
                     await loadBanners();

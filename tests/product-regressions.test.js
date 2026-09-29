@@ -264,6 +264,34 @@ test('invalid ID and non-admin requests cannot delete products', async () => {
     assert.equal(calls, 0);
 });
 
+test('admin product detail supports databases without product_images.alt_text', async () => {
+    const missingColumn = Object.assign(new Error("Unknown column 'alt_text' in 'field list'"), {
+        code: 'ER_BAD_FIELD_ERROR',
+        sqlMessage: "Unknown column 'alt_text' in 'field list'"
+    });
+    const queries = [];
+    const pool = { async query(sql) {
+        queries.push(sql);
+        if (sql.startsWith('SELECT * FROM products')) return [[{ id: 65, name: 'Phone' }]];
+        if (sql.includes('image_url, alt_text')) throw missingColumn;
+        if (sql.includes('FROM product_images')) return [[{
+            id: 7, image_url: 'phone.jpg', is_primary: 1, sort_order: 1
+        }]];
+        if (sql.includes('FROM product_variants')) return [[]];
+        throw new Error('Unexpected query: ' + sql);
+    } };
+    const filename = path.join(root, 'src', 'routes', 'admin.js');
+    const route = loadRoute(filename, '/products/:id', 'get', pool);
+    const res = jsonResponse();
+
+    await route.stack.at(-1).handle({ params: { id: '65' } }, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.images[0].alt_text, null);
+    assert.ok(queries.some(sql => sql.includes('image_url, alt_text')));
+    assert.ok(queries.some(sql => sql.includes('image_url, is_primary')));
+});
+
 test('product update keeps selected old images, adds new files and stores unchecked featured state', async () => {
     const filename = path.join(root, 'src', 'routes', 'admin.js');
     const localRequire = createRequire(filename);
@@ -336,8 +364,8 @@ test('product update keeps selected old images, adds new files and stores unchec
     assert.equal(updateParams[7], 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/new.png');
     assert.equal(updateParams[9], 0);
     assert.deepEqual(plain(galleryValues), [
-        [1, 'old-a.jpg', 0, 1],
-        [1, 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/new.png', 1, 2]
+        [1, 'old-a.jpg', null, 0, 1],
+        [1, 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/new.png', null, 1, 2]
     ]);
 });
 
@@ -370,13 +398,13 @@ test('all inline page scripts have valid JavaScript syntax', () => {
     assert.ok(scriptCount > 0);
 });
 
-test('admin keeps the original palette and banner toast starts hidden', () => {
+test('admin uses the storefront palette and banner toast starts hidden', () => {
     const css = fs.readFileSync(path.join(root, 'public', 'css', 'admin.css'), 'utf8');
     const banners = fs.readFileSync(path.join(root, 'views', 'admin', 'banners.html'), 'utf8');
     const dashboard = fs.readFileSync(path.join(root, 'views', 'admin', 'index.html'), 'utf8');
-    assert.match(css, /--primary:\s*#6366F1/i);
-    assert.match(css, /--primary-dark:\s*#4F46E5/i);
-    assert.match(css, /--primary-light:\s*#818CF8/i);
+    assert.match(css, /--primary:\s*#1676D2/i);
+    assert.match(css, /--primary-dark:\s*#0F5EAE/i);
+    assert.match(css, /--primary-light:\s*#4597E7/i);
     assert.match(css, /--success:\s*#10B981/i);
     assert.match(css, /--warning:\s*#F59E0B/i);
     assert.match(css, /--danger:\s*#EF4444/i);
@@ -648,34 +676,38 @@ test('main banner supports ten Cloudinary images and rotates every two seconds w
     const admin = fs.readFileSync(path.join(root, 'views', 'admin', 'banners.html'), 'utf8');
     assert.match(home, /setInterval\([\s\S]*?,\s*2000\)/);
     assert.match(home, /\.filter\([\s\S]*?position[\s\S]*?\)\.slice\(0, 10\)/);
-    assert.match(home, /object-fit:\s*contain/);
-    assert.match(home, /id="mainBannerControls"[^>]*aria-label="Chọn banner"/);
-    assert.match(home, /button\.className = 'banner-dot'/);
-    assert.match(home, /button\.addEventListener\('click', \(\) => selectMainBannerSlide\(index\)\)/);
-    assert.match(home, /container\.href = banner\.link \|\| '\/products'/);
-    assert.doesNotMatch(home, /container\.innerHTML\s*=[\s\S]*?<span class="banner-dot/);
-    assert.match(admin, /uploadBanner\.array\('images', 10\)|upload-many/);
-    assert.match(admin, /files\.length > 10/);
+    assert.match(fs.readFileSync(path.join(root, 'public', 'css', 'pages', 'index.css'), 'utf8'), /object-fit:\s*contain/);
+    assert.match(home, /id="homeHeroControls"[^>]*aria-label="Chọn banner"/);
+    assert.match(home, /dot\.className = 'home-hero-dot'/);
+    assert.match(home, /dot\.addEventListener\('click', \(\) => renderHomeBannerSlide\(slideIndex\)\)/);
+    assert.match(home, /link\.href = !banner\.link[\s\S]*?'\/products'/);
+    assert.doesNotMatch(home, /controls\.innerHTML\s*=/);
+    assert.match(admin, /id="imageInput"[^>]*accept="image\/\*"/);
 });
 
 test('main banner copy stays compact and admin orders has no online-only status filter', () => {
     const home = fs.readFileSync(path.join(root, 'views', 'index.html'), 'utf8');
+    const homeCss = fs.readFileSync(path.join(root, 'public', 'css', 'pages', 'index.css'), 'utf8');
     const orders = fs.readFileSync(path.join(root, 'views', 'admin', 'orders.html'), 'utf8');
-    assert.match(home, /\.banner-title\s*\{[\s\S]*?font-size:\s*2rem;/);
-    assert.match(home, /\.banner-title span\s*\{[^}]*font-size:\s*1rem;/);
-    assert.match(home, /\.btn-banner\s*\{[\s\S]*?padding:\s*10px 18px;[\s\S]*?font-size:\s*0\.82rem;/);
-    assert.match(home, /\.main-banner\s*\{[\s\S]*?align-items:\s*flex-start;[\s\S]*?justify-content:\s*flex-end;/);
+    assert.match(homeCss, /\.banner-title\s*\{[\s\S]*?font-size:\s*2rem;/);
+    assert.match(homeCss, /\.banner-title span\s*\{[^}]*font-size:\s*1rem;/);
+    assert.match(homeCss, /\.btn-banner\s*\{[\s\S]*?padding:\s*10px 18px;[\s\S]*?font-size:\s*0\.82rem;/);
+    assert.match(homeCss, /\.main-banner\s*\{[\s\S]*?align-items:\s*flex-start;[\s\S]*?justify-content:\s*flex-end;/);
+    assert.match(home, /class="home-hero-title"/);
     assert.doesNotMatch(orders, /online_paid|>\s*✅ Online\s*</);
 });
 
 test('customer account pages use the shared flat light page header', () => {
     for (const name of ['orders.html', 'checkout.html', 'profile.html']) {
         const page = fs.readFileSync(path.join(root, 'views', name), 'utf8');
-        assert.match(page, /\.page-header\s*\{[^}]*background:\s*var\(--white\)/s);
-        assert.match(page, /\.page-title h1\s*\{[^}]*color:\s*var\(--dark\)/s);
-        assert.match(page, /\.page-header\s*\{[^}]*padding:\s*20px 0/s);
-        assert.doesNotMatch(page, /\.page-header \{ padding: 32px 0; \}/);
-        assert.doesNotMatch(page, /\.page-header\s*\{[^}]*#0f172a/s);
+        const cssName = name.replace(/\.html$/, '.css');
+        const css = fs.readFileSync(path.join(root, 'public', 'css', 'pages', cssName), 'utf8');
+        assert.match(page, new RegExp(`/css/pages/${cssName.replace('.', '\\.')}`));
+        assert.match(css, /\.page-header\s*\{[^}]*background:\s*var\(--white\)/s);
+        assert.match(css, /\.page-title h1\s*\{[^}]*color:\s*var\(--dark\)/s);
+        assert.match(css, /\.page-header\s*\{[^}]*padding:\s*20px 0/s);
+        assert.doesNotMatch(css, /\.page-header \{ padding: 32px 0; \}/);
+        assert.doesNotMatch(css, /\.page-header\s*\{[^}]*#0f172a/s);
     }
 });
 
@@ -698,7 +730,7 @@ test('category and brand status remains internal and is hidden from admin pages'
             session: { user_id: 1, role: 'admin' }
         }, res);
         assert.equal(res.statusCode, 200);
-        assert.equal(updateParams[2], 0);
+        assert.equal(updateParams[entity === 'categories' ? 3 : 2], 0);
 
         const page = fs.readFileSync(path.join(root, 'views', 'admin', `${entity}.html`), 'utf8');
         assert.doesNotMatch(page, /<th>Trạng thái<\/th>/);
@@ -781,8 +813,8 @@ test('admin product creation accepts uploaded images and commits valid numeric d
     assert.equal(insertedProduct[8], 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/back.webp');
     assert.equal(insertedProduct[12], 0);
     assert.deepEqual(plain(insertedGallery), [
-        [99, 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/front.png', 0, 1],
-        [99, 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/back.webp', 1, 2]
+        [99, 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/front.png', null, 0, 1],
+        [99, 'https://res.cloudinary.com/demo/image/upload/v1/anhtraisstore/products/back.webp', null, 1, 2]
     ]);
 });
 
@@ -981,6 +1013,12 @@ test('variant selection is connected from admin and product detail through cart 
     assert.match(detailPage, /updateVariantPriceAndStock\(selectedVariant\)/);
     assert.match(detailPage, /const displayName = sku \? `\$\{baseName\} – \$\{sku\}` : baseName/);
     assert.match(detailPage, /document\.getElementById\('productName'\)\.textContent = displayName/);
+    assert.match(detailPage, /id="deliveryProvince"/);
+    assert.match(detailPage, /function updateDeliveryEstimate\(item\)/);
+    assert.match(detailPage, /id="mobilePurchaseBar"/);
+    assert.match(detailPage, /addToCart\(productData\.product\.id, quantity, selectedVariant\?\.id \|\| null\)/);
+    assert.match(detailPage, /id="imageViewer"/);
+    assert.match(detailPage, /function changeViewerImage\(delta\)/);
     assert.match(cartRoute, /INSERT INTO cart \(user_id, product_id, variant_id, quantity\)/);
     assert.match(orderRoute, /INSERT INTO order_items \(order_id, product_id, variant_id, quantity, price\)/);
 });

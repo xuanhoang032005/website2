@@ -293,7 +293,9 @@ router.get('/home/featured', async (req, res) => {
     try {
         // Featured products
         const [products] = await pool.query(
-            `SELECT p.*, b.name AS brand_name
+            `SELECT p.*,
+                    (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order, pi.id LIMIT 1) AS display_thumbnail,
+                    b.name AS brand_name
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
              WHERE p.is_featured = 1
@@ -303,7 +305,9 @@ router.get('/home/featured', async (req, res) => {
 
         // New products
         const [newProducts] = await pool.query(
-            `SELECT p.*, b.name AS brand_name
+            `SELECT p.*,
+                    (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order, pi.id LIMIT 1) AS display_thumbnail,
+                    b.name AS brand_name
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
              ORDER BY p.created_at DESC
@@ -312,7 +316,9 @@ router.get('/home/featured', async (req, res) => {
 
         // Promotion products (has discount)
         const [promoProducts] = await pool.query(
-            `SELECT p.*, b.name AS brand_name
+            `SELECT p.*,
+                    (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order, pi.id LIMIT 1) AS display_thumbnail,
+                    b.name AS brand_name
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
              WHERE p.discount_percent > 0
@@ -320,7 +326,7 @@ router.get('/home/featured', async (req, res) => {
              LIMIT 10`
         );
 
-        const [categories] = await pool.query('SELECT id, name, slug FROM categories WHERE is_active = 1 ORDER BY id');
+        const [categories] = await pool.query('SELECT id, name, slug, image FROM categories WHERE is_active = 1 ORDER BY id');
 
         const [promotions] = await pool.query(
             `SELECT * FROM promotions

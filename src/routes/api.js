@@ -1,13 +1,36 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const pool = require('../config/database');
 const { requireAdminApi: requireAdmin } = require('../middleware/auth');
+const { isAllowedImage } = require('../core/image-upload');
+const { categoryCloudinaryStorage } = require('../services/cloud-storage');
+
+const categoryImageUpload = multer({
+    storage: categoryCloudinaryStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => isAllowedImage(file) ? cb(null, true) : cb(new Error('Chỉ chấp nhận file ảnh!'))
+});
 
 function normalizeActiveFlag(value, fallback = 1) {
     if (value === undefined) return fallback;
     if (value === true || value === 1 || value === '1') return 1;
     if (value === false || value === 0 || value === '0') return 0;
     return null;
+}
+
+function normalizeCategoryImage(value) {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value !== 'string') return undefined;
+    const image = value.trim();
+    if (image.length > 255 || /^(?:data:|blob:)/i.test(image)) return undefined;
+    try {
+        const url = new URL(image);
+        if (url.protocol === 'https:' && url.hostname === 'res.cloudinary.com' && url.pathname.includes('/image/upload/')) {
+            return url.toString();
+        }
+    } catch (error) {}
+    return undefined;
 }
 
 // Search suggestions
@@ -195,17 +218,39 @@ router.post('/review', async (req, res) => {
 
 // ============ CATEGORIES API ============
 
+router.post('/categories/upload-image', requireAdmin, (req, res, next) => {
+    categoryImageUpload.single('image')(req, res, error => {
+        if (!error) return next();
+        const message = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE'
+            ? 'Ảnh danh mục không được vượt quá 5MB!'
+            : error.message || 'Ảnh danh mục không hợp lệ!';
+        return res.status(error.status === 503 ? 503 : error.status === 502 ? 502 : 400).json({ error: message });
+    });
+}, (req, res) => {
+    if (!req.file?.path) return res.status(400).json({ error: 'Vui lòng chọn ảnh danh mục!' });
+    res.json({ image: req.file.path });
+});
+
 // Get all categories
 router.get('/categories', async (req, res) => {
     try {
         const visibility = req.session?.role === 'admin' ? '1=1' : 'c.is_active = 1';
         const [categories] = await pool.query(`
-            SELECT c.*, COUNT(p.id) as product_count
+            SELECT
+                c.id,
+                c.name,
+                c.slug,
+                c.image,
+                c.is_active,
+                COALESCE(product_totals.product_count, 0) AS product_count
             FROM categories c
-            LEFT JOIN products p ON c.id = p.category_id
+            LEFT JOIN (
+                SELECT category_id, COUNT(*) AS product_count
+                FROM products
+                GROUP BY category_id
+            ) product_totals ON product_totals.category_id = c.id
             WHERE ${visibility}
-            GROUP BY c.id
-            ORDER BY c.name
+            ORDER BY c.name ASC, c.id ASC
         `);
         res.json({ categories });
     } catch (error) {
@@ -218,7 +263,7 @@ router.get('/categories', async (req, res) => {
 router.get('/categories/:id', async (req, res) => {
     try {
         const visibility = req.session?.role === 'admin' ? '' : ' AND is_active = 1';
-        const [categories] = await pool.query(`SELECT id, name, slug, is_active FROM categories WHERE id = ?${visibility}`, [req.params.id]);
+        const [categories] = await pool.query(`SELECT id, name, slug, image, is_active FROM categories WHERE id = ?${visibility}`, [req.params.id]);
         if (categories.length === 0) {
             return res.status(404).json({ error: 'Không tìm thấy danh mục!' });
         }
@@ -232,11 +277,15 @@ router.get('/categories/:id', async (req, res) => {
 // Create category
 router.post('/categories', requireAdmin, async (req, res) => {
     try {
-        const { name, slug, is_active = 1 } = req.body;
+        const { name, slug, image = null, is_active = 1 } = req.body;
         const active = normalizeActiveFlag(is_active);
+        const normalizedImage = normalizeCategoryImage(image);
         
         if (!name || !slug || active === null) {
             return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin!' });
+        }
+        if (normalizedImage === undefined) {
+            return res.status(400).json({ error: 'Ảnh danh mục phải được tải lên Cloudinary!' });
         }
         
         // Check duplicate slug
@@ -246,8 +295,8 @@ router.post('/categories', requireAdmin, async (req, res) => {
         }
         
         const [result] = await pool.query(
-            'INSERT INTO categories (name, slug, is_active) VALUES (?, ?, ?)',
-            [name, slug, active]
+            'INSERT INTO categories (name, slug, image, is_active) VALUES (?, ?, ?, ?)',
+            [name, slug, normalizedImage, active]
         );
         
         res.json({ success: true, id: result.insertId });
@@ -260,10 +309,14 @@ router.post('/categories', requireAdmin, async (req, res) => {
 // Update category
 router.put('/categories/:id', requireAdmin, async (req, res) => {
     try {
-        const { name, slug, is_active } = req.body;
+        const { name, slug, image = null, is_active } = req.body;
         const active = normalizeActiveFlag(is_active);
+        const normalizedImage = normalizeCategoryImage(image);
         if (!name || !slug || active === null) {
             return res.status(400).json({ error: 'Thông tin danh mục không hợp lệ!' });
+        }
+        if (normalizedImage === undefined) {
+            return res.status(400).json({ error: 'Ảnh danh mục phải được tải lên Cloudinary!' });
         }
         
         // Check duplicate slug (excluding current)
@@ -273,8 +326,8 @@ router.put('/categories/:id', requireAdmin, async (req, res) => {
         }
         
         await pool.query(
-            'UPDATE categories SET name = ?, slug = ?, is_active = ? WHERE id = ?',
-            [name, slug, active, req.params.id]
+            'UPDATE categories SET name = ?, slug = ?, image = ?, is_active = ? WHERE id = ?',
+            [name, slug, normalizedImage, active, req.params.id]
         );
         
         res.json({ success: true });

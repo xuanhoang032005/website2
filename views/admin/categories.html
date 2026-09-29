@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20260914-5">
+    <link rel="stylesheet" href="/css/admin.css?v=20260930-3">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -76,12 +76,13 @@
                                 <tr>
                                     <th style="width: 60px;">#</th>
                                     <th>Tên danh mục</th>
+                                    <th>Ảnh</th>
                                     <th>Slug</th>
                                     <th style="width: 150px;">Thao tác</th>
                                 </tr>
                             </thead>
-                            <tbody id="categoriesBody">
-                                <tr><td colspan="4" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
+                    <tbody id="categoriesBody">
+                                <tr><td colspan="5" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -107,6 +108,17 @@
                         <label class="form-label">Slug</label>
                         <input type="text" class="form-control" id="categorySlug" placeholder="auto-generated-from-name">
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Ảnh danh mục</label>
+                        <label class="category-image-picker" id="categoryImagePicker" for="categoryImageFile" tabindex="0">
+                            <input type="file" id="categoryImageFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+                            <span class="category-image-placeholder" id="categoryImagePlaceholder"><i class="fas fa-cloud-arrow-up"></i><strong>Chọn ảnh danh mục</strong><small>Kéo thả ảnh vào đây hoặc nhấn để chọn</small></span>
+                            <img id="categoryImagePreview" alt="Xem trước ảnh danh mục">
+                            <span class="category-image-change"><i class="fas fa-pen"></i> Đổi ảnh</span>
+                        </label>
+                        <input type="hidden" id="categoryImage">
+                        <small class="form-hint">Ảnh JPG, PNG, WEBP hoặc GIF, tối đa 5MB. Nên dùng ảnh vuông để hiển thị đẹp nhất.</small>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -119,6 +131,29 @@
     <script>
         let editingId = null;
         let categoriesCache = [];
+        let categoryPreviewObjectUrl = null;
+
+        function releaseCategoryPreview() {
+            if (!categoryPreviewObjectUrl) return;
+            URL.revokeObjectURL(categoryPreviewObjectUrl);
+            categoryPreviewObjectUrl = null;
+        }
+
+        function setCategoryImage(image, persistValue = true) {
+            if (persistValue) document.getElementById('categoryImage').value = image || '';
+            const picker = document.getElementById('categoryImagePicker');
+            const preview = document.getElementById('categoryImagePreview');
+            const placeholder = document.getElementById('categoryImagePlaceholder');
+            if (!image) {
+                picker.classList.remove('has-image');
+                preview.removeAttribute('src');
+                placeholder.hidden = false;
+                return;
+            }
+            preview.src = /^(?:https?:|data:|blob:)/i.test(image) ? image : (image.startsWith('/') ? image : '/' + image);
+            picker.classList.add('has-image');
+            placeholder.hidden = true;
+        }
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -152,14 +187,21 @@
 
         async function loadCategories() {
             try {
-                const res = await fetch('/api/categories', { credentials: 'include' });
-                const data = await res.json();
+                const res = await fetch('/api/categories', { credentials: 'include', cache: 'no-store' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403 || data.requireLogin) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error(data.error || `Không thể tải danh mục (HTTP ${res.status})`);
+                }
                 const categories = data.categories || [];
                 categoriesCache = categories;
                 const tbody = document.getElementById('categoriesBody');
 
                 if (categories.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><i class="fas fa-folder"></i><h3>Chưa có danh mục nào</h3></div></td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-folder"></i><h3>Chưa có danh mục nào</h3></div></td></tr>`;
                     return;
                 }
 
@@ -168,6 +210,7 @@
                     html += `<tr>
                         <td>${i + 1}</td>
                         <td><strong>${escapeHtml(c.name)}</strong></td>
+                        <td>${c.image ? `<img src="${escapeHtml(/^https?:\/\//i.test(c.image) ? c.image : (c.image.startsWith('/') ? c.image : '/' + c.image))}" alt="" style="width:42px;height:42px;object-fit:contain;border-radius:6px;background:#fff;" onerror="this.style.display='none'">` : '—'}</td>
                         <td><code style="font-size: 0.8rem;">${escapeHtml(c.slug)}</code></td>
                         <td>
                             <button class="btn btn-sm btn-secondary" onclick="editCategory(${c.id})"><i class="fas fa-edit"></i></button>
@@ -177,31 +220,38 @@
                 });
                 tbody.innerHTML = html;
             } catch (e) {
-                document.getElementById('categoriesBody').innerHTML = `<tr><td colspan="4"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Lỗi tải dữ liệu</h3></div></td></tr>`;
+                document.getElementById('categoriesBody').innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Lỗi tải dữ liệu</h3><p>${escapeHtml(e.message || 'Vui lòng thử lại.')}</p><button type="button" class="btn btn-secondary" onclick="loadCategories()"><i class="fas fa-rotate-right"></i> Thử lại</button></div></td></tr>`;
             }
         }
 
         function openModal() {
+            releaseCategoryPreview();
             editingId = null;
             document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus-circle"></i> Thêm danh mục';
             document.getElementById('categoryForm').reset();
             document.getElementById('categoryId').value = '';
+            setCategoryImage('');
             document.getElementById('categoryModal').classList.add('show');
         }
 
         function closeModal() {
+            releaseCategoryPreview();
             document.getElementById('categoryModal').classList.remove('show');
+            document.getElementById('categoryImageFile').value = '';
             editingId = null;
         }
 
         function editCategory(id) {
             const category = categoriesCache.find(item => Number(item.id) === Number(id));
             if (!category) return;
+            releaseCategoryPreview();
             editingId = id;
             document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Sửa danh mục';
             document.getElementById('categoryId').value = id;
             document.getElementById('categoryName').value = category.name;
             document.getElementById('categorySlug').value = category.slug;
+            document.getElementById('categoryImageFile').value = '';
+            setCategoryImage(category.image || '');
             document.getElementById('categoryModal').classList.add('show');
         }
 
@@ -217,13 +267,25 @@
             }
 
             try {
+                const imageFile = document.getElementById('categoryImageFile').files[0];
+                if (imageFile && !document.getElementById('categoryImage').value) {
+                    const formData = new FormData();
+                    formData.append('image', imageFile);
+                    const uploadRes = await fetch('/api/categories/upload-image', {
+                        method: 'POST', credentials: 'include',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: formData
+                    });
+                    const uploadData = await uploadRes.json();
+                    if (!uploadRes.ok) throw new Error(uploadData.error || 'Không thể tải ảnh danh mục lên!');
+                    setCategoryImage(uploadData.image);
+                }
                 const url = editingId ? `/api/categories/${editingId}` : '/api/categories';
                 const method = editingId ? 'PUT' : 'POST';
                 const res = await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'include',
-                    body: JSON.stringify({ name, slug, is_active })
+                    body: JSON.stringify({ name, slug, image: document.getElementById('categoryImage').value || null, is_active })
                 });
 
                 const data = await res.json();
@@ -236,9 +298,43 @@
                     showAlert(data.error || 'Có lỗi xảy ra!', 'error');
                 }
             } catch (e) {
-                showAlert('Lỗi khi lưu!', 'error');
+                showAlert(e.message || 'Lỗi khi lưu!', 'error');
             }
         }
+
+        document.getElementById('categoryImageFile').addEventListener('change', function() {
+            const file = this.files[0];
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) {
+                this.value = '';
+                showAlert('Ảnh danh mục không được vượt quá 5MB!', 'error');
+                return;
+            }
+            if (!/^image\/(png|jpeg|webp|gif)$/i.test(file.type)) {
+                this.value = '';
+                showAlert('Vui lòng chọn ảnh JPG, PNG, WEBP hoặc GIF!', 'error');
+                return;
+            }
+            document.getElementById('categoryImage').value = '';
+            releaseCategoryPreview();
+            categoryPreviewObjectUrl = URL.createObjectURL(file);
+            setCategoryImage(categoryPreviewObjectUrl, false);
+        });
+
+        const categoryImagePicker = document.getElementById('categoryImagePicker');
+        categoryImagePicker.addEventListener('dragover', event => { event.preventDefault(); categoryImagePicker.classList.add('dragover'); });
+        categoryImagePicker.addEventListener('dragleave', () => categoryImagePicker.classList.remove('dragover'));
+        categoryImagePicker.addEventListener('drop', event => {
+            event.preventDefault();
+            categoryImagePicker.classList.remove('dragover');
+            const file = event.dataTransfer.files[0];
+            if (!file) return;
+            const input = document.getElementById('categoryImageFile');
+            const transfer = new DataTransfer();
+            transfer.items.add(file);
+            input.files = transfer.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
 
         async function deleteCategory(id) {
             const confirmed = await adminConfirm({

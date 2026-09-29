@@ -1,0 +1,156 @@
+/* Shared storefront skin based on the supplied QuickStore reference. */
+:root {
+    --primary: #1676d2;
+    --primary-dark: #0f5eae;
+    --primary-light: #4597e7;
+    --primary-bg: #edf6ff;
+    --info: #1676d2;
+    --info-bg: #edf6ff;
+    --dark: #191a1c;
+    --slate-900: #191a1c;
+    --slate-800: #2a2c30;
+    --slate-700: #41454c;
+    --slate-600: #5b616a;
+    --slate-500: #737984;
+    --slate-400: #969ca5;
+    --slate-300: #c9cdd3;
+    --slate-200: #e4e7eb;
+    --slate-100: #f1f3f5;
+    --slate-50: #f7f8f9;
+    --gradient-primary: linear-gradient(135deg, #2388e5 0%, #126bc2 100%);
+    --shadow-glow: 0 0 18px rgba(22,118,210,.2);
+}
+
+body { background:#fff; color:#202226; }
+.navbar { background:#171717; border-bottom:1px solid #303030; backdrop-filter:none; -webkit-backdrop-filter:none; }
+.navbar::before { content:'AnhTraiStore　 |　 Điện thoại & phụ kiện chính hãng'; display:block; height:26px; padding:0 max(24px,calc((100vw - 1280px)/2)); border-bottom:1px solid #303030; background:#171717; color:#d0d0d0; font-size:10px; line-height:26px; letter-spacing:.01em; }
+body:has(.store-topline) .navbar::before { display:none; }
+.navbar-inner { height:54px; gap:14px; }
+.navbar-brand, .navbar-brand:hover { color:#fff; }
+.navbar-brand span { color:#fff; }
+.nav-links { order:1; margin:0 auto 0 10px; gap:2px; }
+.nav-link { padding:7px 10px; color:#f0f0f0; font-size:.78rem; }
+.nav-link:hover,.nav-link.active { color:#fff; background:#303030; }
+.search-wrap { order:2; max-width:280px; min-width:190px; }
+.search-wrap input { border:0; border-radius:999px; padding-top:8px; padding-bottom:8px; background:#fff; font-size:.75rem; }
+.search-wrap input:focus { box-shadow:0 0 0 3px rgba(22,118,210,.25); }
+.search-btn { color:#555; }
+.navbar-inner > .wishlist-link,.navbar-inner > .compare-link,.navbar-inner > .cart-link,.navbar-inner > #userArea,.navbar-inner > #userMenu,.navbar-inner > .hamburger-nav { order:3; }
+.wishlist-link,.compare-link { width:32px; height:32px; color:#fff; background:transparent; border:0; box-shadow:none; font-size:.95rem; }
+.wishlist-link:hover,.compare-link:hover { background:#333; box-shadow:none; }
+.cart-link { height:34px; padding:0 12px; border-radius:999px; background:#1676d2; box-shadow:none; font-size:.76rem; }
+.cart-link:hover { background:#0f5eae; box-shadow:none; }
+.custom-toast { top:18px !important; right:18px !important; bottom:auto !important; z-index:100100 !important; border-radius:6px !important; box-shadow:0 8px 24px rgba(20,35,50,.16) !important; }
+.custom-toast.success,.custom-toast.info,.custom-toast.warning { background:#1676d2 !important; color:#fff !important; }
+.custom-toast.error { background:#c63d4b !important; color:#fff !important; }
+.toast.success,.toast.info,.toast.warning { background:#1676d2 !important; color:#fff !important; }
+.toast { top:18px !important; right:18px !important; bottom:auto !important; border-radius:6px !important; box-shadow:0 8px 24px rgba(20,35,50,.16) !important; }
+.btn-danger,.btn-delete,.btn-cancel-order,button[class*="danger"],button[style*="#e21b1b"],button[style*="#ef4444"],button[style*="red"] { background:#1676d2 !important; border-color:#1676d2 !important; color:#fff !important; box-shadow:none !important; }
+.btn-danger:hover,.btn-delete:hover,.btn-cancel-order:hover,button[class*="danger"]:hover { background:#0f5eae !important; border-color:#0f5eae !important; }
+.btn-remove,.btn-clear { color:#1676d2 !important; border-color:#cfe4f8 !important; }
+.btn-remove:hover,.btn-clear:hover { color:#0f5eae !important; background:#edf6ff !important; border-color:#b7d8f5 !important; }
+.confirm-btn.confirm { background:#1676d2 !important; color:#fff !important; }
+.wishlist-link .wishlist-badge,.compare-link .compare-badge { color:#1676d2 !important; }
+.navbar-inner > .compare-link,.navbar-inner > .compare-link:hover,.navbar-inner > .compare-link.active { background:#1676d2 !important; color:#fff !important; border-color:#1676d2 !important; box-shadow:none !important; }
+.navbar-inner > .compare-link:hover { background:#0f5eae !important; border-color:#0f5eae !important; }
+.navbar-inner > .wishlist-link,.navbar-inner > .wishlist-link:hover,.navbar-inner > .wishlist-link.active { background:#1676d2 !important; color:#fff !important; border-color:#1676d2 !important; box-shadow:none !important; }
+.navbar-inner > .wishlist-link:hover { background:#0f5eae !important; border-color:#0f5eae !important; }
+.compare-page .compare-product-price,.compare-page .highlight-low { color:#1676d2 !important; }
+.compare-page .discount-badge { background:#1676d2 !important; }
+.compare-page .btn-outline-danger,
+.wishlist-page .btn-outline-danger {
+    background:#fff !important;
+    border-color:#1676d2 !important;
+    color:#1676d2 !important;
+    box-shadow:none !important;
+}
+.compare-page .btn-outline-danger:hover,
+.wishlist-page .btn-outline-danger:hover {
+    background:#edf6ff !important;
+    border-color:#0f5eae !important;
+    color:#0f5eae !important;
+    box-shadow:0 3px 10px rgba(22,118,210,.12) !important;
+}
+.compare-page .btn-compare-remove { color:#1676d2 !important; }
+.compare-page .btn-compare-remove:hover { background:#edf6ff !important; }
+.wishlist-page .wishlist-icon { color:#1676d2 !important; background:linear-gradient(135deg,#edf6ff,#dceeff) !important; }
+.wishlist-page .p-price { color:#1676d2 !important; }
+.wishlist-page .p-badge { background:#1676d2 !important; }
+.wishlist-page .quick-btn:hover,.wishlist-page .quick-btn.wishlist-remove:hover { background:#1676d2 !important; color:#fff !important; }
+.wishlist-page .btn-primary { box-shadow:0 4px 14px rgba(22,118,210,.2) !important; }
+.wishlist-page .btn-primary:hover { box-shadow:0 8px 22px rgba(22,118,210,.25) !important; }
+.detail-price,.mobile-purchase-price,.review-product-info .info-price { color:#1676d2 !important; }
+.detail-discount-badge { background:#1676d2 !important; }
+.detail-action-btns .btn-wishlist:hover { border-color:#1676d2 !important; color:#1676d2 !important; }
+.detail-action-btns .btn-wishlist.active { background:#edf6ff !important; border-color:#1676d2 !important; color:#1676d2 !important; }
+.products-page .p-price,.products-page .product-price,.promotions-page .p-price { color:#1676d2 !important; }
+.products-page .p-badge,.products-page .product-badge,.promotions-page .p-badge { background:#1676d2 !important; }
+#userArea a,#userMenu a,#userArea button,#userMenu button { border-radius:999px !important; }
+#userArea .btn-login,#userArea .user-dropdown-btn,#userMenu .btn-login,#userMenu .user-dropdown-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:34px; max-width:190px; padding:0 12px; overflow:hidden; border:0; border-radius:999px !important; background:#1676d2; color:#fff !important; box-shadow:none; font-size:.76rem; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+#userArea .btn-login:hover,#userArea .user-dropdown-btn:hover,#userMenu .btn-login:hover,#userMenu .user-dropdown-btn:hover { background:#0f5eae; box-shadow:none; transform:none; }
+.hamburger-nav { color:#fff; }
+.mobile-menu,.hamburger-nav.open { background:#fff; color:#24262a; }
+.mobile-menu .navbar-brand,.hamburger-nav.open .navbar-brand { color:#202226; }
+
+.page-header { background:#f2f3f4 !important; color:#202226; border:0 !important; }
+.page-header::before { display:none !important; }
+.page-header h1,.page-title h1 { color:#202226 !important; }
+.page-header p,.page-title p { color:#616771 !important; }
+.page-title-icon { color:#1676d2 !important; background:#e3f1ff !important; box-shadow:none !important; }
+.breadcrumb-bar { display:block; min-height:44px; padding:12px 0 !important; background:#fff !important; border-bottom:1px solid #eceef0 !important; }
+.breadcrumb-bar .container { display:flex; align-items:center; gap:8px; min-height:20px; font-size:.82rem; }
+.breadcrumb-bar a { color:#777e87 !important; font-weight:500; text-decoration:none; }
+.breadcrumb-bar a:hover { color:#1676d2 !important; }
+.breadcrumb-bar span { color:#25282c !important; font-weight:600 !important; }
+.breadcrumb-bar i { color:#a0a6ae !important; font-size:.62rem !important; }
+.page-breadcrumb { background:transparent; }
+.section,.section-alt,.content-wrap,.products-page,.cart-wrap,.checkout-layout,.compare-wrap,.wishlist-wrap { background:transparent; }
+.products-grid-4,.products-grid { gap:14px; }
+.product-card,.p-card,.cart-card,.policy-card,.toc-card,.checkout-card,.order-card,.profile-card,.contact-card,.compare-card,.wishlist-card,.review-card,.form-card { border-radius:4px !important; box-shadow:none; }
+.product-card,.p-card { border-color:#e7e9ec; }
+.product-card:hover,.p-card:hover { border-color:#b7d8f5; box-shadow:0 8px 20px rgba(24,54,82,.08); transform:translateY(-2px); }
+.product-card .product-img-wrap,.p-img { background:#f7f8f9; }
+.product-card .product-img-wrap img,.p-img img { object-fit:contain; }
+.product-badge,.p-badge { border-radius:2px; background:#e34242; }
+.product-card .btn-add-cart,.btn-cart,.btn-shop,.btn-primary,.btn-checkout,.btn-submit { background:#1676d2; box-shadow:none; border-radius:4px; }
+.product-card .btn-add-cart:hover,.btn-cart:hover,.btn-shop:hover,.btn-primary:hover,.btn-checkout:hover,.btn-submit:hover { background:#0f5eae; box-shadow:none; }
+.section-title,.page-title h1 { letter-spacing:-.025em; }
+input,select,textarea { border-radius:4px; }
+input:focus,select:focus,textarea:focus { border-color:#1676d2; box-shadow:0 0 0 3px rgba(22,118,210,.12); }
+footer { margin-top:50px; padding-top:52px; background:#18191b; }
+
+@media(max-width:1100px) {
+    .navbar-inner { gap:9px; }
+    .nav-link { padding:7px; }
+    .nav-link i { display:none; }
+    .search-wrap { min-width:165px; }
+}
+@media(max-width:768px) {
+    .navbar::before { height:24px; padding:0 16px; font-size:9px; line-height:24px; content:'Điện thoại & phụ kiện chính hãng'; }
+    .navbar-inner { height:58px; gap:10px; }
+    .navbar-brand { font-size:1.12rem; }
+    .navbar-inner > .wishlist-link,.navbar-inner > .compare-link { display:none; }
+    .navbar-inner > .cart-link { margin-left:auto; }
+    .navbar-inner > .hamburger-nav { color:#fff; background:transparent; }
+    .navbar-inner > #userArea,.navbar-inner > #userMenu { display:none; }
+    .products-grid-4,.products-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .product-card,.p-card { border-radius:4px !important; }
+    .product-card .product-body,.p-body { padding:11px; }
+    .product-card .btn-add-cart,.btn-cart { padding:8px 5px; font-size:.72rem; }
+    .page-header { padding:22px 0 !important; }
+    footer { margin-top:36px; padding-top:36px; }
+}
+
+.content-wrap,.checkout-layout,.cart-wrap,.products-page,.compare-wrap,.wishlist-wrap { color:#202226; }
+.policy-card,.toc-card,.contact-info-card,.contact-form-card,.cart-card,.checkout-summary,.checkout-form,.order-detail-card,.order-card,.profile-content,.profile-sidebar,.compare-table-wrap,.wishlist-content { background:#fff; border:1px solid #e7e9ec; }
+
+@media(max-width:768px) {
+    .navbar-inner > .hamburger-nav { position:static; display:inline-flex; align-items:center; justify-content:center; width:auto; height:auto; max-width:none; padding:8px; box-shadow:none; z-index:auto; }
+}
+@media(max-width:420px) {
+    .navbar::before { font-size:8px; }
+    .navbar-inner { padding:0 12px; }
+    .navbar-brand { font-size:1rem; }
+    .cart-link { padding:0 9px; font-size:.7rem; }
+    .products-grid-4,.products-grid { gap:8px; }
+}
