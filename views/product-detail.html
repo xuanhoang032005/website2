@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/product-detail.css?v=1">
+    <link rel="stylesheet" href="/css/pages/product-detail.css?v=20260930-4">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body class="product-reference-page">
@@ -77,6 +77,20 @@
                 <div class="detail-img-main" id="mainImg"></div>
                 <div class="thumbs-counter" id="thumbsCounter">9 ảnh</div>
                 <div class="detail-img-thumbs" id="thumbsContainer"></div>
+                <div class="purchase-policies image-purchase-policies">
+                    <details class="purchase-policy">
+                        <summary><i class="bi bi-shield-check"></i> Bảo hành chính hãng</summary>
+                        <p>Bảo hành 12 tháng theo chính sách hãng. Vui lòng giữ hóa đơn và thông tin đơn hàng để được hỗ trợ nhanh.</p>
+                    </details>
+                    <details class="purchase-policy">
+                        <summary><i class="bi bi-arrow-repeat"></i> Đổi trả trong 30 ngày</summary>
+                        <p>Hỗ trợ đổi trả trong 30 ngày khi sản phẩm đáp ứng điều kiện kiểm tra ngoại hình, phụ kiện và tình trạng sử dụng.</p>
+                    </details>
+                    <details class="purchase-policy">
+                        <summary><i class="bi bi-shop"></i> Nhận hàng tại cửa hàng</summary>
+                        <p>Tồn kho chi nhánh có thể thay đổi. Gọi 1800 2097 để xác nhận sản phẩm trước khi đến nhận.</p>
+                    </details>
+                </div>
             </div>
 
             <div class="detail-info-section">
@@ -120,20 +134,6 @@
                         <div>Chọn khu vực để xem <strong>thời gian nhận hàng dự kiến</strong>.</div>
                     </div>
                     <div class="delivery-store-note" id="deliveryStoreNote"><i class="bi bi-box-seam"></i> Kho online: đang kiểm tra theo phiên bản.</div>
-                    <div class="purchase-policies">
-                        <details class="purchase-policy">
-                            <summary><i class="bi bi-shield-check"></i> Bảo hành chính hãng</summary>
-                            <p>Bảo hành 12 tháng theo chính sách hãng. Vui lòng giữ hóa đơn và thông tin đơn hàng để được hỗ trợ nhanh.</p>
-                        </details>
-                        <details class="purchase-policy">
-                            <summary><i class="bi bi-arrow-repeat"></i> Đổi trả trong 30 ngày</summary>
-                            <p>Hỗ trợ đổi trả trong 30 ngày khi sản phẩm đáp ứng điều kiện kiểm tra ngoại hình, phụ kiện và tình trạng sử dụng.</p>
-                        </details>
-                        <details class="purchase-policy">
-                            <summary><i class="bi bi-shop"></i> Nhận hàng tại cửa hàng</summary>
-                            <p>Tồn kho chi nhánh có thể thay đổi. Gọi 1800 2097 để xác nhận sản phẩm trước khi đến nhận.</p>
-                        </details>
-                    </div>
                 </section>
 
             </div>
@@ -214,7 +214,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -237,8 +237,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>
@@ -485,11 +485,16 @@
             }
             const multiple = galleryImages.length > 1;
             container.innerHTML =
-                '<img src="' + escapeHtml(galleryImages[currentGalleryIndex]) + '" alt="' + escapeHtml(productName) + '" id="mainImgEl" onclick="openImageViewer()">' +
+                '<img src="' + escapeHtml(galleryImages[currentGalleryIndex]) + '" alt="' + escapeHtml(productName) + '" id="mainImgEl" onload="fitMainImage(this)" onclick="openImageViewer()">' +
                 (multiple ? '<button type="button" class="gallery-control gallery-prev" onclick="event.stopPropagation();changeGalleryImage(-1)" aria-label="Ảnh trước"><i class="bi bi-chevron-left"></i></button>' : '') +
                 (multiple ? '<button type="button" class="gallery-control gallery-next" onclick="event.stopPropagation();changeGalleryImage(1)" aria-label="Ảnh tiếp theo"><i class="bi bi-chevron-right"></i></button>' : '') +
                 '<button type="button" class="gallery-control gallery-zoom" onclick="event.stopPropagation();openImageViewer()" aria-label="Phóng to ảnh"><i class="bi bi-arrows-fullscreen"></i></button>' +
                 '<span class="gallery-position">' + (currentGalleryIndex + 1) + '/' + galleryImages.length + '</span>';
+        }
+
+        function fitMainImage(image) {
+            if (!image || !image.naturalWidth || !image.naturalHeight) return;
+            image.classList.toggle('landscape-image', image.naturalWidth / image.naturalHeight >= 1.35);
         }
 
         function selectGalleryImage(index) {
@@ -725,7 +730,7 @@
             const fromDays = isMajorCity ? 1 : 2;
             const toDays = isMajorCity ? 2 : 4;
             const location = district ? district + ', ' + province : province;
-            const shippingFee = Number(item.price || 0) >= 500000 ? 'Miễn phí vận chuyển' : 'Phí vận chuyển 30.000đ';
+            const shippingFee = 'Giao tiêu chuẩn 30.000đ · Giao nhanh 50.000đ';
             result.innerHTML = '<i class="bi bi-check-circle-fill"></i><div><strong>' + escapeHtml(location) + '</strong><br>Dự kiến nhận từ ' + deliveryDateAfter(fromDays) + ' đến ' + deliveryDateAfter(toDays) + ' · ' + shippingFee + '.</div>';
         }
 
@@ -954,6 +959,10 @@
             }
             html += '</div></div>';
 
+            const reviewEligibility = productData?.reviewEligibility || { canReview: !isLoggedIn, reason: '' };
+            if (isLoggedIn && !reviewEligibility.canReview) {
+                html += '<div class="review-eligibility-note"><i class="bi bi-shield-lock"></i><div><strong>Chưa thể gửi đánh giá</strong><span>' + escapeHtml(reviewEligibility.reason) + '</span></div></div>';
+            } else {
             html += '<div class="inline-review-form">' +
                 '<h3>Gửi đánh giá của bạn</h3>' +
                 '<p>Chọn số sao và chia sẻ trải nghiệm thực tế về sản phẩm.</p>' +
@@ -970,6 +979,7 @@
                 '<div id="reviewAlert" style="display:none" class="review-alert" aria-live="polite"></div>' +
                 '<div class="inline-review-actions"><button class="btn-submit-review" id="btnSubmitReview" onclick="submitReview(' + Boolean(isLoggedIn) + ')"><i class="bi bi-send"></i> Gửi đánh giá</button></div>' +
             '</div>';
+            }
 
             reviews.forEach(r => {
                 let stars = '';

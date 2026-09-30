@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/wishlist.css?v=1">
+    <link rel="stylesheet" href="/css/pages/wishlist.css?v=20260930-3">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -100,6 +100,11 @@
             </div>
         </div>
 
+        <div class="wishlist-toolbar" id="wishlistToolbar" style="display:none">
+            <div class="wishlist-filters" id="wishlistFilters"></div>
+            <select id="wishlistSort" aria-label="Sắp xếp sản phẩm yêu thích"><option value="newest">Sắp xếp: Mới nhất</option><option value="price_asc">Giá tăng dần</option><option value="price_desc">Giá giảm dần</option><option value="name">Tên A-Z</option></select>
+        </div>
+
         <div id="wishlistContent">
             <div class="loading-state">
                 <div class="loading-spinner"></div>
@@ -146,7 +151,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -169,8 +174,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>
@@ -178,6 +183,8 @@
     <script src="/js/app.js?v=20260930-2"></script>
     <script>
         let wishlistItems = [];
+        let activeWishlistFilter = 'all';
+        let wishlistSort = 'newest';
 
         function formatPriceVND(p) {
             if (p === null || p === undefined || p === '') return '0';
@@ -209,7 +216,9 @@
                 document.getElementById('countNum').textContent = count;
                 document.getElementById('wishlistCountBadge').style.display = count > 0 ? 'inline-flex' : 'none';
                 document.getElementById('clearBtn').style.display = count > 0 ? 'inline-flex' : 'none';
+                document.getElementById('wishlistToolbar').style.display = count > 0 ? 'flex' : 'none';
 
+                renderWishlistToolbar();
                 renderWishlist();
             } catch (error) {
                 console.error('Load wishlist error:', error);
@@ -232,8 +241,10 @@
                 return;
             }
 
+            let visibleItems = activeWishlistFilter === 'all' ? [...wishlistItems] : wishlistItems.filter(item => (item.brand_name || 'Khác') === activeWishlistFilter);
+            visibleItems.sort((a, b) => wishlistSort === 'price_asc' ? Number(a.price) - Number(b.price) : wishlistSort === 'price_desc' ? Number(b.price) - Number(a.price) : wishlistSort === 'name' ? String(a.name).localeCompare(String(b.name), 'vi') : new Date(b.added_at) - new Date(a.added_at));
             let html = '<div class="wishlist-grid">';
-            wishlistItems.forEach(item => {
+            visibleItems.forEach(item => {
                 const discount = Number(item.discount_percent) || 0;
                 const price = Number(item.price) || 0;
                 const oldPrice = Number(item.old_price) || 0;
@@ -250,6 +261,7 @@
                 const btnCart = inStock
                     ? '<button class="btn-cart" onclick="addToCart(' + item.id + ')"><i class="bi bi-bag-plus"></i> Thêm vào giỏ</button>'
                     : '<button class="btn-cart" disabled><i class="bi bi-x"></i> Hết hàng</button>';
+                const btnBuy = inStock ? '<button class="btn-buy-wishlist" onclick="buyWishlistNow(' + item.id + ')">Mua ngay</button>' : '';
 
                 html += (
                     '<div class="p-card" id="wishlist-' + item.wishlist_id + '">' + badge +
@@ -268,13 +280,34 @@
                             '<span class="p-price">' + formatPriceVND(price) + 'đ</span>' +
                             oldPriceHtml +
                         '</div>' +
-                        btnCart +
+                        '<div class="wishlist-card-actions">' + btnCart + btnBuy + '</div>' +
                     '</div>' +
                     '</div>'
                 );
             });
             html += '</div>';
             container.innerHTML = html;
+        }
+
+        function renderWishlistToolbar() {
+            const groups = new Map();
+            wishlistItems.forEach(item => groups.set(item.brand_name || 'Khác', (groups.get(item.brand_name || 'Khác') || 0) + 1));
+            document.getElementById('wishlistFilters').innerHTML = `<button class="wishlist-filter ${activeWishlistFilter === 'all' ? 'active' : ''}" data-filter="all">Tất cả (${wishlistItems.length})</button>` + [...groups.entries()].map(([name, count]) => `<button class="wishlist-filter ${activeWishlistFilter === name ? 'active' : ''}" data-filter="${escapeHtml(name)}">${escapeHtml(name)} (${count})</button>`).join('');
+            document.querySelectorAll('.wishlist-filter').forEach(button => button.addEventListener('click', () => { activeWishlistFilter = button.dataset.filter; renderWishlistToolbar(); renderWishlist(); }));
+            const sort = document.getElementById('wishlistSort');
+            sort.value = wishlistSort;
+            sort.onchange = () => { wishlistSort = sort.value; renderWishlist(); };
+        }
+
+        async function buyWishlistNow(productId) {
+            try {
+                const response = await fetch('/api/cart/buy-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ product_id: productId, quantity: 1 }) });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể mua ngay');
+                window.location.href = '/checkout?buy_now=' + encodeURIComponent(data.token);
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
         }
 
         function renderEmpty(msg) {

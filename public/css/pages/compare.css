@@ -546,3 +546,74 @@
             margin: 0 auto 8px;
             display: block;
         }
+
+/* Reference comparison layout */
+body:has(.compare-page) { background: #f6faff; }
+.compare-page { max-width: 1400px; padding: 28px 24px 54px; }
+.compare-header { margin-bottom: 16px; }
+.compare-icon { display: none; }
+.compare-title h1 { font-size: 1.45rem; }
+.compare-title p { margin-top: 5px; color: #78869a; font-size: .72rem; }
+.compare-count-badge,
+.compare-actions .btn-primary-outline { display: none !important; }
+.compare-actions .btn-outline-danger { min-height: 33px; padding: 6px 11px; color: #1269ed; background: #fff; border: 1px solid #1269ed; border-radius: 5px; font-size: .68rem; }
+.compare-actions .btn-outline-danger:hover { color: #fff; background: #1269ed; border-color: #1269ed; }
+.compare-table-wrap { overflow-x: auto; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.compare-table { min-width: 840px; table-layout: fixed; background: #fff; border: 1px solid #dce5ef; border-collapse: separate; border-spacing: 0; border-radius: 8px; overflow: hidden; }
+.compare-table th,
+.compare-table td { padding: 11px 14px; color: #46566d; border-color: #dfe7ef; font-size: .75rem; }
+.compare-table th { padding: 11px 14px; color: #27364b; border-color: #dfe7ef; font-size: .76rem; }
+.compare-table th:first-child { width: 185px; min-width: 185px; color: #27364b; background: #f8fbfe; }
+.compare-products-row th,
+.compare-products-row td { padding: 12px; background: #fff; vertical-align: top; }
+.compare-add-product { display: flex; min-height: 250px; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: #526176; border: 1px dashed #9dc2f7; border-radius: 7px; text-align: center; text-decoration: none; }
+.compare-add-product i { color: #1269ed; font-size: 1.45rem; }
+.compare-add-product span { font-size: .68rem; font-weight: 650; line-height: 1.5; }
+.compare-table .product-col { min-width: 0; max-width: none; width: auto; height: 245px; }
+.product-col-inner { position: relative; min-height: 0; height: auto; padding: 0; }
+.product-info-scroll { flex: 0 0 auto; overflow: visible; }
+.compare-remove-corner { position: absolute; top: -4px; right: -4px; z-index: 3; width: 25px; height: 25px; color: #718096; background: transparent; border: 0; cursor: pointer; }
+.product-gallery-area { min-height: 140px; }
+.compare-product-img,
+.compare-gallery-wrap,
+.compare-gallery-wrap .compare-main-img,
+.compare-main-img { width: 150px !important; max-width: 150px !important; height: 140px !important; max-height: 140px !important; }
+.compare-product-img { min-width: 150px !important; min-height: 140px !important; margin: 0 auto; background: #fff; }
+.compare-product-img img { width: 150px !important; height: 140px !important; object-fit: contain; }
+.compare-gallery { display: none; }
+.compare-product-brand { margin: 8px 0 3px; color: #718096; font-size: .65rem; letter-spacing: 0; }
+.compare-product-name { min-height: 35px; margin: 0; font-size: .78rem; }
+.compare-product-link { color: inherit; text-decoration: none; cursor: pointer; }
+.compare-product-price { color: #172033; font-size: .82rem; }
+.compare-product-old { font-size: .58rem; }
+.discount-badge { padding: 2px 5px; font-size: .52rem; }
+.compare-description { max-width: 250px; font-size: .72rem; line-height: 1.55; }
+.compare-conclusion { display: flex; gap: 10px; margin-top: 12px; padding: 13px 16px; color: #1269ed; background: #eef6ff; border: 1px solid #d7e8fd; border-radius: 7px; }
+.compare-conclusion > i { font-size: 1rem; }
+.compare-conclusion div { display: flex; flex-direction: column; }
+.compare-conclusion strong { font-size: .68rem; }
+.compare-conclusion span { margin-top: 3px; color: #65748a; font-size: .72rem; }
+.compare-conclusion span > strong { color: #1269ed; font-size: inherit; }
+.compare-conclusion strong { display: flex; align-items: center; gap: 7px; }
+.compare-conclusion strong em { padding: 2px 6px; color: #fff; background: #1269ed; border-radius: 999px; font-size: .52rem; font-style: normal; font-weight: 700; }
+.compare-conclusion span small { color: #8995a6; font-size: .62rem; }
+.compare-conclusion button { align-self: center; margin-left: auto; padding: 7px 10px; color: #1269ed; background: #fff; border: 1px solid #bcd6fa; border-radius: 5px; font-size: .62rem; white-space: nowrap; cursor: pointer; }
+.compare-conclusion button:disabled { cursor: wait; opacity: .55; }
+@media (max-width: 768px) { .compare-page { padding-inline: 14px; } }
+
+/* Readable reference sizing for comparison details. */
+.compare-title p { font-size: .82rem; }
+.compare-actions .btn-outline-danger { font-size: .78rem; }
+.compare-table th, .compare-table td { font-size: .84rem; }
+.compare-table th { font-size: .86rem; }
+.compare-add-product span { font-size: .78rem; }
+.compare-product-brand { font-size: .72rem; }
+.compare-product-name { font-size: .86rem; }
+.compare-product-price { font-size: .92rem; }
+.compare-product-old { font-size: .68rem; }
+.discount-badge { font-size: .62rem; }
+.compare-description { font-size: .8rem; }
+.compare-conclusion strong { font-size: .76rem; }
+.compare-conclusion span { font-size: .8rem; }
+.compare-conclusion span small { font-size: .68rem; }
+.compare-conclusion button { font-size: .72rem; }

@@ -6,6 +6,7 @@ const contactValidation = validateBody({
     full_name: stringField({ required: true, min: 1, max: 100, disallowHtml: true, label: 'Họ tên' }),
     email: emailField({ required: true }),
     phone: stringField({ max: 30, disallowHtml: true, label: 'Số điện thoại' }),
+    subject: stringField({ max: 200, disallowHtml: true, label: 'Chủ đề' }),
     message: stringField({ required: true, min: 1, max: 3000, disallowHtml: true, label: 'Nội dung' })
 });
 const reviewValidation = validateBody({
@@ -16,8 +17,15 @@ const reviewValidation = validateBody({
 const multer = require('multer');
 const pool = require('../config/database');
 const { requireAdminApi: requireAdmin } = require('../middleware/auth');
+const { sendEmail } = require('../config/mail');
 const { isAllowedImage } = require('../core/image-upload');
 const { categoryCloudinaryStorage } = require('../services/cloud-storage');
+
+function escapeMailHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+}
 
 const categoryImageUpload = multer({
     storage: categoryCloudinaryStorage,
@@ -96,7 +104,7 @@ router.get('/cart-count', async (req, res) => {
 router.post('/contact', contactValidation, async (req, res) => {
     let connection;
     try {
-        const { full_name, email, phone, message } = req.body;
+        const { full_name, email, phone, subject, message } = req.body;
         const user_id = req.session?.user_id || null;
 
         if (!full_name || !email || !message) {
@@ -154,6 +162,28 @@ router.post('/contact', contactValidation, async (req, res) => {
         }
 
         await connection.commit();
+        connection.release();
+        connection = null;
+
+        const contactEmail = process.env.CONTACT_EMAIL || 'adminanhtrai@gmail.com';
+        const safeName = escapeMailHtml(full_name);
+        const safeEmail = escapeMailHtml(email);
+        const safePhone = escapeMailHtml(phone || 'Không cung cấp');
+        const safeSubject = escapeMailHtml(subject || 'Liên hệ từ website');
+        const safeMessage = escapeMailHtml(message).replace(/\r?\n/g, '<br>');
+        const emailSent = await sendEmail({
+            to: contactEmail,
+            replyTo: email,
+            subject: `[AnhTraiStore] ${subject || 'Liên hệ mới từ khách hàng'}`,
+            text: `Họ tên: ${full_name}\nEmail: ${email}\nSố điện thoại: ${phone || 'Không cung cấp'}\nChủ đề: ${subject || 'Liên hệ từ website'}\n\n${message}`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#172033">
+                <div style="padding:20px 24px;background:#0b1b33;color:#fff"><h2 style="margin:0">Liên hệ mới từ AnhTraiStore</h2></div>
+                <div style="padding:24px;border:1px solid #dce5ef">
+                    <p><strong>Họ tên:</strong> ${safeName}</p><p><strong>Email:</strong> ${safeEmail}</p>
+                    <p><strong>Số điện thoại:</strong> ${safePhone}</p><p><strong>Chủ đề:</strong> ${safeSubject}</p>
+                    <div style="margin-top:18px;padding:16px;background:#f5f8fc;border-radius:8px;line-height:1.6">${safeMessage}</div>
+                </div></div>`
+        });
 
         const io = req.app?.get?.('io');
         if (io && savedMessage) {
@@ -162,7 +192,8 @@ router.post('/contact', contactValidation, async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Gửi liên hệ thành công!',
+            message: emailSent ? 'Gửi liên hệ thành công!' : 'Đã lưu liên hệ nhưng chưa thể gửi email thông báo.',
+            email_sent: emailSent,
             conversation_id: conversation_id
         });
     } catch (error) {
@@ -194,18 +225,6 @@ router.post('/review', reviewValidation, async (req, res) => {
             return res.status(400).json({ error: 'Vui lòng nhập nội dung đánh giá!' });
         }
         if (comment.length > 2000) return res.status(400).json({ error: 'Đánh giá không được vượt quá 2000 ký tự!' });
-
-        const [purchases] = await pool.query(
-            `SELECT o.id
-             FROM orders o
-             JOIN order_items oi ON oi.order_id = o.id
-             WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered'
-             LIMIT 1`,
-            [user_id, productId]
-        );
-        if (purchases.length === 0) {
-            return res.status(403).json({ error: 'Bạn chỉ có thể đánh giá sản phẩm đã mua và nhận hàng!' });
-        }
 
         // Check if already reviewed
         const [existing] = await pool.query(

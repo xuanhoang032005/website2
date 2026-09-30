@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/cart.css?v=1">
+    <link rel="stylesheet" href="/css/pages/cart.css?v=20261001-1">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -82,7 +82,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -105,8 +105,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>
@@ -166,57 +166,49 @@
                         '<div class="cart-item-brand">' + (item.brand_name || '') + '</div>' +
                         '<div class="cart-item-name"><a href="/product/' + item.product_id + '">' + item.name + '</a></div>' +
                         variantInfo +
-                        '<div><span class="cart-item-price">' + formatPrice(price) + 'đ</span>' + oldPrice + '</div>' +
                     '</div>' +
-                    '<div class="cart-item-actions">' +
-                        '<div class="cart-item-subtotal" id="subtotal-' + item.id + '">' + formatPrice(price * item.quantity) + 'đ</div>' +
-                        '<div class="qty-ctrl">' +
-                            '<button onclick="changeQty(' + item.id + ', -1, ' + item.stock + ')">−</button>' +
-                            '<input type="number" id="qty-' + item.id + '" value="' + item.quantity + '" min="1" max="' + item.stock + '" onchange="updateQty(' + item.id + ')">' +
-                            '<button onclick="changeQty(' + item.id + ', 1, ' + item.stock + ')">+</button>' +
-                        '</div>' +
-                        '<button class="btn-remove" onclick="removeItem(' + item.id + ')"><i class="bi bi-trash3"></i> Xóa</button>' +
+                    '<div class="cart-item-unit-price"><span class="cart-item-price">' + formatPrice(price) + 'đ</span>' + oldPrice + '</div>' +
+                    '<div class="qty-ctrl">' +
+                        '<button onclick="changeQty(' + item.id + ', -1, ' + item.stock + ')">−</button>' +
+                        '<input type="number" id="qty-' + item.id + '" value="' + item.quantity + '" min="1" max="' + item.stock + '" onchange="updateQty(' + item.id + ')">' +
+                        '<button onclick="changeQty(' + item.id + ', 1, ' + item.stock + ')">+</button>' +
                     '</div>' +
+                    '<div class="cart-item-subtotal" id="subtotal-' + item.id + '">' + formatPrice(price * item.quantity) + 'đ</div>' +
+                    '<button class="btn-remove" onclick="removeItem(' + item.id + ')"><i class="bi bi-trash3"></i><span>Xóa</span></button>' +
                 '</div>';
             });
 
-            container.innerHTML = '<div>' +
-                '<div class="cart-card">' +
-                    '<div class="cart-header">' +
-                        '<div style="display:flex;align-items:center;gap:12px">' +
-                            '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">' +
-                                '<input type="checkbox" id="checkAll" style="accent-color:var(--primary)">' +
-                                '<span class="cart-title">Giỏ hàng (<span id="totalItems">' + data.items.length + '</span> sản phẩm)</span>' +
-                            '</label>' +
+            container.innerHTML =
+                '<div class="cart-heading">' +
+                    '<div><h1>Giỏ hàng của bạn <span>(' + data.items.length + ' sản phẩm)</span></h1><p>Những lựa chọn tuyệt vời, sẵn sàng đến tay bạn.</p></div>' +
+                '</div>' +
+                '<div class="cart-main">' +
+                    '<div class="cart-card">' +
+                        '<div class="cart-header">' +
+                            '<div class="cart-header-left">' +
+                                '<label><input type="checkbox" id="checkAll"><span class="cart-title">Chọn tất cả (<span id="totalItems">' + data.items.length + '</span>)</span></label>' +
+                            '</div>' +
+                            '<div class="cart-header-right"><div class="cart-column-labels"><span>Đơn giá</span><span>Số lượng</span><span>Thành tiền</span></div><button class="btn-clear" onclick="clearCart()" title="Xóa tất cả"><i class="bi bi-trash3"></i><span class="btn-clear-label">Xóa tất cả</span></button></div>' +
                         '</div>' +
-                        '<button class="btn-clear" onclick="clearCart()"><i class="bi bi-trash3"></i> Xóa tất cả</button>' +
+                        itemsHtml +
+                        '<div class="cart-assurance"><i class="bi bi-patch-check"></i> Sản phẩm chính hãng · Bảo hành theo nhà sản xuất</div>' +
                     '</div>' +
-                    itemsHtml +
+                    '<div id="shippingNote" class="shipping-promo-slot"></div>' +
+                    '<a class="continue-shopping" href="/products"><i class="bi bi-arrow-left"></i> Tiếp tục mua sắm</a>' +
                 '</div>' +
-                '<div style="margin-top:12px"><a href="/products" style="color:var(--primary);font-size:0.875rem;font-weight:600;text-decoration:none"><i class="bi bi-arrow-left"></i> Tiếp tục mua sắm</a></div>' +
-            '</div>' +
-
-            '<div>' +
-                '<div class="summary-card">' +
-                    '<div class="summary-title">Tóm tắt đơn hàng</div>' +
-                    '<div id="shippingNote"></div>' +
-                    '<div class="summary-row">' +
-                        '<span class="label">Đã chọn (<span id="selectedCount">0</span> sp)</span>' +
-                        '<span class="value" id="selectedSubtotal">0đ</span>' +
+                '<aside class="cart-sidebar">' +
+                    '<div class="summary-card">' +
+                        '<div class="summary-title"><i class="bi bi-bag"></i> Thông tin đơn hàng</div>' +
+                        '<div class="summary-row"><span class="label">Tạm tính (<span id="selectedCount">0</span> sản phẩm)</span><span class="value" id="selectedSubtotal">0đ</span></div>' +
+                        '<div class="summary-row"><span class="label">Phí vận chuyển</span><span class="value summary-shipping" id="shippingFee">0đ</span></div>' +
+                        '<div class="summary-divider"></div>' +
+                        '<div class="summary-total"><span class="label">Tổng thanh toán</span><span class="value" id="grandTotal">0đ</span></div>' +
+                        '<small class="summary-vat">Đã bao gồm VAT (nếu có)</small>' +
+                        '<a href="/checkout" class="btn-checkout" id="btnCheckout" onclick="return validateCheckout(this)"><i class="bi bi-credit-card"></i> Tiến hành thanh toán</a>' +
+                        '<p class="summary-help">Bạn có thể kiểm tra đơn hàng ở bước tiếp theo</p>' +
                     '</div>' +
-                    '<div class="summary-row">' +
-                        '<span class="label">Phí vận chuyển</span>' +
-                        '<span class="value" id="shippingFee">30.000đ</span>' +
-                    '</div>' +
-                    '<div class="summary-divider"></div>' +
-                    '<div class="summary-total">' +
-                        '<span class="label">Tổng cộng</span>' +
-                        '<span class="value" id="grandTotal">0đ</span>' +
-                    '</div>' +
-                    '<a href="/checkout" class="btn-checkout" id="btnCheckout" onclick="return validateCheckout(this)"><i class="bi bi-credit-card"></i> Tiến hành thanh toán</a>' +
-                    '<a href="/products" class="btn-continue"><i class="bi bi-arrow-left"></i> Tiếp tục mua sắm</a>' +
-                '</div>' +
-            '</div>';
+                    '<div class="benefit-card"><div><i class="bi bi-shield-check"></i><span><strong>100% sản phẩm chính hãng</strong><small>An tâm mua sắm tại AnhTraiStore</small></span></div><div><i class="bi bi-truck"></i><span><strong>Giao hàng toàn quốc</strong><small>Nhận hàng trong 2 - 4 ngày</small></span></div><div><i class="bi bi-headset"></i><span><strong>Luôn sẵn sàng hỗ trợ bạn</strong><small>Hotline: 1800 2097</small></span></div></div>' +
+                '</aside>';
 
             // Validation for checkout button
             window.validateCheckout = function(link) {
@@ -261,32 +253,32 @@
             const selectedIds = [];
 
             document.querySelectorAll('.item-check').forEach(cb => {
+                const price = Number(cb.dataset.price) || 0;
+                const qty = parseInt(document.getElementById('qty-' + cb.dataset.id)?.value || cb.dataset.qty, 10) || 0;
+                const lineTotal = document.getElementById('subtotal-' + cb.dataset.id);
+                if (lineTotal) lineTotal.textContent = formatPrice(price * qty) + 'đ';
                 if (cb.checked) {
-                    const price = parseInt(cb.dataset.price);
-                    const qty = parseInt(document.getElementById('qty-' + cb.dataset.id)?.value || cb.dataset.qty);
                     subtotal += price * qty;
                     count += qty;
                     selectedIds.push(cb.dataset.id);
-                    document.getElementById('subtotal-' + cb.dataset.id).textContent = formatPrice(price * qty) + 'đ';
                 }
             });
 
-            const shippingFee = subtotal >= 500000 ? 0 : (subtotal > 0 ? 30000 : 0);
+            const shippingFee = subtotal > 0 ? 30000 : 0;
             const grandTotal = subtotal + shippingFee;
 
             document.getElementById('selectedCount').textContent = count;
+            const checkoutCount = document.getElementById('checkoutCount');
+            if (checkoutCount) checkoutCount.textContent = count;
             document.getElementById('selectedSubtotal').textContent = formatPrice(subtotal) + 'đ';
-            document.getElementById('shippingFee').textContent = (shippingFee === 0 && subtotal > 0) ? 'Miễn phí' : formatPrice(shippingFee) + 'đ';
+            document.getElementById('shippingFee').textContent = formatPrice(shippingFee) + 'đ';
             document.getElementById('grandTotal').textContent = formatPrice(grandTotal) + 'đ';
 
             const noteEl = document.getElementById('shippingNote');
             if (subtotal === 0) {
                 noteEl.innerHTML = '';
-            } else if (shippingFee === 0) {
-                noteEl.innerHTML = '<div class="shipping-note"><i class="bi bi-truck"></i> Bạn được miễn phí vận chuyển!</div>';
             } else {
-                const remain = 500000 - subtotal;
-                noteEl.innerHTML = '<div class="shipping-note" style="background:#FFF7ED;border-color:#FED7AA;color:#C2410C"><i class="bi bi-info-circle"></i> Mua thêm ' + formatPrice(remain) + ' để được miễn phí ship!</div>';
+                noteEl.innerHTML = '<div class="shipping-note"><i class="bi bi-truck"></i> Phí giao tiêu chuẩn dự kiến 30.000đ. Giao nhanh 50.000đ được chọn tại bước thanh toán.</div>';
             }
 
             const checkedCount = document.querySelectorAll('.item-check:checked').length;
@@ -329,6 +321,7 @@
             
             input.value = val;
             if (checkbox) checkbox.setAttribute('data-qty', val);
+            recalculate();
             
             const res = await fetch('/api/cart/' + cartId, {
                 method: 'PUT',
@@ -371,6 +364,7 @@
             
             if (checkbox) checkbox.setAttribute('data-qty', val);
             input.value = val;
+            recalculate();
             
             const res = await fetch('/api/cart/' + cartId, {
                 method: 'PUT',

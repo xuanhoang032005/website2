@@ -1,5 +1,5 @@
 const express = require('express');
-const { runStoreAssistant, isStoreDataUnavailable } = require('../services/store-ai');
+const { runStoreAssistant, compareProductsWithAI, isStoreDataUnavailable } = require('../services/store-ai');
 const { createRateLimiter } = require('../middleware/rate-limit');
 const queue = require('../services/job-queue');
 
@@ -46,6 +46,19 @@ router.get('/ai/jobs/:id', (req, res) => {
     if (job.status === 'failed') return res.status(502).json({ success: false, error: 'Trợ lý AI đang tạm gián đoạn.' });
     if (job.status !== 'completed') return res.status(202).json({ success: false, pending: true, job_id: job.id });
     return res.json({ success: true, ...job.result });
+});
+
+router.post('/ai/compare', aiRateLimit, async (req, res) => {
+    try {
+        const result = await compareProductsWithAI({ productIds: req.body?.product_ids });
+        return res.json({ success: true, conclusion: result.conclusion });
+    } catch (error) {
+        if (error.status === 400 || error.status === 404) return res.status(error.status).json({ success: false, error: error.message });
+        if (error.code === 'AI_NOT_CONFIGURED') return res.status(503).json({ success: false, error: 'AI chưa được cấu hình.' });
+        if (error.code === 'AI_TIMEOUT') return res.status(504).json({ success: false, error: 'AI phản hồi quá chậm.' });
+        console.error('AI Compare error:', error.code || error.name, error.status || '');
+        return res.status(502).json({ success: false, error: 'AI tạm thời chưa thể đưa ra kết luận.' });
+    }
 });
 
 router.post('/ai', aiRateLimit, async (req, res) => {

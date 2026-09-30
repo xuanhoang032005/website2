@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/contact.css?v=1">
+    <link rel="stylesheet" href="/css/pages/contact.css?v=20260930-2">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -64,8 +64,8 @@
     <!-- Page Header -->
     <div class="page-header">
         <div class="container">
-            <h1><i class="bi bi-headset"></i> Liên hệ</h1>
-            <p>Chúng tôi luôn sẵn sàng hỗ trợ bạn 24/7</p>
+            <h1><i class="bi bi-headset"></i> Liên hệ với chúng tôi</h1>
+            <p>Chúng tôi luôn sẵn sàng hỗ trợ bạn. Hãy chọn cách liên hệ phù hợp nhất!</p>
         </div>
     </div>
 
@@ -96,7 +96,7 @@
                     <div class="contact-item-icon"><i class="bi bi-envelope"></i></div>
                     <div>
                         <h4>Email</h4>
-                        <p>anhtraisstore@gmail.com<br>Hotline: 0909 123 456</p>
+                        <p>adminanhtrai@gmail.com<br>Phản hồi trong vòng 24 giờ</p>
                     </div>
                 </div>
                 
@@ -156,11 +156,15 @@
 
         <!-- Map -->
         <div class="map-section">
-            <h2><i class="bi bi-map"></i> Vị trí cửa hàng</h2>
+            <h2><i class="bi bi-map"></i> Địa chỉ cửa hàng</h2>
             <div class="map-container">
-                <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3919.4245!2d106.7009!3d10.7769!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31752f3a9d8d1bb3%3A0x9c0d04be4a7e6f08!2sNguy%E1%BB%85n%20Hu%E1%BB%87%2C%20B%E1%BA%BFn%20Ngh%C3%A9%2C%20Qu%E1%BA%ADn%201%2C%20TP.HCM!5e0!3m2!1svi!2svn!4v1234567890" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                <iframe src="https://www.google.com/maps?q=123+Nguyen+Hue,+Quan+1,+Ho+Chi+Minh&output=embed" title="Bản đồ cửa hàng AnhTraiStore" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
             </div>
         </div>
+        <section class="contact-faq">
+            <div class="faq-heading"><div><h2><i class="bi bi-question-square"></i> Câu hỏi thường gặp</h2><p>Một số câu hỏi thường gặp, bạn có thể tìm thấy câu trả lời nhanh chóng.</p></div><a href="/policy">Xem tất cả <i class="bi bi-arrow-right"></i></a></div>
+            <div class="faq-grid"><a href="/policy#shipping">Thời gian giao hàng là bao lâu?<i class="bi bi-chevron-right"></i></a><a href="/orders">Làm sao để kiểm tra đơn hàng?<i class="bi bi-chevron-right"></i></a><a href="/policy#return">Có hỗ trợ trả góp không?<i class="bi bi-chevron-right"></i></a><a href="/policy#return">Có cửa hàng trực tiếp không?<i class="bi bi-chevron-right"></i></a><a href="/policy#warranty">Chính sách bảo hành như thế nào?<i class="bi bi-chevron-right"></i></a><a href="/policy#payment">Phương thức thanh toán nào được hỗ trợ?<i class="bi bi-chevron-right"></i></a></div>
+        </section>
     </div>
 
     <!-- Footer -->
@@ -169,7 +173,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -188,12 +192,12 @@
                 <div>
                     <div class="footer-heading">Liên hệ</div>
                     <div class="footer-contact-item"><i class="bi bi-telephone"></i><span>1800 2097</span></div>
-                    <div class="footer-contact-item"><i class="bi bi-envelope"></i><span>anhtraisstore@gmail.com</span></div>
+                    <div class="footer-contact-item"><i class="bi bi-envelope"></i><span>adminanhtrai@gmail.com</span></div>
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>
@@ -222,13 +226,14 @@
                             full_name: formData.get('full_name'),
                             email: formData.get('email'),
                             phone: formData.get('phone'),
+                            subject: formData.get('subject'),
                             message: formData.get('message')
                         })
                     });
                     const data = await response.json();
 
                     if (data.success) {
-                        msgEl.innerHTML = '<div class="success-msg"><i class="bi bi-check-circle-fill"></i> Gửi tin nhắn thành công! Chúng tôi sẽ liên hệ lại với bạn sớm nhất.</div>';
+                        msgEl.innerHTML = '<div class="success-msg"><i class="bi bi-check-circle-fill"></i> ' + (data.message || 'Gửi tin nhắn thành công!') + '</div>';
                         form.reset();
                     } else {
                         msgEl.innerHTML = '<div class="error-msg"><i class="bi bi-exclamation-circle-fill"></i> ' + (data.error || 'Có lỗi xảy ra. Vui lòng thử lại!') + '</div>';
@@ -263,6 +268,6 @@
                 });
         });
     </script>
-    <link rel="stylesheet" href="/css/pages/contact-late-2.css?v=1">
+    <link rel="stylesheet" href="/css/pages/contact-late-2.css?v=2">
 </body>
 </html>

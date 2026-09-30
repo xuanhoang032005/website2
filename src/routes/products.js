@@ -244,6 +244,22 @@ router.get('/:id', async (req, res) => {
         );
         reviews.forEach(review => Object.assign(review, parseReviewComment(review.comment)));
 
+        let reviewEligibility = {
+            canReview: false,
+            reason: 'Vui lòng đăng nhập để gửi đánh giá sản phẩm.'
+        };
+        if (req.session.user_id) {
+            const [ownReviews] = await pool.query(
+                'SELECT id FROM reviews WHERE product_id = ? AND user_id = ? LIMIT 1',
+                [id, req.session.user_id]
+            );
+            if (ownReviews.length > 0) {
+                reviewEligibility = { canReview: false, reason: 'Bạn đã đánh giá sản phẩm này rồi.' };
+            } else {
+                reviewEligibility = { canReview: true, reason: '' };
+            }
+        }
+
         // Calculate rating stats
         let avgRating = 0;
         const starCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
@@ -273,6 +289,7 @@ router.get('/:id', async (req, res) => {
             images,
             variants,
             reviews,
+            reviewEligibility,
             ratingStats: {
                 avgRating,
                 total: reviews.length,

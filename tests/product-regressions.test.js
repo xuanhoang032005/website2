@@ -45,10 +45,12 @@ test('merged database schema keeps embedded migration history', async () => {
     assert.equal(packageJson.scripts.migrate, 'node src/config/migrate.js');
     const { checksum, migrationFiles } = require('../src/config/migrate');
     const files = await migrationFiles();
-    assert.deepEqual(files, []);
+    assert.deepEqual(files, ['003_checkout_delivery.sql']);
     const schema = fs.readFileSync(path.join(root, 'database', 'anhtraistore.sql'), 'utf8');
     assert.match(schema, /001_schema_integrity\.sql/);
     assert.match(schema, /002_unique_user_coupon\.sql/);
+    assert.match(schema, /shipping_method ENUM\('standard','express'\)/);
+    assert.match(fs.readFileSync(path.join(root, 'database', 'migrations', '003_checkout_delivery.sql'), 'utf8'), /estimated_delivery_to/);
     const runner = fs.readFileSync(path.join(root, 'src', 'config', 'migrate.js'), 'utf8');
     assert.match(runner, /CREATE TABLE IF NOT EXISTS schema_migrations/);
     assert.match(runner, /GET_LOCK/);
@@ -443,6 +445,7 @@ test('product update keeps selected old images, adds new files and stores unchec
         require(name) {
             if (name === '../config/database') return pool;
             if (name === '../services/cloud-storage') return cloudStorageStub;
+            if (name === '../config/mail') return { async sendEmail() { return true; } };
             return localRequire(name);
         }
     });
@@ -553,6 +556,19 @@ test('review comments keep customer text separate from the admin reply', () => {
     assert.equal(serializeReviewComment(stored, 'Phản hồi đã sửa').match(/ANHTRAISTORE_ADMIN_REPLY/g).length, 1);
 });
 
+test('all signed-in accounts can review once and the gallery scrolls horizontally', () => {
+    const productPage = fs.readFileSync(path.join(root, 'views', 'product-detail.html'), 'utf8');
+    const productRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'products.js'), 'utf8');
+    const apiRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'api.js'), 'utf8');
+    const productCss = fs.readFileSync(path.join(root, 'public', 'css', 'pages', 'product-detail.css'), 'utf8');
+    assert.match(productPage, /reviewEligibility\.canReview/);
+    assert.match(productRoute, /reviewEligibility/);
+    assert.match(productRoute, /reviewEligibility = \{ canReview: true, reason: '' \}/);
+    assert.doesNotMatch(apiRoute, /o\.status = 'delivered'/);
+    assert.match(productCss, /\.product-reference-page \.detail-img-thumbs[\s\S]*?overflow-x:\s*auto/);
+    assert.match(productCss, /\.product-reference-page \.thumb-item[\s\S]*?flex:\s*0 0 92px/);
+});
+
 test('admin can see reviewer identity and persist a review reply without a schema change', async () => {
     const selected = [];
     const updated = [];
@@ -636,6 +652,13 @@ test('support chat reuses one conversation per account and persists the first me
     assert.equal(emitted[0].data.conversation_id, 7);
 });
 
+test('realtime chat releases sockets for the back-forward cache lifecycle', () => {
+    const chatbox = fs.readFileSync(path.join(root, 'views', 'components', 'ai-chatbox.html'), 'utf8');
+    assert.match(chatbox, /closeOnBeforeunload:\s*true/);
+    assert.match(chatbox, /addEventListener\('pagehide'[\s\S]*?socket\.disconnect\(\)/);
+    assert.match(chatbox, /addEventListener\('pageshow'[\s\S]*?event\.persisted[\s\S]*?socket\.connect\(\)/);
+});
+
 test('customer chat is session-scoped while admin history is grouped by account', () => {
     const source = fs.readFileSync(path.join(root, 'src', 'routes', 'messages.js'), 'utf8');
     assert.match(source, /support_chat_started_at/);
@@ -650,10 +673,11 @@ test('customer chat is session-scoped while admin history is grouped by account'
 
 function loadRoute(filename, routePath, method, pool) {
     const localRequire = createRequire(filename);
-    const context = vm.createContext({ module: { exports: {} }, __dirname: path.dirname(filename), console, URL,
+    const context = vm.createContext({ module: { exports: {} }, __dirname: path.dirname(filename), console, URL, process,
         require(name) {
             if (name === '../config/database') return pool;
             if (name === '../services/cloud-storage') return cloudStorageStub;
+            if (name === '../config/mail') return { async sendEmail() { return true; } };
             return localRequire(name);
         }
     });
@@ -738,14 +762,34 @@ test('available coupons exclude used, first-order-only and ineligible VIP codes'
 });
 
 test('checkout requests eligible coupons and validates minimum value from product subtotal', () => {
-    const html = fs.readFileSync(path.join(root, 'views', 'checkout.html'), 'utf8');
-    assert.match(html, /coupons\/available\?order_total=' \+ encodeURIComponent\(subtotal\)/);
-    assert.match(html, /JSON\.stringify\(\{ code, order_total: subtotal \}\)/);
-    assert.match(html, /unavailableCoupons = Array\.isArray\(data\.unavailable\)/);
-    assert.match(html, /Hiện không có mã nào dùng được cho đơn hàng này/);
-    assert.match(html, /Không thể tải danh sách mã giảm giá/);
-    assert.match(html, /function removeCoupon\(\)\s*\{[\s\S]*?appliedCoupon = null;[\s\S]*?renderOrderSummary\(\);[\s\S]*?updateQRAmount\(\);[\s\S]*?\}/);
-    assert.doesNotMatch(html, /order_total: totalBeforeDiscount/);
+    const checkout = fs.readFileSync(path.join(root, 'public', 'js', 'checkout.js'), 'utf8');
+    assert.match(checkout, /coupons\/available\?order_total=' \+ encodeURIComponent\(Number\(state\.cart\.total \|\| 0\)\)/);
+    assert.match(checkout, /JSON\.stringify\(\{ code, order_total: Number\(state\.cart\.total \|\| 0\) \}\)/);
+    assert.match(checkout, /state\.availableCoupons = Array\.isArray\(data\.coupons\)/);
+    assert.match(checkout, /state\.unavailableCoupons = Array\.isArray\(data\.unavailable\)/);
+    assert.match(checkout, /state\.coupon = null; renderCouponOptions\(\); renderOrderSummary\(\)/);
+    assert.doesNotMatch(checkout, /order_total: totalBeforeDiscount/);
+});
+
+test('checkout progressively reveals delivery, payment and the final QR step', () => {
+    const checkout = fs.readFileSync(path.join(root, 'public', 'js', 'checkout.js'), 'utf8');
+    assert.match(checkout, /shippingStage\.hidden = !complete/);
+    assert.match(checkout, /paymentStage'\)\.hidden = false/);
+    assert.match(checkout, /renderQrPayment\(result\)/);
+    assert.match(checkout, /window\.location\.href = '\/order\/' \+ result\.order_id/);
+    assert.match(checkout, /STORE_ADDRESS = '123 Nguyễn Huệ, Quận 1, TP\. Hồ Chí Minh'/);
+    const ordersRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'orders.js'), 'utf8');
+    assert.match(ordersRoute, /shippingFeeFor\(shippingMethod\)/);
+    assert.match(ordersRoute, /estimated_delivery_from/);
+    assert.match(ordersRoute, /v\.id AS variant_id, v\.id AS active_variant_id/);
+});
+
+test('cart and checkout consistently use shipping-method fees', () => {
+    const cart = fs.readFileSync(path.join(root, 'views', 'cart.html'), 'utf8');
+    const checkout = fs.readFileSync(path.join(root, 'public', 'js', 'checkout.js'), 'utf8');
+    assert.match(cart, /const shippingFee = subtotal > 0 \? 30000 : 0/);
+    assert.doesNotMatch(cart, /Bạn được miễn phí vận chuyển/);
+    assert.match(checkout, /SHIPPING_FEES = \{ standard: 30000, express: 50000 \}/);
 });
 
 test('banner API normalizes numeric positions and localhost links', async () => {
@@ -821,6 +865,44 @@ test('customer account pages use the shared flat light page header', () => {
         assert.doesNotMatch(css, /\.page-header \{ padding: 32px 0; \}/);
         assert.doesNotMatch(css, /\.page-header\s*\{[^}]*#0f172a/s);
     }
+});
+
+test('policy, contact, wishlist and compare pages use the supplied reference layouts', () => {
+    const policy = fs.readFileSync(path.join(root, 'views', 'policy.html'), 'utf8');
+    const contact = fs.readFileSync(path.join(root, 'views', 'contact.html'), 'utf8');
+    const wishlist = fs.readFileSync(path.join(root, 'views', 'wishlist.html'), 'utf8');
+    const compare = fs.readFileSync(path.join(root, 'views', 'compare.html'), 'utf8');
+    assert.match(policy, /id="security"/);
+    assert.match(policy, /id="terms"/);
+    assert.match(contact, /class="contact-faq"/);
+    assert.match(contact, /subject: formData\.get\('subject'\)/);
+    assert.match(wishlist, /class="wishlist-toolbar"/);
+    assert.match(wishlist, /function buyWishlistNow/);
+    assert.match(compare, /compare-add-product/);
+    assert.match(compare, /compare-conclusion/);
+    assert.match(compare, /function recommendComparedProduct/);
+    assert.match(compare, /\/api\/chat\/ai\/compare/);
+    assert.doesNotMatch(compare, /class="btn-compare-detail"/);
+});
+
+test('contact submissions email the primary mailbox with reply-to support', () => {
+    const api = fs.readFileSync(path.join(root, 'src', 'routes', 'api.js'), 'utf8');
+    const mail = fs.readFileSync(path.join(root, 'src', 'config', 'mail.js'), 'utf8');
+    assert.match(api, /process\.env\.CONTACT_EMAIL \|\| 'adminanhtrai@gmail\.com'/);
+    assert.match(api, /replyTo: email/);
+    assert.match(mail, /replyTo: options\.replyTo \|\| undefined/);
+});
+
+test('profile dashboard renders live account summary and recent orders', () => {
+    const profile = fs.readFileSync(path.join(root, 'views', 'profile.html'), 'utf8');
+    const authRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'auth.js'), 'utf8');
+    const profileCss = fs.readFileSync(path.join(root, 'public', 'css', 'pages', 'profile.css'), 'utf8');
+    assert.match(profile, /\/api\/auth\/profile-summary/);
+    assert.match(profile, /id="recentOrders"/);
+    assert.match(profile, /data-notification="orders"/);
+    assert.match(authRoute, /router\.get\('\/profile-summary'/);
+    assert.match(authRoute, /total_wishlist/);
+    assert.match(profileCss, /grid-template-columns:\s*250px minmax\(0, 1fr\) 390px/);
 });
 
 test('category and brand status remains internal and is hidden from admin pages', async () => {
@@ -1063,6 +1145,26 @@ test('AI assistant calls a product function before answering and sends no catalo
     assert.equal(result.products[0].id, 7);
     assert.deepEqual(result.tools_used, ['search_products']);
     assert.match(result.reply, /1 sản phẩm phù hợp/);
+});
+
+test('AI comparison uses authoritative database products and returns a conclusion', async () => {
+    const { compareProductsWithAI } = require('../src/services/store-ai');
+    const db = { async query(sql, params) {
+        assert.match(sql, /FROM products p/);
+        assert.deepEqual(params, [[2, 3]]);
+        return [[
+            { id: 2, name: 'Máy A', price: 10000000, stock: 5, ram: '8GB', storage: '256GB', brand_name: 'A' },
+            { id: 3, name: 'Máy B', price: 12000000, stock: 8, ram: '12GB', storage: '512GB', brand_name: 'B' }
+        ]];
+    } };
+    const result = await compareProductsWithAI({
+        productIds: [2, 3], db,
+        async requestAI(body) {
+            assert.match(body.contents[0].parts[0].text, /Máy A/);
+            return { candidates: [{ content: { parts: [{ text: 'Máy B đáng chọn hơn nhờ RAM và bộ nhớ lớn.' }] } }] };
+        }
+    });
+    assert.match(result.conclusion, /Máy B đáng chọn hơn/);
 });
 
 test('AI product thumbnails use the public product image route', () => {

@@ -55,6 +55,7 @@ async function sendEmail(options) {
         const info = await transporter.sendMail({
             from: `"${process.env.SITE_NAME || 'Website'}" <${process.env.SMTP_USER}>`,
             to: options.to,
+            replyTo: options.replyTo || undefined,
             subject: options.subject,
             text: options.text || options.html.replace(/<[^>]*>/g, ''), // Plain text fallback
             html: options.html

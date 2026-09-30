@@ -177,3 +177,78 @@
             .policy-card { padding: 24px; }
             .payment-methods { grid-template-columns: 1fr; }
         }
+
+/* Reference policy layout */
+body:has(.content-wrap .policy-card) { background: #f6faff; }
+.page-header { padding: 20px 0 8px; text-align: left; background: transparent; }
+.page-header::before { display: none; }
+.page-header h1 { margin: 0 0 5px; color: #142038; font-size: 1.45rem; }
+.page-header h1 i { display: none; }
+.page-header p { color: #78869a; font-size: .75rem; }
+.content-wrap {
+    display: grid;
+    max-width: 1400px;
+    grid-template-columns: 220px minmax(0,1fr);
+    gap: 14px;
+    align-items: start;
+    padding: 18px 24px 54px;
+}
+.toc-card {
+    position: sticky;
+    top: 90px;
+    display: flex;
+    grid-column: 1;
+    grid-row: 1 / span 6;
+    margin: 0;
+    padding: 10px;
+    flex-direction: column;
+    gap: 3px;
+    border: 1px solid #dce5ef;
+    border-radius: 8px;
+    box-shadow: 0 3px 12px rgba(25,63,104,.04);
+}
+.toc-item { min-height: 39px; padding: 9px 10px; color: #263750; background: transparent; border-radius: 6px; font-size: .68rem; }
+.toc-item:hover,
+.toc-item.active { color: #1269ed; background: #eaf3ff; }
+.toc-item i { width: 18px; color: #245b9e; font-size: .84rem; text-align: center; }
+.policy-card {
+    grid-column: 2;
+    margin: 0;
+    padding: 20px;
+    border: 1px solid #dce5ef;
+    border-radius: 8px;
+    box-shadow: 0 3px 12px rgba(25,63,104,.04);
+}
+#warranty { order: 1; }
+#return { order: 2; }
+#shipping { order: 3; }
+#payment { order: 4; }
+#security { order: 5; }
+#terms { order: 6; }
+.policy-card:hover { border-color: #c8d6e6; box-shadow: 0 5px 16px rgba(25,63,104,.06); }
+.policy-card h2 { margin-bottom: 8px; font-size: .9rem; }
+.policy-card h2 i { width: 31px; height: 31px; color: #1269ed; background: #eaf3ff; border-radius: 7px; font-size: .9rem; }
+.policy-card p,
+.policy-card li { color: #65748a; font-size: .68rem; line-height: 1.65; }
+.policy-card li { margin-bottom: 5px; }
+.policy-card li::before { top: 8px; width: 6px; height: 6px; background: #42bfc4; }
+.highlight-box { padding: 13px; background: #eef6ff; border: 0; border-radius: 6px; }
+.highlight-box p { font-size: .66rem; }
+.payment-methods { gap: 9px; }
+.payment-item { padding: 11px; border-radius: 6px; }
+.payment-item i { width: 31px; height: 31px; font-size: .85rem; }
+.payment-item span { font-size: .68rem; }
+@media (max-width: 760px) {
+    .content-wrap { grid-template-columns: 1fr; padding-inline: 14px; }
+    .toc-card { position: static; grid-column: 1; grid-row: auto; }
+    .policy-card { grid-column: 1; }
+}
+
+/* Keep policy copy comfortable to scan on the compact reference layout. */
+.page-header p { font-size: .82rem; }
+.toc-item { font-size: .78rem; }
+.policy-card h2 { font-size: 1.05rem; }
+.policy-card p, .policy-card li { font-size: .82rem; }
+.highlight-box p { font-size: .76rem; }
+.payment-item span { font-size: .78rem; }
+.policy-card { scroll-margin-top: 90px; }

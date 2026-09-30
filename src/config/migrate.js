@@ -8,7 +8,11 @@ const { projectRoot } = require('../core/paths');
 
 const migrationsDir = path.join(projectRoot, 'database', 'migrations');
 const lockName = 'anhtraistore_schema_migrations';
-const embeddedMigrations = new Set(['001_schema_integrity.sql', '002_unique_user_coupon.sql']);
+const embeddedMigrations = new Set([
+    '001_schema_integrity.sql',
+    '002_unique_user_coupon.sql',
+    '003_checkout_delivery.sql'
+]);
 
 function databaseOptions() {
     return {

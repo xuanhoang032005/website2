@@ -9,6 +9,7 @@ function securityHeaders(req, res, next) {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
         "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
         "img-src 'self' data: https://res.cloudinary.com https://www.gstatic.com",
+        "frame-src 'self' https://www.google.com",
         "connect-src 'self' ws: wss:"
     ];
     if (process.env.NODE_ENV === 'production') directives.push('upgrade-insecure-requests');

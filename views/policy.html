@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/policy.css?v=1">
+    <link rel="stylesheet" href="/css/pages/policy.css?v=20260930-2">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -64,8 +64,8 @@
     <!-- Page Header -->
     <div class="page-header">
         <div class="container">
-            <h1><i class="bi bi-shield-check"></i> Chính sách</h1>
-            <p>Cam kết mang đến dịch vụ tốt nhất cho khách hàng</p>
+            <h1><i class="bi bi-shield-check"></i> Chính sách của chúng tôi</h1>
+            <p>AnhTraiStore cam kết mang đến cho khách hàng trải nghiệm mua sắm an toàn, minh bạch và hài lòng nhất.</p>
         </div>
     </div>
 
@@ -73,10 +73,12 @@
     <div class="content-wrap">
         <!-- Table of Contents -->
         <div class="toc-card">
-            <a href="#return" class="toc-item"><i class="bi bi-arrow-repeat"></i> Đổi trả</a>
-            <a href="#warranty" class="toc-item"><i class="bi bi-shield-check"></i> Bảo hành</a>
-            <a href="#shipping" class="toc-item"><i class="bi bi-truck"></i> Vận chuyển</a>
-            <a href="#payment" class="toc-item"><i class="bi bi-credit-card"></i> Thanh toán</a>
+            <a href="#warranty" class="toc-item active"><i class="bi bi-shield-check"></i> Chính sách bảo hành</a>
+            <a href="#return" class="toc-item"><i class="bi bi-arrow-repeat"></i> Chính sách đổi trả</a>
+            <a href="#shipping" class="toc-item"><i class="bi bi-truck"></i> Chính sách vận chuyển</a>
+            <a href="#payment" class="toc-item"><i class="bi bi-credit-card"></i> Chính sách thanh toán</a>
+            <a href="#security" class="toc-item"><i class="bi bi-lock"></i> Chính sách bảo mật</a>
+            <a href="#terms" class="toc-item"><i class="bi bi-file-earmark-text"></i> Điều khoản sử dụng</a>
         </div>
 
         <!-- Return Policy -->
@@ -118,15 +120,15 @@
             <h2><i class="bi bi-truck"></i> Chính sách vận chuyển</h2>
             <p>AnhTraiStore vận chuyển hàng hóa toàn quốc với chi phí tối ưu nhất:</p>
             <ul>
-                <li><strong>Miễn phí vận chuyển</strong> cho đơn hàng từ <strong>500.000đ</strong></li>
-                <li><strong>Phí ship 30.000đ</strong> cho đơn hàng dưới 500.000đ</li>
+                <li><strong>Giao tiêu chuẩn 30.000đ</strong> cho mọi đơn hàng</li>
+                <li><strong>Giao nhanh 50.000đ</strong>, thời gian được tính theo địa chỉ nhận hàng</li>
                 <li>Thời gian giao hàng: <strong>2-5 ngày làm việc</strong> tùy khu vực</li>
                 <li>Giao hàng nhanh trong ngày cho khu vực TP.HCM (phụ phí)</li>
                 <li>Theo dõi đơn hàng trực tiếp qua website hoặc ứng dụng</li>
             </ul>
             <div class="highlight-box">
                 <i class="bi bi-truck" style="font-size: 1.5rem;"></i>
-                <p>Đơn hàng từ 2.000.000đ được <strong>giao hàng nhanh 24h</strong> hoàn toàn miễn phí!</p>
+                <p>Thời gian và chi phí giao hàng được hiển thị minh bạch trước khi bạn xác nhận thanh toán.</p>
             </div>
         </div>
 
@@ -157,7 +159,57 @@
                 <p>Tất cả giao dịch thanh toán được bảo mật bằng công nghệ mã hóa SSL 256-bit. Thông tin thẻ của bạn hoàn toàn an toàn.</p>
             </div>
         </div>
+        <div class="policy-card" id="security">
+            <h2><i class="bi bi-lock"></i> Chính sách bảo mật</h2>
+            <p>AnhTraiStore cam kết bảo vệ thông tin cá nhân và quyền riêng tư của khách hàng.</p>
+            <ul><li>Thông tin chỉ được sử dụng để xử lý đơn hàng và hỗ trợ khách hàng</li><li>Không chia sẻ dữ liệu cá nhân cho bên thứ ba khi chưa có sự đồng ý</li><li>Dữ liệu nhạy cảm được bảo vệ bằng các biện pháp bảo mật phù hợp</li></ul>
+        </div>
+        <div class="policy-card" id="terms">
+            <h2><i class="bi bi-file-earmark-text"></i> Điều khoản sử dụng</h2>
+            <p>Website được xây dựng phục vụ mục đích thực tập tốt nghiệp. Người dùng vui lòng không phát sinh giao dịch mua bán thực tế trên website này.</p>
+        </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const tocItems = Array.from(document.querySelectorAll('.toc-item'));
+            const policyCards = tocItems
+                .map(item => document.getElementById(item.getAttribute('href').slice(1)))
+                .filter(Boolean);
+
+            function setActive(id) {
+                tocItems.forEach(item => item.classList.toggle('active', item.getAttribute('href') === '#' + id));
+            }
+
+            function activeFromViewport() {
+                const marker = window.innerHeight * 0.28;
+                let current = policyCards.find(card => {
+                    const rect = card.getBoundingClientRect();
+                    return rect.top <= marker && rect.bottom > 100;
+                });
+                if (!current) {
+                    current = policyCards.find(card => card.getBoundingClientRect().top > marker) || policyCards[policyCards.length - 1];
+                }
+                if (current) setActive(current.id);
+            }
+
+            tocItems.forEach(item => item.addEventListener('click', function () {
+                setActive(item.getAttribute('href').slice(1));
+            }));
+
+            const initialId = window.location.hash.slice(1);
+            setActive(policyCards.some(card => card.id === initialId) ? initialId : 'warranty');
+            window.addEventListener('hashchange', function () {
+                const id = window.location.hash.slice(1);
+                if (policyCards.some(card => card.id === id)) setActive(id);
+            });
+            let scrollFrame = 0;
+            window.addEventListener('scroll', function () {
+                cancelAnimationFrame(scrollFrame);
+                scrollFrame = requestAnimationFrame(activeFromViewport);
+            }, { passive: true });
+        });
+    </script>
 
     <!-- Footer -->
     <footer>
@@ -165,7 +217,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -188,8 +240,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>

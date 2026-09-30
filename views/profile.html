@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/profile.css?v=1">
+    <link rel="stylesheet" href="/css/pages/profile.css?v=20260930-3">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -49,6 +49,10 @@
 
     <!-- Page Header -->
     <div class="breadcrumb-bar"><div class="container"><a href="/">Trang chủ</a><i class="bi bi-chevron-right"></i><span>Cài đặt tài khoản</span></div></div>
+    <div class="profile-page-heading">
+        <h1>Tài khoản của tôi</h1>
+        <p>Quản lý thông tin cá nhân và theo dõi hoạt động tài khoản của bạn.</p>
+    </div>
 
     <!-- Profile Layout -->
     <div class="profile-layout">
@@ -68,15 +72,26 @@
             </div>
 
             <div class="profile-menu">
+                <a href="#personalSection" class="profile-menu-item active">
+                    <i class="bi bi-person"></i> Thông tin cá nhân
+                </a>
                 <a href="/orders" class="profile-menu-item">
                     <i class="bi bi-bag-check"></i> Đơn hàng của tôi
                 </a>
                 <a href="/wishlist" class="profile-menu-item">
                     <i class="bi bi-heart"></i> Yêu thích
                 </a>
-                <div class="profile-menu-divider"></div>
-                <a href="/profile" class="profile-menu-item active">
-                    <i class="bi bi-person-circle"></i> Cài đặt tài khoản
+                <a href="#address" class="profile-menu-item">
+                    <i class="bi bi-geo-alt"></i> Địa chỉ
+                </a>
+                <a href="#passwordSection" class="profile-menu-item">
+                    <i class="bi bi-lock"></i> Đổi mật khẩu
+                </a>
+                <a href="#notificationSection" class="profile-menu-item">
+                    <i class="bi bi-bell"></i> Thông báo
+                </a>
+                <a href="/contact" class="profile-menu-item">
+                    <i class="bi bi-chat-dots"></i> Chat hỗ trợ
                 </a>
                 <div class="profile-menu-divider"></div>
                 <a href="javascript:void(0)" class="profile-menu-item logout" onclick="logout()">
@@ -90,7 +105,7 @@
         <div class="profile-main">
 
             <!-- Thông tin cá nhân -->
-            <div class="section-card">
+            <div class="section-card" id="personalSection">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="bi bi-person-fill"></i>
@@ -99,6 +114,22 @@
                 </div>
                 <div class="section-body">
                     <div id="alertContainer"></div>
+
+                    <div class="avatar-section profile-identity-block">
+                        <div class="avatar-preview" id="avatarPreview">
+                            <i class="bi bi-person-fill"></i>
+                        </div>
+                        <div class="avatar-content">
+                            <div class="avatar-title" id="identityName">Thông tin tài khoản</div>
+                            <div class="avatar-desc"><i class="bi bi-camera"></i> JPG, PNG, GIF hoặc WEBP, tối đa 2MB.</div>
+                            <div id="avatarAlert"></div>
+                            <div class="avatar-actions">
+                                <label for="avatarInput" class="btn-choose"><i class="bi bi-camera"></i> Thay ảnh</label>
+                                <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+                                <button type="button" class="btn-delete" id="btnRemoveAvatar" onclick="removeAvatar()" style="display:none"><i class="bi bi-trash"></i> Xóa ảnh</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <form id="profileForm">
                         <div class="form-grid">
@@ -141,42 +172,8 @@
                 </div>
             </div>
 
-            <!-- Ảnh đại diện -->
-            <div class="section-card">
-                <div class="section-header">
-                    <div class="section-icon">
-                        <i class="bi bi-image"></i>
-                    </div>
-                    <h2 class="section-title">Ảnh đại diện</h2>
-                </div>
-                <div class="section-body">
-                    <div class="avatar-section">
-                        <div class="avatar-preview" id="avatarPreview">
-                            <i class="bi bi-person-fill"></i>
-                        </div>
-                        <div class="avatar-content">
-                            <div class="avatar-title">Thay đổi ảnh đại diện</div>
-                            <div class="avatar-desc">
-                                <i class="bi bi-info-circle"></i>
-                                Chấp nhận file JPG, PNG, GIF, WEBP. Kích thước tối đa 2MB.
-                            </div>
-                            <div id="avatarAlert"></div>
-                            <div class="avatar-actions">
-                                <label for="avatarInput" class="btn-choose">
-                                    <i class="bi bi-cloud-upload"></i> Chọn ảnh
-                                </label>
-                                <input type="file" id="avatarInput" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
-                                <button type="button" class="btn-delete" id="btnRemoveAvatar" onclick="removeAvatar()" style="display:none">
-                                    <i class="bi bi-trash"></i> Xóa ảnh
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Đổi mật khẩu -->
-            <div class="section-card">
+            <div class="section-card" id="passwordSection">
                 <div class="section-header">
                     <div class="section-icon">
                         <i class="bi bi-shield-lock"></i>
@@ -228,7 +225,32 @@
                 </div>
             </div>
 
+            <div class="section-card" id="notificationSection">
+                <div class="section-header"><div class="section-icon"><i class="bi bi-bell"></i></div><div><h2 class="section-title">Cài đặt thông báo</h2><p class="section-subtitle">Chọn cách bạn muốn nhận thông báo từ AnhTraiStore.</p></div></div>
+                <div class="notification-settings">
+                    <label class="notification-row"><i class="bi bi-bag-check"></i><span><strong>Thông báo đơn hàng</strong><small>Cập nhật trạng thái đơn hàng, vận chuyển</small></span><input type="checkbox" data-notification="orders" checked><b></b></label>
+                    <label class="notification-row"><i class="bi bi-tags"></i><span><strong>Khuyến mãi & giảm giá</strong><small>Thông báo về các chương trình khuyến mãi</small></span><input type="checkbox" data-notification="promotions" checked><b></b></label>
+                    <label class="notification-row"><i class="bi bi-megaphone"></i><span><strong>Sản phẩm mới</strong><small>Cập nhật sản phẩm mới, hot trend</small></span><input type="checkbox" data-notification="products"><b></b></label>
+                    <label class="notification-row"><i class="bi bi-newspaper"></i><span><strong>Tin tức công nghệ</strong><small>Bài viết, đánh giá và tin tức mới nhất</small></span><input type="checkbox" data-notification="news"><b></b></label>
+                </div>
+            </div>
+
         </div>
+        <aside class="profile-overview">
+            <section class="overview-card">
+                <h2>Tổng quan tài khoản</h2>
+                <div class="overview-grid">
+                    <div><i class="bi bi-cart3"></i><strong id="statOrders">0</strong><span>Đơn hàng</span></div>
+                    <div><i class="bi bi-heart"></i><strong id="statWishlist">0</strong><span>Sản phẩm yêu thích</span></div>
+                    <div><i class="bi bi-coin"></i><strong id="statSpent">0đ</strong><span>Tổng chi tiêu</span></div>
+                    <div><i class="bi bi-star"></i><strong id="statReviews">0</strong><span>Đánh giá</span></div>
+                </div>
+            </section>
+            <section class="overview-card recent-orders-card">
+                <div class="overview-heading"><h2>Đơn hàng gần đây</h2><a href="/orders">Xem tất cả <i class="bi bi-arrow-right"></i></a></div>
+                <div id="recentOrders"><div class="profile-loading"><i class="bi bi-arrow-repeat"></i> Đang tải...</div></div>
+            </section>
+        </aside>
     </div>
 
     <!-- Footer -->
@@ -238,7 +260,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -261,8 +283,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>
@@ -364,6 +386,7 @@
             // Update sidebar
             document.getElementById('profileCardName').textContent = user.full_name || user.email;
             document.getElementById('profileCardEmail').textContent = user.email || '';
+            document.getElementById('identityName').textContent = user.full_name || user.email;
             if (user.role === 'admin') {
                 document.getElementById('profileBadge').innerHTML = '<i class="bi bi-shield-fill"></i><span>Quản trị viên</span>';
             }
@@ -380,7 +403,61 @@
             document.getElementById('address').value = user.address || '';
 
             loadAvatarFromServer();
+            loadProfileSummary();
+            initializeNotificationSettings();
         });
+
+        async function loadProfileSummary() {
+            try {
+                const res = await fetch('/api/auth/profile-summary', { credentials: 'include' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Không thể tải tổng quan');
+                const stats = data.stats || {};
+                document.getElementById('statOrders').textContent = stats.total_orders || 0;
+                document.getElementById('statWishlist').textContent = stats.total_wishlist || 0;
+                document.getElementById('statSpent').textContent = new Intl.NumberFormat('vi-VN').format(stats.total_spent || 0) + 'đ';
+                document.getElementById('statReviews').textContent = stats.total_reviews || 0;
+                renderRecentOrders(data.recent_orders || []);
+            } catch (error) {
+                document.getElementById('recentOrders').innerHTML = '<div class="profile-loading">Không thể tải đơn hàng gần đây.</div>';
+            }
+        }
+
+        function renderRecentOrders(orders) {
+            const container = document.getElementById('recentOrders');
+            if (!orders.length) {
+                container.innerHTML = '<div class="profile-loading"><i class="bi bi-bag"></i> Chưa có đơn hàng nào.</div>';
+                return;
+            }
+            const statusLabels = {
+                pending: 'Chờ xác nhận', confirmed: 'Đã xác nhận', shipping: 'Đang giao',
+                delivered: 'Đã giao', cancelled: 'Đã hủy'
+            };
+            container.innerHTML = orders.map(order => {
+                const image = order.thumbnail
+                    ? (/^https?:\/\//i.test(order.thumbnail) ? order.thumbnail : '/assets/images/products/' + order.thumbnail)
+                    : '/images/no-image.svg';
+                return `<a class="recent-order" href="/order/${order.id}">
+                    <img src="${escapeHtml(image)}" alt="" onerror="this.onerror=null;this.src='/images/no-image.svg'">
+                    <span><strong>${escapeHtml(order.payment_code || '#' + order.id)}</strong><small>${new Date(order.created_at).toLocaleDateString('vi-VN')}</small></span>
+                    <em class="order-status ${order.status}">${statusLabels[order.status] || order.status}</em>
+                    <b>${new Intl.NumberFormat('vi-VN').format(Number(order.total_price) || 0)}đ</b>
+                    <i class="bi bi-chevron-right"></i>
+                </a>`;
+            }).join('');
+        }
+
+        function initializeNotificationSettings() {
+            const saved = JSON.parse(localStorage.getItem('profile_notification_settings') || '{}');
+            document.querySelectorAll('[data-notification]').forEach(input => {
+                if (Object.prototype.hasOwnProperty.call(saved, input.dataset.notification)) input.checked = Boolean(saved[input.dataset.notification]);
+                input.addEventListener('change', () => {
+                    const settings = {};
+                    document.querySelectorAll('[data-notification]').forEach(item => { settings[item.dataset.notification] = item.checked; });
+                    localStorage.setItem('profile_notification_settings', JSON.stringify(settings));
+                });
+            });
+        }
 
         // ===== PROFILE FORM =====
         document.getElementById('profileForm').addEventListener('submit', async (e) => {
@@ -405,6 +482,7 @@
                 if (result.success) {
                     showAlert('Cập nhật thông tin thành công!', 'success');
                     document.getElementById('profileCardName').textContent = formData.get('full_name') || result.user?.full_name || formData.get('full_name');
+                    document.getElementById('identityName').textContent = formData.get('full_name') || result.user?.full_name || formData.get('full_name');
                 } else {
                     showAlert(result.error || 'Có lỗi xảy ra!', 'error');
                 }

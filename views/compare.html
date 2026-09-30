@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/compare.css?v=1">
+    <link rel="stylesheet" href="/css/pages/compare.css?v=20260930-3">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -145,7 +145,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -168,8 +168,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>
@@ -181,6 +181,37 @@
 
         function formatPrice(price) {
             return new Intl.NumberFormat('vi-VN').format(price);
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+        }
+
+        function capacityValue(value) {
+            const text = String(value || '').toUpperCase();
+            const amount = Number.parseFloat(text) || 0;
+            return text.includes('TB') ? amount * 1024 : amount;
+        }
+
+        function recommendComparedProduct(products) {
+            if (!products.length) return null;
+            const prices = products.map(product => Number(product.price) || Number.MAX_SAFE_INTEGER);
+            const rams = products.map(product => capacityValue(product.ram));
+            const storages = products.map(product => capacityValue(product.storage));
+            const stocks = products.map(product => Number(product.stock) || 0);
+            const discounts = products.map(product => Number(product.discount_percent) || 0);
+            const best = { price: Math.min(...prices), ram: Math.max(...rams), storage: Math.max(...storages), stock: Math.max(...stocks), discount: Math.max(...discounts) };
+            const ranked = products.map((product, index) => {
+                const reasons = [];
+                let score = 0;
+                if (prices[index] === best.price) { score += 4; reasons.push('giá tốt nhất'); }
+                if (rams[index] === best.ram && best.ram > 0) { score += 2; reasons.push('RAM cao'); }
+                if (storages[index] === best.storage && best.storage > 0) { score += 2; reasons.push('bộ nhớ lớn'); }
+                if (stocks[index] === best.stock && best.stock > 0) { score += 1; reasons.push('tồn kho tốt'); }
+                if (discounts[index] === best.discount && best.discount > 0) { score += 1; reasons.push('ưu đãi cao'); }
+                return { product, score, reasons };
+            }).sort((left, right) => right.score - left.score || Number(left.product.price) - Number(right.product.price));
+            return ranked[0];
         }
 
         function getThumbUrl(thumb) {
@@ -277,7 +308,7 @@
             let html = '<div class="compare-table-wrap"><table class="compare-table"><tbody>';
 
             // Hàng ảnh + tên
-            html += '<tr><th>Sản phẩm</th>';
+            html += '<tr class="compare-products-row"><th><a href="/products" class="compare-add-product"><i class="bi bi-plus-circle"></i><span>Thêm sản phẩm<br>để so sánh</span></a></th>';
             compareProducts.forEach(p => {
                 const imgSrc = getThumbUrl(p.thumbnail);
                 const gallery = p.images || [];
@@ -304,18 +335,11 @@
                 
                 html += `<td class="product-col">
                     <div class="product-col-inner">
-                        <div class="product-gallery-area">${galleryHtml}</div>
+                        <button class="compare-remove-corner" onclick="removeFromCompare(${p.id})" title="Xóa"><i class="bi bi-x"></i></button>
+                        <a class="product-gallery-area compare-product-link" href="/product/${p.id}">${galleryHtml}</a>
                         <div class="product-info-scroll">
                             <div class="compare-product-brand">${p.brand_name || ''}</div>
                             <div class="compare-product-name"><a href="/product/${p.id}">${p.name}</a></div>
-                            <div class="compare-action-btns">
-                                <button class="btn-compare-cart" onclick="addToCart(${p.id})">
-                                    <i class="bi bi-bag-plus"></i> Thêm vào giỏ
-                                </button>
-                                <button class="btn-compare-remove" onclick="removeFromCompare(${p.id})" title="Xóa">
-                                    <i class="bi bi-x"></i>
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </td>`;
@@ -410,8 +434,40 @@
             });
             html += '</tr>';
 
-            html += '</tbody></table></div>';
+            const recommendation = recommendComparedProduct(compareProducts);
+            const recommendationText = recommendation
+                ? `<strong>${escapeHtml(recommendation.product.name)}</strong> đáng chọn hơn nhờ ${escapeHtml(recommendation.reasons.slice(0, 3).join(', ') || 'mức giá và cấu hình cân bằng')}.`
+                : 'Hãy thêm sản phẩm để nhận gợi ý.';
+            html += `</tbody></table><div class="compare-conclusion"><i class="bi bi-stars"></i><div><strong>Kết luận từ AI <em id="aiConclusionBadge">Gemini</em></strong><span id="aiCompareConclusion" data-fallback="${escapeHtml(recommendationText)}">${recommendationText}</span></div><button type="button" id="retryAICompare" onclick="loadAICompareConclusion()"><i class="bi bi-arrow-repeat"></i> Phân tích lại</button></div></div>`;
             document.getElementById('compareContent').innerHTML = html;
+            loadAICompareConclusion();
+        }
+
+        async function loadAICompareConclusion() {
+            const output = document.getElementById('aiCompareConclusion');
+            const button = document.getElementById('retryAICompare');
+            const badge = document.getElementById('aiConclusionBadge');
+            if (!output || compareProducts.length < 2) return;
+            const fallback = output.dataset.fallback || output.textContent;
+            output.textContent = 'AI đang phân tích giá và cấu hình sản phẩm...';
+            if (button) button.disabled = true;
+            try {
+                const response = await fetch('/api/chat/ai/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ product_ids: compareProducts.map(product => product.id) })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.conclusion) throw new Error(data.error || 'AI chưa thể phân tích');
+                output.textContent = data.conclusion;
+                if (badge) badge.textContent = 'Gemini';
+            } catch (error) {
+                output.innerHTML = fallback + ' <small>(Kết luận dự phòng)</small>';
+                if (badge) badge.textContent = 'Dự phòng';
+            } finally {
+                if (button) button.disabled = false;
+            }
         }
 
         function removeFromCompare(id) {

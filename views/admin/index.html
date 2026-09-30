@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20260930-3">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/css/admin.css?v=20260930-5">
+    <script src="/js/vendor/chart.umd.js?v=4.4.0"></script>
 </head>
 <body class="admin-shell dashboard-page">
     <div class="admin-wrapper">
@@ -100,7 +100,7 @@
         <main class="main-content">
             <header class="top-header">
                 <div class="top-header-left">
-                    <h1 class="top-header-title">Dashboard</h1>
+                    <h1 class="top-header-title">Tổng quan</h1>
                 </div>
                 <div class="top-header-right">
                     <span class="header-date" id="currentDate"></span>
@@ -364,8 +364,8 @@
             if (revenueChart) revenueChart.destroy();
 
             const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 320);
-            gradient.addColorStop(0, 'rgba(226, 27, 27, 0.35)');
-            gradient.addColorStop(1, 'rgba(226, 27, 27, 0.02)');
+            gradient.addColorStop(0, 'rgba(59, 167, 232, 0.24)');
+            gradient.addColorStop(1, 'rgba(59, 167, 232, 0.01)');
 
             revenueChart = new Chart(ctx, {
                 type: 'line',
@@ -375,12 +375,12 @@
                         {
                             label: 'Doanh thu (VNĐ)',
                             data: data.revenue,
-                            borderColor: '#e21b1b',
+                            borderColor: '#3ba7e8',
                             backgroundColor: gradient,
                             borderWidth: 3,
                             tension: 0.4,
                             fill: true,
-                            pointBackgroundColor: '#e21b1b',
+                            pointBackgroundColor: '#3ba7e8',
                             pointBorderColor: '#fff',
                             pointBorderWidth: 2,
                             pointRadius: 5,
@@ -390,8 +390,8 @@
                         {
                             label: 'Số đơn hàng',
                             data: data.orders,
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderColor: '#08aeb2',
+                            backgroundColor: 'rgba(8, 174, 178, 0.08)',
                             borderWidth: 2,
                             tension: 0.4,
                             borderDash: [5, 5],
@@ -497,8 +497,8 @@
             if (weekChart) weekChart.destroy();
 
             const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 280);
-            gradient.addColorStop(0, 'rgba(16, 185, 129, 0.85)');
-            gradient.addColorStop(1, 'rgba(16, 185, 129, 0.35)');
+            gradient.addColorStop(0, 'rgba(59, 167, 232, 0.82)');
+            gradient.addColorStop(1, 'rgba(59, 167, 232, 0.25)');
 
             weekChart = new Chart(ctx, {
                 type: 'bar',
@@ -567,11 +567,11 @@
                         label: 'Số lượng bán',
                         data: products.map(p => p.total_sold),
                         backgroundColor: [
-                            'rgba(226, 27, 27, 0.85)',
-                            'rgba(245, 158, 11, 0.85)',
-                            'rgba(59, 130, 246, 0.85)',
-                            'rgba(16, 185, 129, 0.85)',
-                            'rgba(139, 92, 246, 0.85)'
+                            'rgba(59, 167, 232, 0.88)',
+                            'rgba(8, 174, 178, 0.82)',
+                            'rgba(132, 120, 238, 0.78)',
+                            'rgba(96, 193, 164, 0.82)',
+                            'rgba(235, 166, 74, 0.78)'
                         ],
                         borderRadius: 8,
                         borderSkipped: false,

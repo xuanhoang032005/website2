@@ -154,6 +154,11 @@ CREATE TABLE IF NOT EXISTS orders (
     payment_code VARCHAR(50),
     total_price DECIMAL(15,0) NOT NULL,
     shipping_fee DECIMAL(15,0) DEFAULT 0,
+    shipping_method ENUM('standard','express') NOT NULL DEFAULT 'standard',
+    delivery_min_days TINYINT UNSIGNED NULL,
+    delivery_max_days TINYINT UNSIGNED NULL,
+    estimated_delivery_from DATE NULL,
+    estimated_delivery_to DATE NULL,
     shipping_name VARCHAR(100) NOT NULL,
     shipping_phone VARCHAR(15) NOT NULL,
     shipping_address TEXT NOT NULL,
@@ -863,7 +868,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 INSERT IGNORE INTO schema_migrations (name, checksum) VALUES
     ('001_schema_integrity.sql', 'aa62e9419d68fc8452dbb918f425bf48ad3a1cf0f46d7c916b5472c0455c721b'),
-    ('002_unique_user_coupon.sql', 'e21740c5ee1f4b8320ed0495c7172242fc205763c4cbd45b116764833dfa284d');
+    ('002_unique_user_coupon.sql', 'e21740c5ee1f4b8320ed0495c7172242fc205763c4cbd45b116764833dfa284d'),
+    ('003_checkout_delivery.sql', 'a064a7d65cd8fccf1405f8619b50d6a399f9accdc927649e275df0f9e7992a90');
 SELECT 'Database setup completed!' AS status;
 SELECT 'New features:' AS '';
 SELECT '  - product_images: Gallery nhiều ảnh/sản phẩm' AS '';

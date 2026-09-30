@@ -7,6 +7,44 @@ const ordersController = require('../controllers/orders-controller');
 
 const ONLINE_PAYMENT_METHODS = ['vnpay', 'momo'];
 const VIP_MIN_DELIVERED_SPEND = 30000000;
+const SHIPPING_METHODS = new Set(['standard', 'express']);
+
+function normalizeLocation(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function deliveryEstimate(address, shippingMethod = 'standard', now = new Date()) {
+    const location = normalizeLocation(address);
+    const isHcm = location.includes('ho chi minh') || location.includes('tp.hcm') || location.includes('tphcm');
+    const isInnerHcm = isHcm && ['quan 1', 'quan 3', 'quan 4', 'quan 5', 'quan 10', 'binh thanh', 'phu nhuan']
+        .some(district => location.includes(district));
+    const isNearHcm = ['binh duong', 'dong nai', 'long an', 'tay ninh', 'ba ria'].some(province => location.includes(province));
+
+    let minDays = isInnerHcm ? 1 : isHcm ? 2 : isNearHcm ? 2 : 3;
+    let maxDays = isInnerHcm ? 2 : isHcm ? 3 : isNearHcm ? 4 : 6;
+    if (shippingMethod === 'express') {
+        minDays = isInnerHcm ? 1 : 1;
+        maxDays = isInnerHcm ? 1 : isHcm || isNearHcm ? 2 : 3;
+    }
+
+    const dateAfter = days => {
+        const date = new Date(now);
+        date.setHours(12, 0, 0, 0);
+        date.setDate(date.getDate() + days);
+        return date.toISOString().slice(0, 10);
+    };
+
+    return {
+        minDays,
+        maxDays,
+        from: dateAfter(minDays),
+        to: dateAfter(maxDays)
+    };
+}
+
+function shippingFeeFor(method) {
+    return method === 'express' ? 50000 : 30000;
+}
 
 function toCustomerOrder(order) {
     const { cart_item_ids, ...customerOrder } = order;
@@ -49,7 +87,7 @@ async function getCheckoutItems(db, userId, itemIds, buyNow) {
     } else if (buyNow) {
         const [products] = buyNow.variant_id
             ? await db.query(
-                `SELECT p.id AS product_id, p.name, v.id AS variant_id, v.price, v.stock,
+                `SELECT p.id AS product_id, p.name, v.id AS variant_id, v.id AS active_variant_id, v.price, v.stock,
                         v.ram, v.storage, v.color
                  FROM products p JOIN product_variants v ON v.product_id = p.id
                  WHERE p.id = ? AND v.id = ? AND v.is_active = 1`,
@@ -254,6 +292,7 @@ router.post('/', async (req, res) => {
 
         const { shipping_name, shipping_phone, shipping_address, notes, coupon_code, item_ids } = req.body;
         const paymentMethod = req.body.payment_method || 'cod';
+        const shippingMethod = req.body.shipping_method || 'standard';
         const userId = req.session.user_id;
 
         const shippingError = validateShippingInput({ shipping_name, shipping_phone, shipping_address, notes });
@@ -261,11 +300,15 @@ router.post('/', async (req, res) => {
         if (paymentMethod !== 'cod') {
             return res.status(400).json({ error: 'Thanh toán MoMo/VNPay phải dùng luồng thanh toán mô phỏng!' });
         }
+        if (!SHIPPING_METHODS.has(shippingMethod)) {
+            return res.status(400).json({ error: 'Hình thức giao hàng không hợp lệ!' });
+        }
 
         const itemIds = parseItemIds(item_ids);
         const cartItems = await getCheckoutItems(pool, userId, itemIds, req.session.buyNow);
         const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        const shippingFee = subtotal >= 500000 ? 0 : 30000;
+        const shippingFee = shippingFeeFor(shippingMethod);
+        const delivery = deliveryEstimate(shipping_address, shippingMethod);
         const { coupon, discount } = await calculateCoupon(pool, userId, coupon_code, subtotal);
         const finalTotal = subtotal + shippingFee - discount;
         const paymentCode = 'PS' + Date.now();
@@ -274,9 +317,9 @@ router.post('/', async (req, res) => {
         await connection.beginTransaction();
 
         const [orderResult] = await connection.query(
-            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cod', 'pending', ?, ?, ?)`,
-            [userId, paymentCode, finalTotal, shippingFee, shipping_name, shipping_phone, shipping_address,
+            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_method, delivery_min_days, delivery_max_days, estimated_delivery_from, estimated_delivery_to, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cod', 'pending', ?, ?, ?)`,
+            [userId, paymentCode, finalTotal, shippingFee, shippingMethod, delivery.minDays, delivery.maxDays, delivery.from, delivery.to, shipping_name, shipping_phone, shipping_address,
                 notes || '', discount, coupon ? coupon.code : null, itemIds.length > 0 ? itemIds.join(',') : null]
         );
         const orderId = orderResult.insertId;
@@ -309,6 +352,9 @@ router.post('/', async (req, res) => {
             payment_code: paymentCode,
             subtotal,
             shipping_fee: shippingFee,
+            shipping_method: shippingMethod,
+            estimated_delivery_from: delivery.from,
+            estimated_delivery_to: delivery.to,
             discount_amount: discount,
             coupon_code: coupon ? coupon.code : null,
             total: finalTotal,
@@ -471,6 +517,7 @@ router.post('/initiate', async (req, res) => {
         }
 
         const { shipping_name, shipping_phone, shipping_address, payment_method, notes, coupon_code, item_ids } = req.body;
+        const shippingMethod = req.body.shipping_method || 'standard';
         const userId = req.session.user_id;
 
         const shippingError = validateShippingInput({ shipping_name, shipping_phone, shipping_address, notes });
@@ -478,11 +525,15 @@ router.post('/initiate', async (req, res) => {
         if (!ONLINE_PAYMENT_METHODS.includes(payment_method)) {
             return res.status(400).json({ error: 'Phương thức thanh toán mô phỏng không hợp lệ!' });
         }
+        if (!SHIPPING_METHODS.has(shippingMethod)) {
+            return res.status(400).json({ error: 'Hình thức giao hàng không hợp lệ!' });
+        }
 
         const itemIds = parseItemIds(item_ids);
         const cartItems = await getCheckoutItems(pool, userId, itemIds, req.session.buyNow);
         const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        const shippingFee = subtotal >= 500000 ? 0 : 30000;
+        const shippingFee = shippingFeeFor(shippingMethod);
+        const delivery = deliveryEstimate(shipping_address, shippingMethod);
         const { coupon, discount } = await calculateCoupon(pool, userId, coupon_code, subtotal);
         const finalTotal = subtotal + shippingFee - discount;
         const paymentCode = 'PS' + Date.now();
@@ -491,9 +542,9 @@ router.post('/initiate', async (req, res) => {
         await connection.beginTransaction();
 
         const [orderResult] = await connection.query(
-            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-            [userId, paymentCode, finalTotal, shippingFee, shipping_name, shipping_phone, shipping_address,
+            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_method, delivery_min_days, delivery_max_days, estimated_delivery_from, estimated_delivery_to, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+            [userId, paymentCode, finalTotal, shippingFee, shippingMethod, delivery.minDays, delivery.maxDays, delivery.from, delivery.to, shipping_name, shipping_phone, shipping_address,
                 notes || '', payment_method, discount, coupon ? coupon.code : null, itemIds.length > 0 ? itemIds.join(',') : null]
         );
         const orderId = orderResult.insertId;
@@ -516,6 +567,9 @@ router.post('/initiate', async (req, res) => {
             payment_code: paymentCode,
             subtotal,
             shipping_fee: shippingFee,
+            shipping_method: shippingMethod,
+            estimated_delivery_from: delivery.from,
+            estimated_delivery_to: delivery.to,
             discount_amount: discount,
             total: finalTotal,
             simulated: true

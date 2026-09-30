@@ -178,7 +178,7 @@ import('/js/modules/http.js').then(({ installFetch }) => installFetch()).catch((
         });
 
         const subtitle = document.querySelector('.sidebar-logo-sub');
-        if (subtitle) subtitle.textContent = 'Management Console';
+        if (subtitle) subtitle.textContent = 'Bảng điều khiển';
     }
 
     function setupTables() {

@@ -511,6 +511,60 @@ async function runStoreAssistant({ message, history, userId, db = pool, requestA
     throw error;
 }
 
+async function compareProductsWithAI({ productIds, db = pool, requestAI = createGeminiResponse }) {
+    const ids = [...new Set((Array.isArray(productIds) ? productIds : [])
+        .map(value => Number.parseInt(value, 10))
+        .filter(value => Number.isSafeInteger(value) && value > 0))].slice(0, 4);
+    if (ids.length < 2) {
+        const error = new Error('Cần ít nhất hai sản phẩm để AI so sánh.');
+        error.status = 400;
+        throw error;
+    }
+    const [rows] = await db.query(
+        `SELECT p.id, p.name, p.price, p.old_price, p.discount_percent, p.stock,
+                p.ram, p.storage, p.screen_size, p.screen_resolution,
+                p.chipset, p.cpu, p.gpu, p.os, p.description,
+                b.name AS brand_name, c.name AS category_name
+         FROM products p
+         LEFT JOIN brands b ON b.id = p.brand_id
+         LEFT JOIN categories c ON c.id = p.category_id
+         WHERE p.id IN (?)`,
+        [ids]
+    );
+    const products = ids.flatMap(id => {
+        const product = rows.find(row => Number(row.id) === id);
+        if (!product) return [];
+        return [{
+            id: Number(product.id), name: cleanText(product.name, 255), brand: cleanText(product.brand_name, 100),
+            category: cleanText(product.category_name, 100), price: Number(product.price || 0),
+            old_price: product.old_price == null ? null : Number(product.old_price),
+            discount_percent: Number(product.discount_percent || 0), stock: Number(product.stock || 0),
+            ram: cleanText(product.ram, 50), storage: cleanText(product.storage, 50),
+            screen: [cleanText(product.screen_size, 100), cleanText(product.screen_resolution, 200)].filter(Boolean).join(' - '),
+            chipset: cleanText(product.chipset, 200), cpu: cleanText(product.cpu, 300), gpu: cleanText(product.gpu, 300),
+            os: cleanText(product.os, 100), description: cleanText(product.description, 500)
+        }];
+    });
+    if (products.length < 2) {
+        const error = new Error('Không tìm thấy đủ sản phẩm để so sánh.');
+        error.status = 404;
+        throw error;
+    }
+    const response = await requestAI({
+        model: process.env.GEMINI_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+        systemInstruction: { parts: [{ text: 'Bạn là chuyên gia tư vấn công nghệ của AnhTraiStore. Chỉ dùng dữ liệu sản phẩm được cung cấp. Hãy chọn đúng một sản phẩm đáng mua nhất về giá trị tổng thể, nêu tên rõ ràng và giải thích ngắn gọn bằng tiếng Việt trong tối đa 3 câu. Nếu mỗi sản phẩm phù hợp một nhu cầu khác nhau, vẫn phải chọn một sản phẩm tổng thể tốt nhất rồi nhắc ngắn gọn trường hợp ngoại lệ. Không dùng Markdown, ký hiệu tiêu đề hoặc danh sách.' }] },
+        contents: [{ role: 'user', parts: [{ text: `Hãy so sánh và kết luận sản phẩm đáng chọn nhất từ dữ liệu sau:\n${JSON.stringify(products)}` }] }],
+        generationConfig: { maxOutputTokens: 350, thinkingConfig: { thinkingLevel: geminiThinkingLevel(process.env.GEMINI_THINKING_LEVEL) } }
+    });
+    const conclusion = extractReply(response).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
+    if (!conclusion) {
+        const error = new Error('AI chưa tạo được kết luận.');
+        error.code = 'AI_EMPTY_RESPONSE';
+        throw error;
+    }
+    return { conclusion, products };
+}
+
 module.exports = {
     TOOL_DEFINITIONS,
     toGeminiSchema,
@@ -520,5 +574,6 @@ module.exports = {
     formatToolResult,
     normalizeProductThumbnail,
     executeStoreTool,
-    runStoreAssistant
+    runStoreAssistant,
+    compareProductsWithAI
 };

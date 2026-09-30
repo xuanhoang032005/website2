@@ -209,7 +209,8 @@
             socket = io({
                 reconnection: true,
                 reconnectionDelay: 1000,
-                reconnectionAttempts: 5
+                reconnectionAttempts: 5,
+                closeOnBeforeunload: true
             });
         }
         return socket;
@@ -222,6 +223,8 @@
         sock.on('connect', () => {
             console.log('Chatbox: Socket connected');
             sock.emit('check_admin_status');
+            if (adminConnected) sock.emit('join_user_room');
+            if (currentConversationId) sock.emit('join_conversation', currentConversationId);
         });
 
         sock.on('admin_status', (data) => {
@@ -269,6 +272,16 @@
             console.log('Chatbox: Socket connection error (will retry)');
         });
     })();
+
+    // WebSocket không thể tiếp tục chạy khi trang được đưa vào Back-Forward Cache.
+    // Đóng chủ động trước khi cache và khôi phục kết nối khi người dùng quay lại.
+    window.addEventListener('pagehide', () => {
+        if (socket) socket.disconnect();
+    });
+
+    window.addEventListener('pageshow', event => {
+        if (event.persisted && socket && !socket.connected) socket.connect();
+    });
 
     // ===== INIT =====
 

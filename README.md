@@ -78,7 +78,7 @@ mysql -u root -p anhtraisstore < database/anhtraistore.sql
 
 File SQL đã bao gồm `contacts.user_id`, các khóa ngoại, unique constraint và index phục vụ đơn hàng, giỏ hàng, đánh giá, coupon và chat.
 
-`database/anhtraistore.sql` là file database duy nhất, đã bao gồm schema hiện tại và đánh dấu các thay đổi `001`/`002` trong `schema_migrations`.
+`database/anhtraistore.sql` là file database chính, đã bao gồm schema hiện tại và đánh dấu các thay đổi `001`/`002`/`003` trong `schema_migrations`.
 
 Với database cũ, chạy migration theo thứ tự bằng lệnh:
 
@@ -86,7 +86,7 @@ Với database cũ, chạy migration theo thứ tự bằng lệnh:
 npm run migrate
 ```
 
-Database đã chạy trước đó có thể tiếp tục dùng `npm run migrate`; các thay đổi đã gộp trong file cài mới được runner nhận diện là embedded migration.
+Database đã chạy trước đó có thể tiếp tục dùng `npm run migrate`; các thay đổi đã gộp trong file cài mới được runner nhận diện là embedded migration, còn file migration vẫn được giữ để kiểm tra checksum và nâng cấp database cũ.
 
 ### 3. Cấu hình môi trường
 
@@ -136,6 +136,7 @@ SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=
+CONTACT_EMAIL=adminanhtrai@gmail.com
 
 # Google OAuth
 GOOGLE_CLIENT_ID=
@@ -225,7 +226,8 @@ Website/
 │   └── anhtraistore.sql          # Schema 19 bảng, phiên bản sản phẩm và dữ liệu demo
 │   └── migrations/               # Nâng cấp schema có phiên bản cho database cũ
 ├── docs/
-│   └── bao-cao-do-an.md          # Báo cáo, use case và tài liệu thiết kế
+│   └── references/               # Ảnh tham chiếu giao diện dùng khi phát triển
+│       └── cart-reference.png
 ├── public/
 │   ├── assets/images/products/   # Ảnh sản phẩm local
 │   ├── uploads/banners/          # Ảnh banner local
@@ -304,7 +306,7 @@ Hoặc đổi `PORT` trong `.env`.
 
 ## Tài liệu
 
-- [Báo cáo đồ án](docs/bao-cao-do-an.md)
+- Ảnh tham chiếu giao diện được lưu tại `docs/references/`.
 
 ## Giấy phép
 

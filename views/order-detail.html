@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/order-detail.css?v=1">
+    <link rel="stylesheet" href="/css/pages/order-detail.css?v=20260930-2">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -86,7 +86,7 @@
             <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px;">
                 <div>
                     <div class="footer-brand">AnhTrai<span>Store</span></div>
-                    <p class="footer-desc">Chuỗi cửa hàng điện thoại & phụ kiện chính hãng uy tín toàn quốc.</p>
+                    <p class="footer-desc">Đây là website thực tập tốt nghiệp do sinh viên trường Đại học Giao Thông Vận Tải TP.HCM thực hiện. Vui lòng không mua bán, phát sinh giao dịch trên website này.</p>
                 </div>
                 <div>
                     <div class="footer-heading">Sản phẩm</div>
@@ -109,8 +109,8 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <span>&copy; 2026 AnhTraiStore. Tất cả quyền được bảo lưu.</span>
-                <span>Made with ❤️ by Trương Xuân Hoàng</span>
+                <span>&copy; 2026 AnhTraiStore.</span>
+                <span>Made by Trương Xuân Hoàng</span>
             </div>
         </div>
     </footer>
@@ -147,10 +147,10 @@
         }
 
         const statusConfigs = {
-            'pending': { icon: 'bi-clock-history', text: 'Chờ xác nhận', desc: 'Đơn hàng đang chờ được xác nhận', step: 0 },
-            'confirmed': { icon: 'bi-check-circle', text: 'Đã xác nhận', desc: 'Đơn hàng đã được xác nhận và đang chuẩn bị', step: 1 },
-            'shipping': { icon: 'bi-truck', text: 'Đang giao hàng', desc: 'Đơn hàng đang được vận chuyển đến bạn', step: 2 },
-            'delivered': { icon: 'bi-bag-check', text: 'Giao hàng thành công', desc: 'Cảm ơn bạn đã đặt hàng!', step: 3 },
+            'pending': { icon: 'bi-clock-history', text: 'Đơn hàng đã được đặt', desc: 'Đơn hàng đang chờ được xác nhận', step: 0 },
+            'confirmed': { icon: 'bi-check-circle', text: 'Đơn hàng đã xác nhận', desc: 'Đơn hàng đang được chuẩn bị', step: 2 },
+            'shipping': { icon: 'bi-truck', text: 'Đơn hàng đang được giao', desc: 'Đơn hàng đang được vận chuyển đến bạn', step: 3 },
+            'delivered': { icon: 'bi-bag-check', text: 'Giao hàng thành công', desc: 'Cảm ơn bạn đã đặt hàng!', step: 4 },
             'cancelled': { icon: 'bi-x-circle', text: 'Đã hủy', desc: 'Đơn hàng đã bị hủy', step: -1 }
         };
 
@@ -195,10 +195,11 @@
             let progressHtml = '';
             if (order.status !== 'cancelled') {
                 const steps = [
-                    { label: 'Đặt hàng', icon: 'bi-cart-check' },
-                    { label: 'Xác nhận', icon: 'bi-check-circle' },
-                    { label: 'Giao hàng', icon: 'bi-truck' },
-                    { label: 'Hoàn thành', icon: 'bi-bag-check' }
+                    { label: 'Đã đặt hàng', icon: 'bi-cart-check' },
+                    { label: 'Đã xác nhận', icon: 'bi-check-circle' },
+                    { label: 'Đang chuẩn bị', icon: 'bi-box-seam' },
+                    { label: 'Đang giao', icon: 'bi-truck' },
+                    { label: 'Đã giao', icon: 'bi-bag-check' }
                 ];
                 progressHtml = '<div class="progress-steps">';
                 steps.forEach((s, i) => {
@@ -288,101 +289,41 @@
                 </div>`;
             }
 
+            const shippingLabel = order.shipping_method === 'express' ? 'Giao nhanh' : 'Giao tiêu chuẩn';
+            const paymentLabel = order.payment_method === 'cod' ? 'Thanh toán khi nhận hàng (COD)' : `Thanh toán qua ${String(order.payment_method || '').toUpperCase()}`;
+            const estimateText = order.estimated_delivery_from && order.estimated_delivery_to
+                ? `${new Date(order.estimated_delivery_from).toLocaleDateString('vi-VN')} - ${new Date(order.estimated_delivery_to).toLocaleDateString('vi-VN')}`
+                : `${order.delivery_min_days || 2} - ${order.delivery_max_days || 4} ngày`;
+            const verticalSteps = [
+                ['Đã đặt hàng', 'bi-check', 0], ['Đã xác nhận', 'bi-check', 1], ['Đang chuẩn bị', 'bi-box-seam', 2],
+                ['Đang giao', 'bi-truck', 3], ['Đã giao', 'bi-house-check', 4]
+            ].map(([label, icon, index]) => `<div class="timeline-item ${index < currentStep ? 'done' : index === currentStep ? 'active' : ''}"><span><i class="bi ${index <= currentStep ? icon : ''}">${index > currentStep ? index + 1 : ''}</i></span><div><strong>${label}</strong>${index === 0 ? `<small>${formatDate(order.created_at)}</small>` : index === currentStep ? '<small>Trạng thái hiện tại</small>' : ''}</div></div>`).join('');
+
             const html = `
-                <!-- Status Card -->
-                <div class="status-card">
-                    <div class="status-top">
-                        <div class="status-icon ${order.status}">
-                            <i class="bi ${config.icon}"></i>
+                <div class="order-detail-grid">
+                    <main class="order-detail-main">
+                        <div class="status-card">
+                            <div class="status-top">
+                                <div class="status-icon ${order.status}"><i class="bi ${config.icon}"></i></div>
+                                <div class="status-text"><h2>Đơn hàng #${escapeHtml(order.payment_code || order.id)}</h2><p>Đặt hàng thành công vào ${formatDate(order.created_at)}</p></div>
+                            </div>
+                            <div class="delivery-highlight"><i class="bi ${config.icon}"></i><div><strong>${config.text}</strong><span>${config.desc} · Dự kiến ${estimateText}</span></div></div>
+                            ${progressHtml}
                         </div>
-                        <div class="status-text">
-                            <h2>${config.text}</h2>
-                            <p>${config.desc}</p>
-                        </div>
-                    </div>
-                    ${progressHtml}
-                </div>
 
-                <!-- Shipping Info -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-header-icon"><i class="bi bi-truck"></i></div>
-                        <h3>Thông tin giao hàng</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-icon"><i class="bi bi-person"></i></div>
-                                <div>
-                                    <div class="info-label">Người nhận</div>
-                                    <div class="info-value">${order.shipping_name || '---'}</div>
-                                </div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-icon"><i class="bi bi-telephone"></i></div>
-                                <div>
-                                    <div class="info-label">Số điện thoại</div>
-                                    <div class="info-value">${order.shipping_phone || '---'}</div>
-                                </div>
-                            </div>
-                            <div class="info-item full">
-                                <div class="info-icon"><i class="bi bi-geo-alt"></i></div>
-                                <div>
-                                    <div class="info-label">Địa chỉ giao hàng</div>
-                                    <div class="info-value">${order.shipping_address || '---'}</div>
-                                </div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-icon"><i class="bi bi-calendar3"></i></div>
-                                <div>
-                                    <div class="info-label">Ngày đặt</div>
-                                    <div class="info-value">${formatDate(order.created_at)}</div>
-                                </div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-icon"><i class="bi bi-credit-card"></i></div>
-                                <div>
-                                    <div class="info-label">Thanh toán</div>
-                                    <div class="info-value">${order.payment_method === 'cod' ? 'COD - Khi nhận hàng' : (order.payment_method || '---')}</div>
-                                </div>
-                            </div>
-                            ${order.notes ? `
-                            <div class="info-item full">
-                                <div class="info-icon"><i class="bi bi-chat-left-text"></i></div>
-                                <div>
-                                    <div class="info-label">Ghi chú</div>
-                                    <div class="info-value">${order.notes}</div>
-                                </div>
-                            </div>` : ''}
-                        </div>
-                    </div>
-                </div>
+                        <div class="card products-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-box-seam"></i></div><h3>Sản phẩm trong đơn hàng</h3></div><div class="card-body">${productsHtml || '<p>Không có sản phẩm</p>'}</div></div>
 
-                <!-- Products -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-header-icon"><i class="bi bi-box-seam"></i></div>
-                        <h3>Sản phẩm đã đặt (${items.length})</h3>
-                    </div>
-                    <div class="card-body">
-                        ${productsHtml || '<p style="color:var(--slate-500);text-align:center;padding:20px">Không có sản phẩm</p>'}
-                    </div>
-                </div>
+                        <div class="card order-finance-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-receipt"></i></div><h3>Thông tin đơn hàng</h3></div><div class="card-body"><div class="order-meta-summary"><div><span>Mã đơn hàng</span><strong>#${escapeHtml(order.payment_code || order.id)}</strong><span>Ngày đặt hàng</span><strong>${formatDate(order.created_at)}</strong><span>Phương thức thanh toán</span><strong>${paymentLabel}</strong></div>${summaryHtml}</div><div class="thank-you"><i class="bi bi-shield-check"></i><div><strong>Cảm ơn bạn đã mua hàng tại AnhTraiStore!</strong><span>Chúng tôi sẽ luôn đồng hành cùng bạn trong suốt quá trình sử dụng sản phẩm.</span></div></div></div></div>
+                        ${actionsHtml}
+                    </main>
 
-                <!-- Summary -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-header-icon"><i class="bi bi-receipt"></i></div>
-                        <h3>Tổng quan thanh toán</h3>
-                    </div>
-                    <div class="card-body">
-                        ${summaryHtml}
-                    </div>
-                </div>
-
-                <!-- Actions -->
-                ${actionsHtml}
-            `;
+                    <aside class="order-detail-aside">
+                        <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-bag"></i></div><h3>Thông tin giao hàng</h3></div><div class="card-body detail-list"><div><span>Người nhận</span><strong>${escapeHtml(order.shipping_name || '---')}</strong></div><div><span>Số điện thoại</span><strong>${escapeHtml(order.shipping_phone || '---')}</strong></div><div><span>Địa chỉ</span><strong>${escapeHtml(order.shipping_address || '---')}</strong></div></div></div>
+                        <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-truck"></i></div><h3>Phương thức giao hàng</h3></div><div class="card-body side-method"><div><strong>${shippingLabel}</strong><span>Thời gian giao: ${estimateText}</span></div><b>${formatPrice(shippingFee)}đ</b></div></div>
+                        <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-credit-card"></i></div><h3>Phương thức thanh toán</h3></div><div class="card-body side-method"><div><strong>${paymentLabel}</strong><span>${order.payment_method === 'cod' ? 'Thanh toán bằng tiền mặt khi nhận hàng' : 'Thanh toán QR mô phỏng'}</span></div></div></div>
+                        <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-clock-history"></i></div><h3>Trạng thái đơn hàng</h3></div><div class="card-body order-timeline">${verticalSteps}<div class="support-box"><i class="bi bi-headset"></i><div><strong>Cần hỗ trợ?</strong><span>Hotline 1800 2097</span><a href="/contact">Liên hệ ngay →</a></div></div></div></div>
+                    </aside>
+                </div>`;
 
             document.getElementById('orderContent').innerHTML = html;
         }

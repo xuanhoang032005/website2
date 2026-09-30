@@ -191,6 +191,40 @@ router.get('/me', async (req, res) => {
     }
 });
 
+router.get('/profile-summary', async (req, res) => {
+    if (!req.session.user_id) return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
+    try {
+        const userId = req.session.user_id;
+        const [[orderStats]] = await pool.query(
+            `SELECT COUNT(*) AS total_orders,
+                    COALESCE(SUM(CASE WHEN status = 'delivered' THEN total_price ELSE 0 END), 0) AS total_spent
+             FROM orders WHERE user_id = ?`,
+            [userId]
+        );
+        const [[wishlistStats]] = await pool.query('SELECT COUNT(*) AS total_wishlist FROM wishlists WHERE user_id = ?', [userId]);
+        const [[reviewStats]] = await pool.query('SELECT COUNT(*) AS total_reviews FROM reviews WHERE user_id = ?', [userId]);
+        const [recentOrders] = await pool.query(
+            `SELECT o.id, o.payment_code, o.total_price, o.status, o.created_at,
+                    (SELECT p.thumbnail FROM order_items oi JOIN products p ON p.id = oi.product_id
+                     WHERE oi.order_id = o.id ORDER BY oi.id LIMIT 1) AS thumbnail
+             FROM orders o WHERE o.user_id = ? ORDER BY o.created_at DESC LIMIT 5`,
+            [userId]
+        );
+        res.json({
+            stats: {
+                total_orders: Number(orderStats.total_orders || 0),
+                total_wishlist: Number(wishlistStats.total_wishlist || 0),
+                total_spent: Number(orderStats.total_spent || 0),
+                total_reviews: Number(reviewStats.total_reviews || 0)
+            },
+            recent_orders: recentOrders
+        });
+    } catch (error) {
+        console.error('Profile summary error:', error);
+        res.status(500).json({ error: 'Không thể tải tổng quan tài khoản!' });
+    }
+});
+
 // Update profile
 router.put('/profile', profileValidation, async (req, res) => {
     try {

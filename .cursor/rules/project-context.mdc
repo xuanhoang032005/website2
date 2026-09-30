@@ -9,7 +9,7 @@ alwaysApply: true
 - Trao đổi và báo cáo kết quả bằng tiếng Việt, ưu tiên giải pháp cần thiết và phù hợp quy mô đồ án.
 - Thanh toán MoMo/VNPay chỉ là mô phỏng. Không tích hợp thanh toán thật nếu người dùng chưa yêu cầu rõ.
 - SMTP đã được người dùng cấu hình. Không mặc định kết luận SMTP chưa hoạt động; kiểm tra lỗi thực tế trước.
-- Không sửa `database/dt.sql` nếu chưa có yêu cầu rõ ràng. Khi chỉ sửa tài liệu hoặc mã nguồn, phải giữ file database nguyên trạng.
+- Không sửa `database/anhtraistore.sql` nếu chưa có yêu cầu rõ ràng. Khi chỉ sửa tài liệu hoặc mã nguồn, phải giữ file database nguyên trạng.
 - Không trả lỗi SQL, stack trace, secret hoặc thông tin hệ thống qua API.
 - Giữ kiểm tra quyền sở hữu cho đơn hàng, giỏ hàng, wishlist, hội thoại và Socket.IO; API quản trị phải kiểm tra vai trò admin.
 - Trước khi hoàn tất thay đổi, chạy `npm run check`; khi thay dependency hoặc rà bảo mật, chạy thêm `npm audit`.
@@ -17,12 +17,12 @@ alwaysApply: true
 ## Trạng thái hiện tại
 
 - Backend là Express modular monolith trong `src/`; entry point tương thích hosting là `server.js`.
-- Database MySQL gồm 18 bảng và được khởi tạo từ `database/dt.sql`.
-- Có 20 kiểm tra hồi quy cho bộ lọc, sản phẩm, coupon, upload và bảo mật API.
+- Database MySQL gồm 19 bảng và được khởi tạo từ `database/anhtraistore.sql`.
+- Bộ kiểm tra hồi quy nằm tại `tests/product-regressions.test.js`.
 - Session, OTP, rate limit và trạng thái Socket.IO hiện còn lưu trong bộ nhớ tiến trình.
 - Upload ảnh hiện lưu trên filesystem local.
 - API đã có header bảo mật, CORS production, rate limit, generic 500 response và session cookie an toàn hơn.
-- Tài liệu kiến trúc và bảo mật nằm tại `docs/architecture.md` và `docs/security.md`.
+- Ảnh tham chiếu giao diện nằm tại `docs/references/`.
 
 ## Hướng nâng cấp doanh nghiệp đã thống nhất
 
@@ -36,7 +36,7 @@ alwaysApply: true
 
 ## Điểm cần nhớ khi nâng cấp
 
-- Code đang truy vấn `product_variants` nhưng `database/dt.sql` chưa có bảng tương ứng.
+- Code đang truy vấn `product_variants`; schema hiện tại đã có bảng tương ứng.
 - Bảng `reset_tokens` tồn tại nhưng luồng OTP hiện dùng bộ nhớ.
 - README ghi Node.js 16 trong khi `package.json` yêu cầu Node.js 20 trở lên.
 - Tài khoản admin demo và mật khẩu mẫu phải được loại bỏ trước khi triển khai thật.
