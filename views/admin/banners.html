@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20260930-5">
+    <link rel="stylesheet" href="/css/admin.css?v=20261001-1">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -292,7 +292,14 @@
 
         function deleteBanner(id) {
             const banner = bannersCache.find(item => String(item.id) === String(id));
-            showConfirm('Xóa banner?', `Banner “${banner?.title || 'không tiêu đề'}” sẽ bị xóa khỏi trang chủ.`, async () => {
+            adminConfirm({
+                title: 'Xóa banner?',
+                message: `Banner “${banner?.title || 'không tiêu đề'}” sẽ bị xóa khỏi trang chủ.`,
+                confirmText: 'Xóa banner',
+                icon: 'fa-trash-alt',
+                tone: 'danger'
+            }).then(async confirmed => {
+                if (!confirmed) return;
                 try {
                     const res = await fetch(`/admin/banners/${id}`, { method: 'DELETE', credentials: 'include' });
                     const data = await res.json();

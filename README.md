@@ -138,7 +138,9 @@ SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=
+SMTP_FROM=adminanhtrai@gmail.com
 CONTACT_EMAIL=adminanhtrai@gmail.com
+ORDER_NOTIFICATION_EMAIL=adminanhtrai@gmail.com
 
 # Google OAuth
 GOOGLE_CLIENT_ID=
@@ -159,6 +161,8 @@ OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.6-terra
 OPENAI_API_TIMEOUT_MS=60000
 ```
+
+Để email xác nhận đơn thực sự được gửi **từ** `adminanhtrai@gmail.com`, đặt `SMTP_USER` thành địa chỉ này và `SMTP_PASS` thành App Password của chính tài khoản đó. `ORDER_NOTIFICATION_EMAIL` là hộp thư nhận mọi thông báo đơn hàng mới; hai email khách/admin được đưa vào hai job riêng để retry độc lập.
 
 `OPENAI_BASE_URL` là URL gốc của API, thường kết thúc bằng `/v1`; không thêm `/chat/completions` vì client tự nối endpoint này. `OPENAI_API_KEY` là khóa của dịch vụ tại base URL đó. `OPENAI_MODEL` là Model ID chính xác do dịch vụ cung cấp. Model cần hỗ trợ Chat Completions và function calling (`tools`, `tool_calls`). Xem [tài liệu OpenAI về function calling](https://developers.openai.com/api/docs/guides/function-calling).
 

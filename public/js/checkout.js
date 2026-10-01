@@ -378,7 +378,9 @@
 
     async function loadAvailableCoupons() {
         try {
-            const data = await jsonRequest('/api/coupons/available?order_total=' + encodeURIComponent(Number(state.cart.total || 0)));
+            let couponUrl = '/api/coupons/available?order_total=' + encodeURIComponent(Number(state.cart.total || 0));
+            if (state.selectedItemIds.length) couponUrl += '&item_ids=' + encodeURIComponent(state.selectedItemIds.join(','));
+            const data = await jsonRequest(couponUrl);
             state.availableCoupons = Array.isArray(data.coupons) ? data.coupons : [];
             state.unavailableCoupons = Array.isArray(data.unavailable) ? data.unavailable : [];
             state.couponError = '';
@@ -413,7 +415,9 @@
             return;
         }
         try {
-            const data = await jsonRequest('/api/coupons/validate', {
+            const validateUrl = '/api/coupons/validate' + (state.selectedItemIds.length
+                ? '?item_ids=' + encodeURIComponent(state.selectedItemIds.join(',')) : '');
+            const data = await jsonRequest(validateUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code, order_total: Number(state.cart.total || 0) })

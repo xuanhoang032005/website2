@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
+const { parseCouponPayload } = require('../core/coupon-validation');
 
 const VIP_MIN_DELIVERED_SPEND = 30000000;
 const FIRST_ORDER_COUPONS = new Set(['WELCOME10', 'NEWUSER']);
@@ -13,7 +14,8 @@ async function getCouponContext(db, userId, coupons) {
     const context = {
         usedCouponIds: new Set(),
         hasPriorOrder: false,
-        deliveredSpend: 0
+        deliveredSpend: 0,
+        phoneCategoryOnly: null
     };
     if (!userId) return context;
 
@@ -46,6 +48,30 @@ async function getCouponContext(db, userId, coupons) {
     return context;
 }
 
+async function addPhoneCategoryContext(db, context, userId, coupons, selection = {}) {
+    const phoneCoupon = coupons.find(coupon => coupon.code === 'PHONE15');
+    if (!phoneCoupon || context.usedCouponIds.has(Number(phoneCoupon.id))) return context;
+
+    let rows = [];
+    if (selection.buyNowProductId) {
+        [rows] = await db.query('SELECT category_id FROM products WHERE id = ?', [selection.buyNowProductId]);
+    } else if (userId) {
+        const itemIds = Array.isArray(selection.itemIds) ? selection.itemIds : [];
+        const sql = `SELECT DISTINCT p.category_id
+                     FROM cart c JOIN products p ON p.id = c.product_id
+                     WHERE c.user_id = ?${itemIds.length ? ' AND c.id IN (?)' : ''}`;
+        [rows] = await db.query(sql, itemIds.length ? [userId, itemIds] : [userId]);
+    }
+    context.phoneCategoryOnly = rows.length > 0 && rows.every(row => Number(row.category_id) === 1);
+    return context;
+}
+
+function selectedItems(req) {
+    const raw = req.body?.item_ids ?? req.query?.item_ids;
+    const values = Array.isArray(raw) ? raw : String(raw || '').split(',');
+    return [...new Set(values.map(value => Number.parseInt(value, 10)).filter(value => Number.isInteger(value) && value > 0))];
+}
+
 function getCouponRestriction(coupon, total, userId, context) {
     if (coupon.usage_limit != null && Number(coupon.used_count) >= Number(coupon.usage_limit)) {
         return { status: 400, error: 'Mã giảm giá đã hết lượt sử dụng!' };
@@ -67,6 +93,9 @@ function getCouponRestriction(coupon, total, userId, context) {
     }
     if (coupon.code === 'VIP20' && context.deliveredSpend < VIP_MIN_DELIVERED_SPEND) {
         return { status: 403, error: 'VIP20 dành cho khách đã có tổng đơn giao thành công từ 30 triệu!' };
+    }
+    if (coupon.code === 'PHONE15' && context.phoneCategoryOnly !== true) {
+        return { status: 400, error: 'Mã PHONE15 chỉ áp dụng cho sản phẩm thuộc danh mục Điện thoại!' };
     }
     return null;
 }
@@ -101,6 +130,10 @@ router.post('/validate', async (req, res) => {
         const total = parseFloat(order_total) || 0;
         const userId = req.session?.user_id;
         const context = await getCouponContext(pool, userId, [coupon]);
+        await addPhoneCategoryContext(pool, context, userId, [coupon], {
+            itemIds: selectedItems(req),
+            buyNowProductId: req.session?.buyNow?.product_id
+        });
         const restriction = getCouponRestriction(coupon, total, userId, context);
         if (restriction) return res.status(restriction.status).json({ error: restriction.error });
 
@@ -169,6 +202,10 @@ router.get('/available', async (req, res) => {
         );
         const userId = req.session?.user_id;
         const context = await getCouponContext(pool, userId, coupons);
+        await addPhoneCategoryContext(pool, context, userId, coupons, {
+            itemIds: selectedItems(req),
+            buyNowProductId: req.session?.buyNow?.product_id
+        });
         const evaluated = coupons.map(coupon => ({
             coupon,
             restriction: getCouponRestriction(coupon, total, userId, context)
@@ -207,22 +244,16 @@ router.post('/', async (req, res) => {
             return res.status(403).json({ error: 'Không có quyền!' });
         }
 
-        const {
-            code, description, discount_type, discount_value,
-            min_order_value = 0, max_discount = null,
-            usage_limit = null, start_date = null, expires_at = null
-        } = req.body;
-
-        if (!code || !discount_value) {
-            return res.status(400).json({ error: 'Vui lòng nhập mã và giá trị giảm!' });
-        }
+        const coupon = parseCouponPayload(req.body, { requireDescription: false });
+        const startDate = req.body.start_date || null;
 
         const [result] = await pool.query(
             `INSERT INTO coupons (code, description, discount_type, discount_value,
                 min_order_value, max_discount, usage_limit, start_date, expires_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [code.toUpperCase(), description || '', discount_type || 'percent',
-             discount_value, min_order_value, max_discount, usage_limit, start_date, expires_at]
+            [coupon.code, coupon.description, coupon.discount_type,
+             coupon.discount_value, coupon.min_order_value, coupon.max_discount,
+             coupon.usage_limit, startDate, coupon.expires_at]
         );
 
         res.json({ success: true, id: result.insertId });
@@ -231,7 +262,7 @@ router.post('/', async (req, res) => {
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({ error: 'Mã coupon đã tồn tại!' });
         }
-        res.status(500).json({ error: 'Đã xảy ra lỗi!' });
+        res.status(error.status || 500).json({ error: error.status ? error.message : 'Đã xảy ra lỗi!' });
     }
 });
 

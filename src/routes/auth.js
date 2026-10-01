@@ -18,6 +18,8 @@ const registerValidation = validateBody({
     full_name: stringField({ required: true, min: 1, max: 100, disallowHtml: true, label: 'Họ tên' }),
     email: emailField({ required: true }),
     phone: stringField({ max: 30, disallowHtml: true, label: 'Số điện thoại' }),
+    birthdate: stringField({ max: 10, pattern: /^\d{4}-\d{2}-\d{2}$/, label: 'Ngày sinh' }),
+    gender: enumField(['male', 'female', 'other'], { label: 'Giới tính' }),
     password: stringField({ required: true, min: 6, max: 128, trim: false, label: 'Mật khẩu' })
 });
 const loginValidation = validateBody({
@@ -71,7 +73,16 @@ function validateProfile({ full_name, phone, address, birthdate, gender }) {
     }
     if (phone != null && String(phone).length > 30) return 'Số điện thoại không hợp lệ!';
     if (address != null && String(address).length > 500) return 'Địa chỉ không được vượt quá 500 ký tự!';
-    if (birthdate && !/^\d{4}-\d{2}-\d{2}$/.test(String(birthdate))) return 'Ngày sinh không hợp lệ!';
+    if (birthdate) {
+        const value = String(birthdate);
+        const parsed = new Date(`${value}T00:00:00Z`);
+        const today = new Date();
+        const oldest = new Date(Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate()));
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(parsed.getTime()) ||
+            parsed.toISOString().slice(0, 10) !== value || parsed > today || parsed < oldest) {
+            return 'Ngày sinh không hợp lệ!';
+        }
+    }
     if (gender && !['male', 'female', 'other'].includes(String(gender))) return 'Giới tính không hợp lệ!';
     return null;
 }
@@ -79,7 +90,7 @@ function validateProfile({ full_name, phone, address, birthdate, gender }) {
 // Register
 router.post('/register', loginRateLimit, registerValidation, async (req, res) => {
     try {
-        const { full_name, phone, password } = req.body;
+        const { full_name, phone, password, birthdate, gender } = req.body;
         const email = normalizeEmail(req.body.email);
 
         if (!full_name || !email || !password) {
@@ -88,7 +99,7 @@ router.post('/register', loginRateLimit, registerValidation, async (req, res) =>
         if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
             return res.status(400).json({ error: 'Mật khẩu phải có từ 6 đến 128 ký tự!' });
         }
-        const profileError = validateProfile({ full_name, phone });
+        const profileError = validateProfile({ full_name, phone, birthdate, gender });
         if (profileError) return res.status(400).json({ error: profileError });
         if (!isValidEmail(email)) return res.status(400).json({ error: 'Email không hợp lệ!' });
 
@@ -103,8 +114,8 @@ router.post('/register', loginRateLimit, registerValidation, async (req, res) =>
 
         // Insert user
         const [result] = await pool.query(
-            'INSERT INTO users (full_name, email, phone, password) VALUES (?, ?, ?, ?)',
-            [full_name.trim(), email, phone ? String(phone).trim() : '', hashedPassword]
+            'INSERT INTO users (full_name, email, phone, birthdate, gender, password) VALUES (?, ?, ?, ?, ?, ?)',
+            [full_name.trim(), email, phone ? String(phone).trim() : '', birthdate || null, gender || null, hashedPassword]
         );
 
         res.json({ success: true, message: 'Đăng ký thành công!' });

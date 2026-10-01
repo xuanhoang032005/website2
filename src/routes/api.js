@@ -17,7 +17,7 @@ const reviewValidation = validateBody({
 const multer = require('multer');
 const pool = require('../config/database');
 const { requireAdminApi: requireAdmin } = require('../middleware/auth');
-const { sendEmail } = require('../config/mail');
+const queue = require('../services/background-jobs');
 const { isAllowedImage } = require('../core/image-upload');
 const { categoryCloudinaryStorage } = require('../services/cloud-storage');
 
@@ -118,8 +118,8 @@ router.post('/contact', contactValidation, async (req, res) => {
         await connection.beginTransaction();
 
         const [result] = await connection.query(
-            'INSERT INTO contacts (user_id, full_name, email, phone, message) VALUES (?, ?, ?, ?, ?)',
-            [user_id, full_name, email, phone || '', message]
+            'INSERT INTO contacts (user_id, full_name, email, phone, subject, message) VALUES (?, ?, ?, ?, ?, ?)',
+            [user_id, full_name, email, phone || '', subject || 'Liên hệ từ website', message]
         );
 
         // Mỗi tài khoản chỉ dùng một conversation đại diện. Các conversation cũ
@@ -171,7 +171,7 @@ router.post('/contact', contactValidation, async (req, res) => {
         const safePhone = escapeMailHtml(phone || 'Không cung cấp');
         const safeSubject = escapeMailHtml(subject || 'Liên hệ từ website');
         const safeMessage = escapeMailHtml(message).replace(/\r?\n/g, '<br>');
-        const emailSent = await sendEmail({
+        const emailJobId = queue.enqueue('contact_email', {
             to: contactEmail,
             replyTo: email,
             subject: `[AnhTraiStore] ${subject || 'Liên hệ mới từ khách hàng'}`,
@@ -192,8 +192,9 @@ router.post('/contact', contactValidation, async (req, res) => {
 
         res.json({
             success: true,
-            message: emailSent ? 'Gửi liên hệ thành công!' : 'Đã lưu liên hệ nhưng chưa thể gửi email thông báo.',
-            email_sent: emailSent,
+            message: 'Gửi liên hệ thành công!',
+            email_queued: true,
+            email_job_id: emailJobId,
             conversation_id: conversation_id
         });
     } catch (error) {

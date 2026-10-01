@@ -529,6 +529,7 @@ test('product update keeps selected old images, adds new files and stores unchec
             if (name === '../config/database') return pool;
             if (name === '../services/cloud-storage') return cloudStorageStub;
             if (name === '../config/mail') return { async sendEmail() { return true; } };
+            if (name === '../services/background-jobs') return { enqueue() { return 'test-email-job'; } };
             return localRequire(name);
         }
     });
@@ -761,6 +762,7 @@ function loadRoute(filename, routePath, method, pool) {
             if (name === '../config/database') return pool;
             if (name === '../services/cloud-storage') return cloudStorageStub;
             if (name === '../config/mail') return { async sendEmail() { return true; } };
+            if (name === '../services/background-jobs') return { enqueue() { return 'test-email-job'; } };
             return localRequire(name);
         }
     });
@@ -974,6 +976,19 @@ test('contact submissions email the primary mailbox with reply-to support', () =
     assert.match(api, /process\.env\.CONTACT_EMAIL \|\| 'adminanhtrai@gmail\.com'/);
     assert.match(api, /replyTo: email/);
     assert.match(mail, /replyTo: options\.replyTo \|\| undefined/);
+});
+
+test('new orders enqueue independent customer and admin emails from the configured store mailbox', () => {
+    const orders = fs.readFileSync(path.join(root, 'src', 'routes', 'orders.js'), 'utf8');
+    const jobs = fs.readFileSync(path.join(root, 'src', 'services', 'background-jobs.js'), 'utf8');
+    const mail = fs.readFileSync(path.join(root, 'src', 'config', 'mail.js'), 'utf8');
+    assert.match(orders, /queue\.enqueue\('order_email', \{ orderId, userId \}\)/);
+    assert.match(orders, /queue\.enqueue\('admin_order_email', \{ orderId, userId \}\)/);
+    assert.match(jobs, /queue\.register\('admin_order_email'/);
+    assert.match(jobs, /sendAdminOrderNotification/);
+    assert.match(mail, /ORDER_NOTIFICATION_EMAIL \|\| process\.env\.CONTACT_EMAIL \|\| 'adminanhtrai@gmail\.com'/);
+    assert.match(mail, /replyTo: process\.env\.ORDER_NOTIFICATION_EMAIL/);
+    assert.match(mail, /SMTP_FROM \|\| process\.env\.SMTP_USER/);
 });
 
 test('profile dashboard renders live account summary and recent orders', () => {
@@ -1407,6 +1422,86 @@ test('AI chat history is retained in the current Express session', () => {
     assert.deepEqual(productsForHistory([{ id: '2', name: 'Phone', price: '1000', thumbnail: '/phone.jpg' }]), [{
         id: 2, name: 'Phone', price: 1000, old_price: null, thumbnail: '/phone.jpg'
     }]);
+});
+
+test('coupon admin validation rejects unsafe values and normalizes valid input', () => {
+    const { parseCouponPayload } = require('../src/core/coupon-validation');
+    assert.throws(() => parseCouponPayload({
+        code: 'TOO-MUCH', description: 'Sai', discount_type: 'percent', discount_value: 101
+    }), /Giá trị giảm không hợp lệ/);
+    assert.throws(() => parseCouponPayload({
+        code: 'BAD HTML', description: 'Sai', discount_type: 'fixed', discount_value: -1
+    }), /Mã giảm giá/);
+    assert.deepEqual(parseCouponPayload({
+        code: ' sale_10 ', description: ' Giảm hợp lệ ', discount_type: 'percent', discount_value: '10',
+        min_order_value: '500000', max_discount: '', usage_limit: '20', expires_at: '2027-12-31', is_active: true
+    }), {
+        code: 'SALE_10', description: 'Giảm hợp lệ', discount_type: 'percent', discount_value: 10,
+        min_order_value: 500000, max_discount: null, usage_limit: 20,
+        expires_at: '2027-12-31 23:59:59', is_active: 1
+    });
+});
+
+test('PHONE15 rejects carts containing a non-phone category', async () => {
+    const coupon = {
+        id: 5, code: 'PHONE15', description: 'Điện thoại', discount_type: 'percent', discount_value: 15,
+        min_order_value: 5000000, max_discount: 2000000, usage_limit: 200, used_count: 0
+    };
+    const pool = { async query(sql) {
+        if (sql.includes('SELECT * FROM coupons')) return [[coupon]];
+        if (sql.includes('FROM user_coupons')) return [[]];
+        if (sql.includes('FROM cart c JOIN products')) return [[{ category_id: 9 }]];
+        throw new Error('Unexpected query: ' + sql);
+    } };
+    const route = loadRoute(path.join(root, 'src', 'routes', 'coupons.js'), '/validate', 'post', pool);
+    const response = jsonResponse();
+    await route.stack[0].handle({
+        body: { code: 'PHONE15', order_total: 10000000 }, query: {}, session: { user_id: 1 }
+    }, response);
+    assert.equal(response.statusCode, 400);
+    assert.match(response.body.error, /danh mục Điện thoại/);
+});
+
+test('startup data repair backfills contact subjects and reconciles aggregate stock', async () => {
+    const queries = [];
+    const { repairBusinessData } = require('../src/services/data-consistency');
+    const result = await repairBusinessData({ async query(sql) {
+        queries.push(sql);
+        return [{ affectedRows: queries.length === 1 ? 4 : 1 }];
+    } });
+    assert.deepEqual(result, { contacts_backfilled: 4, product_stocks_synced: 1 });
+    assert.match(queries[0], /subject IS NULL OR TRIM\(subject\) = ''/);
+    assert.match(queries[1], /SUM\(CASE WHEN is_active = 1 THEN stock ELSE 0 END\)/);
+    assert.match(queries[1], /p\.stock <> totals\.variant_stock/);
+});
+
+test('failed background jobs are retried after their handler throws', async () => {
+    const queue = require('../src/services/job-queue');
+    let attempts = 0;
+    queue.register('regression_retry', async () => {
+        attempts++;
+        if (attempts === 1) throw new Error('temporary failure');
+        return true;
+    });
+    const id = queue.enqueue('regression_retry', {}, { maxAttempts: 2 });
+    await new Promise(resolve => setTimeout(resolve, 650));
+    assert.equal(queue.get(id).status, 'completed');
+    assert.equal(queue.get(id).attempts, 2);
+});
+
+test('registration, contacts, reorder and dashboard retain the repaired business fields', () => {
+    const auth = fs.readFileSync(path.join(root, 'src', 'routes', 'auth.js'), 'utf8');
+    const api = fs.readFileSync(path.join(root, 'src', 'routes', 'api.js'), 'utf8');
+    const orders = fs.readFileSync(path.join(root, 'views', 'orders.html'), 'utf8');
+    const orderDetail = fs.readFileSync(path.join(root, 'views', 'order-detail.html'), 'utf8');
+    const dashboard = fs.readFileSync(path.join(root, 'views', 'admin', 'index.html'), 'utf8');
+    const mail = fs.readFileSync(path.join(root, 'src', 'config', 'mail.js'), 'utf8');
+    assert.match(auth, /INSERT INTO users \(full_name, email, phone, birthdate, gender, password\)/);
+    assert.match(api, /INSERT INTO contacts \(user_id, full_name, email, phone, subject, message\)/);
+    assert.match(orders, /product_id: item\.product_id, variant_id: item\.variant_id/);
+    assert.match(orderDetail, /product_id: item\.product_id, variant_id: item\.variant_id/);
+    assert.doesNotMatch(dashboard, /Thao tác nhanh|class="quick-action"/);
+    assert.match(mail, /catch \(error\)[\s\S]*?throw error/);
 });
 
 test('product variants validate combinations and derive the default catalog values', () => {

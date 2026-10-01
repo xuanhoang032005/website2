@@ -46,14 +46,14 @@ async function testConnection() {
  */
 async function sendEmail(options) {
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.log('⚠️ Email không thể gửi - SMTP chưa được cấu hình');
-        console.log('   Nội dung email:', options.subject);
-        return false;
+        const error = new Error('Email không thể gửi vì SMTP chưa được cấu hình.');
+        error.code = 'SMTP_NOT_CONFIGURED';
+        throw error;
     }
     
     try {
         const info = await transporter.sendMail({
-            from: `"${process.env.SITE_NAME || 'Website'}" <${process.env.SMTP_USER}>`,
+            from: options.from || `"${process.env.SITE_NAME || 'Website'}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
             to: options.to,
             replyTo: options.replyTo || undefined,
             subject: options.subject,
@@ -64,7 +64,7 @@ async function sendEmail(options) {
         return true;
     } catch (error) {
         console.error('✗ Gửi email thất bại:', error.message);
-        return false;
+        throw error;
     }
 }
 
@@ -180,8 +180,50 @@ async function sendOrderEmail(order, user, items) {
     
     return sendEmail({
         to: user.email,
+        replyTo: process.env.ORDER_NOTIFICATION_EMAIL || process.env.CONTACT_EMAIL || 'adminanhtrai@gmail.com',
         subject: `[${siteName}] Xác nhận đơn hàng #${order.payment_code}`,
         html: html
+    });
+}
+
+/**
+ * Gửi thông báo đơn hàng mới cho quản trị viên.
+ */
+async function sendAdminOrderNotification(order, user, items) {
+    const siteName = process.env.SITE_NAME || 'AnhTraiStore';
+    const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
+    const adminEmail = process.env.ORDER_NOTIFICATION_EMAIL || process.env.CONTACT_EMAIL || 'adminanhtrai@gmail.com';
+    const itemRows = items.map(item => `
+        <tr>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.name)}${[item.ram, item.storage, item.color].filter(Boolean).length ? `<br><small>${escapeHtml([item.ram, item.storage, item.color].filter(Boolean).join(' / '))}</small>` : ''}</td>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:center;">${escapeHtml(item.quantity)}</td>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatCurrency(Number(item.price) * Number(item.quantity))}</td>
+        </tr>`).join('');
+    const html = `
+        <div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#172033;">
+            <div style="padding:20px 24px;background:#0b1b33;color:#fff;">
+                <h2 style="margin:0;">Có đơn hàng mới #${escapeHtml(order.payment_code)}</h2>
+            </div>
+            <div style="padding:24px;border:1px solid #dce5ef;">
+                <p><strong>Khách hàng:</strong> ${escapeHtml(user.full_name || order.shipping_name)}</p>
+                <p><strong>Email:</strong> ${escapeHtml(user.email)}</p>
+                <p><strong>Điện thoại:</strong> ${escapeHtml(order.shipping_phone)}</p>
+                <p><strong>Địa chỉ:</strong> ${escapeHtml(order.shipping_address)}</p>
+                <p><strong>Thanh toán:</strong> ${escapeHtml(String(order.payment_method || '').toUpperCase())}</p>
+                <table style="width:100%;border-collapse:collapse;margin-top:18px;">
+                    <thead><tr style="background:#f5f8fc;"><th style="padding:10px;text-align:left;">Sản phẩm</th><th style="padding:10px;">SL</th><th style="padding:10px;text-align:right;">Thành tiền</th></tr></thead>
+                    <tbody>${itemRows}</tbody>
+                </table>
+                <p style="margin-top:18px;font-size:18px;"><strong>Tổng thanh toán:</strong> ${formatCurrency(order.total_price)}</p>
+                <p style="margin-top:24px;"><a href="${escapeHtml(siteUrl)}/admin/orders" style="display:inline-block;padding:11px 18px;background:#087ec2;color:#fff;text-decoration:none;border-radius:6px;">Mở trang quản lý đơn hàng</a></p>
+            </div>
+        </div>`;
+
+    return sendEmail({
+        to: adminEmail,
+        replyTo: user.email,
+        subject: `[${siteName}] Đơn hàng mới #${order.payment_code} - ${formatCurrency(order.total_price)}`,
+        html
     });
 }
 
@@ -274,6 +316,7 @@ module.exports = {
     sendEmail,
     testConnection,
     sendOrderEmail,
+    sendAdminOrderNotification,
     sendPasswordResetOTP,
     sendWelcomeEmail
 };

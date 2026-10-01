@@ -8,6 +8,7 @@ const mail = require('./src/config/mail');
 const { corsOrigin, port } = require('./src/config/runtime');
 const configureChatSocket = require('./src/realtime/chat-socket');
 const logger = require('./src/config/logger');
+const { repairBusinessData } = require('./src/services/data-consistency');
 
 function startServer() {
     const { app, sessionMiddleware } = createApp();
@@ -27,6 +28,11 @@ function startServer() {
 
     server.listen(port, async () => {
         logger.info('server_started', { port });
+        try {
+            await repairBusinessData(pool);
+        } catch (error) {
+            logger.error('business_data_repair_failed', { error: error.message });
+        }
         await mail.testConnection();
     });
 

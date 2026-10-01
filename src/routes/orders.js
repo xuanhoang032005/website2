@@ -77,7 +77,7 @@ async function getCheckoutItems(db, userId, itemIds, buyNow) {
             `SELECT c.id AS cart_id, c.product_id, c.variant_id, v.id AS active_variant_id, c.quantity,
                     COALESCE(v.price, p.price) AS price, COALESCE(v.stock, p.stock) AS stock,
                     COALESCE(v.ram, p.ram) AS ram, COALESCE(v.storage, p.storage) AS storage,
-                    v.color, p.name
+                    v.color, p.name, p.category_id
              FROM cart c
              JOIN products p ON c.product_id = p.id
              LEFT JOIN product_variants v ON c.variant_id = v.id AND v.is_active = 1
@@ -87,14 +87,14 @@ async function getCheckoutItems(db, userId, itemIds, buyNow) {
     } else if (buyNow) {
         const [products] = buyNow.variant_id
             ? await db.query(
-                `SELECT p.id AS product_id, p.name, v.id AS variant_id, v.id AS active_variant_id, v.price, v.stock,
+                `SELECT p.id AS product_id, p.name, p.category_id, v.id AS variant_id, v.id AS active_variant_id, v.price, v.stock,
                         v.ram, v.storage, v.color
                  FROM products p JOIN product_variants v ON v.product_id = p.id
                  WHERE p.id = ? AND v.id = ? AND v.is_active = 1`,
                 [buyNow.product_id, buyNow.variant_id]
             )
             : await db.query(
-                'SELECT id AS product_id, name, price, stock, ram, storage, NULL AS variant_id, NULL AS color FROM products WHERE id = ?',
+                'SELECT id AS product_id, name, category_id, price, stock, ram, storage, NULL AS variant_id, NULL AS color FROM products WHERE id = ?',
                 [buyNow.product_id]
             );
         items = products.map(product => ({ ...product, quantity: Number(buyNow.quantity), cart_id: 'buy_now' }));
@@ -103,7 +103,7 @@ async function getCheckoutItems(db, userId, itemIds, buyNow) {
             `SELECT c.id AS cart_id, c.product_id, c.variant_id, v.id AS active_variant_id, c.quantity,
                     COALESCE(v.price, p.price) AS price, COALESCE(v.stock, p.stock) AS stock,
                     COALESCE(v.ram, p.ram) AS ram, COALESCE(v.storage, p.storage) AS storage,
-                    v.color, p.name
+                    v.color, p.name, p.category_id
              FROM cart c
              JOIN products p ON c.product_id = p.id
              LEFT JOIN product_variants v ON c.variant_id = v.id AND v.is_active = 1
@@ -142,7 +142,7 @@ async function getCheckoutItems(db, userId, itemIds, buyNow) {
     return items;
 }
 
-async function calculateCoupon(db, userId, code, subtotal) {
+async function calculateCoupon(db, userId, code, subtotal, items = []) {
     if (!code) return { coupon: null, discount: 0 };
 
     const normalizedCode = String(code).trim().toUpperCase();
@@ -177,6 +177,12 @@ async function calculateCoupon(db, userId, code, subtotal) {
     );
     if (used.length > 0) {
         const error = new Error('Bạn đã sử dụng mã giảm giá này!');
+        error.status = 400;
+        throw error;
+    }
+
+    if (normalizedCode === 'PHONE15' && (items.length === 0 || items.some(item => Number(item.category_id) !== 1))) {
+        const error = new Error('Mã PHONE15 chỉ áp dụng cho sản phẩm thuộc danh mục Điện thoại!');
         error.status = 400;
         throw error;
     }
@@ -279,7 +285,10 @@ async function decreaseStock(db, items) {
 }
 
 function sendConfirmationEmail(orderId, userId) {
-    return queue.enqueue('order_email', { orderId, userId });
+    return {
+        customerJobId: queue.enqueue('order_email', { orderId, userId }),
+        adminJobId: queue.enqueue('admin_order_email', { orderId, userId })
+    };
 }
 
 // Create order
@@ -309,7 +318,7 @@ router.post('/', async (req, res) => {
         const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
         const shippingFee = shippingFeeFor(shippingMethod);
         const delivery = deliveryEstimate(shipping_address, shippingMethod);
-        const { coupon, discount } = await calculateCoupon(pool, userId, coupon_code, subtotal);
+        const { coupon, discount } = await calculateCoupon(pool, userId, coupon_code, subtotal, cartItems);
         const finalTotal = subtotal + shippingFee - discount;
         const paymentCode = 'PS' + Date.now();
 
@@ -534,7 +543,7 @@ router.post('/initiate', async (req, res) => {
         const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
         const shippingFee = shippingFeeFor(shippingMethod);
         const delivery = deliveryEstimate(shipping_address, shippingMethod);
-        const { coupon, discount } = await calculateCoupon(pool, userId, coupon_code, subtotal);
+        const { coupon, discount } = await calculateCoupon(pool, userId, coupon_code, subtotal, cartItems);
         const finalTotal = subtotal + shippingFee - discount;
         const paymentCode = 'PS' + Date.now();
 

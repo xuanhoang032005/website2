@@ -349,7 +349,7 @@
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
-                            body: JSON.stringify({ product_id: item.product_id, qty: item.quantity })
+                            body: JSON.stringify({ product_id: item.product_id, variant_id: item.variant_id, qty: item.quantity })
                         });
                         const d = await res.json();
                         if (d.success) added++;

@@ -1430,6 +1430,62 @@ body.admin-shell .modal-close:hover { color: #087ec2; background: var(--admin-ac
 body.admin-shell .modal-footer { background: #fafafa; }
 body.admin-shell .product-form-section { border-radius: 13px; box-shadow: none; }
 
+/* Dashboard hierarchy: operational work first, analysis charts afterwards. */
+body.admin-shell.dashboard-page .page-content { display: flex; flex-direction: column; }
+body.admin-shell.dashboard-page .low-stock-alert { order: 1; }
+body.admin-shell.dashboard-page .stats-grid { order: 2; }
+body.admin-shell.dashboard-page .comparison-banner { order: 3; }
+body.admin-shell.dashboard-page #operationsGrid { order: 4; grid-template-columns: minmax(0, 1fr); }
+body.admin-shell.dashboard-page #topCustomersSection { order: 5; }
+body.admin-shell.dashboard-page #primaryCharts { order: 6; }
+body.admin-shell.dashboard-page #secondaryCharts { order: 7; }
+
+/* Unified create/edit/delete dialogs across every admin module. */
+body.admin-shell .modal { width: min(760px, calc(100vw - 32px)); }
+body.admin-shell .modal.modal-lg { width: min(980px, calc(100vw - 32px)); }
+body.admin-shell .modal-body form { display: flow-root; }
+body.admin-shell .modal-body .form-row { gap: 16px; }
+body.admin-shell .modal-body .form-group { margin-bottom: 18px; }
+body.admin-shell .modal-body .form-group > label:first-child,
+body.admin-shell .modal-body .form-label {
+    display: block;
+    margin-bottom: 7px;
+    color: #3f464c;
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: 0;
+    text-transform: none;
+}
+body.admin-shell .modal-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+body.admin-shell .modal-body select,
+body.admin-shell .modal-body textarea {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    color: var(--admin-ink);
+    background: #fff;
+    border: 1px solid #d8dde2;
+    border-radius: 9px;
+}
+body.admin-shell .modal-body textarea { min-height: 112px; line-height: 1.55; }
+body.admin-shell .modal-body input:focus,
+body.admin-shell .modal-body select:focus,
+body.admin-shell .modal-body textarea:focus {
+    border-color: var(--admin-accent);
+    box-shadow: 0 0 0 3px rgba(8,126,194,.12);
+}
+body.admin-shell .modal-footer { gap: 10px; }
+body.admin-shell .modal-footer .btn,
+body.admin-shell .modal-footer .btn-action { min-width: 112px; min-height: 42px; }
+body.admin-shell .btn-danger,
+body.admin-shell .btn-icon.delete,
+body.admin-shell .btn-action.danger { color: #b42318; background: #fff5f4; border-color: #ffd5d2; }
+body.admin-shell .btn-danger:hover,
+body.admin-shell .btn-icon.delete:hover,
+body.admin-shell .btn-action.danger:hover { color: #fff; background: #b42318; border-color: #b42318; }
+body.admin-shell .confirm-icon.danger { color: #b42318; background: #fff0ef; }
+body.admin-shell .confirm-btn.confirm.danger { color: #fff; background: #b42318; }
+
 @media (max-width: 1100px) {
     body.admin-shell .stats-grid,
     body.admin-shell.dashboard-page .stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }

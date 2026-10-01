@@ -9,6 +9,7 @@ const { projectRoot, viewsDir } = require('../core/paths');
 const { isAllowedImage } = require('../core/image-upload');
 const { parseReviewComment, serializeReviewComment } = require('../core/review-comment');
 const { parseVariantPayload, variantSummary, saveProductVariants, syncProductStock } = require('../core/product-variants');
+const { parseCouponPayload } = require('../core/coupon-validation');
 const { requireAdmin } = require('../middleware/auth');
 const adminController = require('../controllers/admin-controller');
 const {
@@ -1249,14 +1250,10 @@ router.get('/api/coupons', requireAdmin, async (req, res) => {
 // API: Tạo coupon mới
 router.post('/api/coupons', requireAdmin, async (req, res) => {
     try {
-        const { code, description, discount_type, discount_value, min_order_value, max_discount, usage_limit, expires_at, is_active } = req.body;
-        
-        if (!code || !description || !discount_value) {
-            return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin!' });
-        }
+        const coupon = parseCouponPayload(req.body);
 
         // Check trùng code
-        const [existing] = await pool.query('SELECT id FROM coupons WHERE code = ?', [code.toUpperCase()]);
+        const [existing] = await pool.query('SELECT id FROM coupons WHERE code = ?', [coupon.code]);
         if (existing.length > 0) {
             return res.status(400).json({ error: 'Mã giảm giá đã tồn tại!' });
         }
@@ -1264,33 +1261,36 @@ router.post('/api/coupons', requireAdmin, async (req, res) => {
         await pool.query(
             `INSERT INTO coupons (code, description, discount_type, discount_value, min_order_value, max_discount, usage_limit, expires_at, is_active)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [code.toUpperCase(), description, discount_type || 'percent', discount_value, 
-             min_order_value || 0, max_discount || null, usage_limit || null, 
-             expires_at || null, is_active ? 1 : 0]
+            [coupon.code, coupon.description, coupon.discount_type, coupon.discount_value,
+             coupon.min_order_value, coupon.max_discount, coupon.usage_limit,
+             coupon.expires_at, coupon.is_active]
         );
         res.json({ success: true });
     } catch (error) {
         console.error('Create coupon error:', error);
-        res.status(500).json({ error: 'Lỗi khi tạo coupon!' });
+        if (error.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Mã giảm giá đã tồn tại!' });
+        res.status(error.status || 500).json({ error: error.status ? error.message : 'Lỗi khi tạo coupon!' });
     }
 });
 
 // API: Cập nhật coupon
 router.put('/api/coupons/:id', requireAdmin, async (req, res) => {
     try {
-        const { code, description, discount_type, discount_value, min_order_value, max_discount, usage_limit, expires_at, is_active } = req.body;
-        const { id } = req.params;
+        const coupon = parseCouponPayload(req.body);
+        const id = Number.parseInt(req.params.id, 10);
+        if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Mã coupon không hợp lệ!' });
 
         await pool.query(
             `UPDATE coupons SET code=?, description=?, discount_type=?, discount_value=?, min_order_value=?, max_discount=?, usage_limit=?, expires_at=?, is_active=? WHERE id=?`,
-            [code.toUpperCase(), description, discount_type, discount_value, 
-             min_order_value || 0, max_discount || null, usage_limit || null, 
-             expires_at || null, is_active ? 1 : 0, id]
+            [coupon.code, coupon.description, coupon.discount_type, coupon.discount_value,
+             coupon.min_order_value, coupon.max_discount, coupon.usage_limit,
+             coupon.expires_at, coupon.is_active, id]
         );
         res.json({ success: true });
     } catch (error) {
         console.error('Update coupon error:', error);
-        res.status(500).json({ error: 'Lỗi khi cập nhật!' });
+        if (error.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Mã giảm giá đã tồn tại!' });
+        res.status(error.status || 500).json({ error: error.status ? error.message : 'Lỗi khi cập nhật!' });
     }
 });
 
