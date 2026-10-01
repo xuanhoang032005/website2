@@ -438,7 +438,7 @@
             const recommendationText = recommendation
                 ? `<strong>${escapeHtml(recommendation.product.name)}</strong> đáng chọn hơn nhờ ${escapeHtml(recommendation.reasons.slice(0, 3).join(', ') || 'mức giá và cấu hình cân bằng')}.`
                 : 'Hãy thêm sản phẩm để nhận gợi ý.';
-            html += `</tbody></table><div class="compare-conclusion"><i class="bi bi-stars"></i><div><strong>Kết luận từ AI <em id="aiConclusionBadge">Gemini</em></strong><span id="aiCompareConclusion" data-fallback="${escapeHtml(recommendationText)}">${recommendationText}</span></div><button type="button" id="retryAICompare" onclick="loadAICompareConclusion()"><i class="bi bi-arrow-repeat"></i> Phân tích lại</button></div></div>`;
+            html += `</tbody></table><div class="compare-conclusion"><i class="bi bi-stars"></i><div><strong>Kết luận từ AI <em id="aiConclusionBadge">GPT</em></strong><span id="aiCompareConclusion" data-fallback="${escapeHtml(recommendationText)}">${recommendationText}</span></div><button type="button" id="retryAICompare" onclick="loadAICompareConclusion()"><i class="bi bi-arrow-repeat"></i> Phân tích lại</button></div></div>`;
             document.getElementById('compareContent').innerHTML = html;
             loadAICompareConclusion();
         }
@@ -461,7 +461,7 @@
                 const data = await response.json();
                 if (!response.ok || !data.conclusion) throw new Error(data.error || 'AI chưa thể phân tích');
                 output.textContent = data.conclusion;
-                if (badge) badge.textContent = 'Gemini';
+                if (badge) badge.textContent = 'GPT';
             } catch (error) {
                 output.innerHTML = fallback + ' <small>(Kết luận dự phòng)</small>';
                 if (badge) badge.textContent = 'Dự phòng';

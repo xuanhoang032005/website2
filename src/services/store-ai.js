@@ -1,11 +1,8 @@
 const pool = require('../config/database');
-const { request: requestGemini } = require('./ai/gemini-client');
+const { request: requestOpenAI, DEFAULT_MODEL } = require('./ai/openai-client');
 
 const MAX_HISTORY_MESSAGES = 8;
 const MAX_TOOL_ROUNDS = 3;
-const DEFAULT_MODEL = 'gemini-3.6-flash';
-const DEFAULT_TIMEOUT_MS = 60000;
-const GEMINI_THINKING_LEVELS = new Set(['minimal', 'low', 'medium', 'high']);
 const DATABASE_UNAVAILABLE_CODES = new Set([
     'ECONNREFUSED',
     'ECONNRESET',
@@ -146,11 +143,6 @@ function clampInteger(value, min, max, fallback) {
 
 function cleanText(value, maxLength = 120) {
     return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
-}
-
-function geminiThinkingLevel(value) {
-    const level = cleanText(value, 20).toLowerCase();
-    return GEMINI_THINKING_LEVELS.has(level) ? level : 'minimal';
 }
 
 function isStoreDataUnavailable(error) {
@@ -372,31 +364,8 @@ async function executeStoreTool(name, args, context = {}) {
     }
 }
 
-function toGeminiSchema(schema) {
-    if (Array.isArray(schema)) return schema.map(toGeminiSchema);
-    if (!schema || typeof schema !== 'object') return schema;
-    const converted = {};
-    for (const [key, value] of Object.entries(schema)) {
-        if (key === 'type' && Array.isArray(value)) {
-            converted.type = value.find(type => type !== 'null');
-            if (value.includes('null')) converted.nullable = true;
-        } else if (!['strict', 'additionalProperties'].includes(key)) {
-            converted[key] = toGeminiSchema(value);
-        }
-    }
-    return converted;
-}
-
-function geminiFunctionDeclarations() {
-    return TOOL_DEFINITIONS.map(tool => ({
-        name: tool.name,
-        description: tool.description,
-        parameters: toGeminiSchema(tool.parameters)
-    }));
-}
-
-async function createGeminiResponse(body) {
-    return requestGemini(body);
+function openAITools() {
+    return TOOL_DEFINITIONS.map(({ type, ...definition }) => ({ type, function: definition }));
 }
 
 function sanitizeHistory(history) {
@@ -409,11 +378,11 @@ function sanitizeHistory(history) {
 }
 
 function extractReply(response) {
-    return (response.candidates?.[0]?.content?.parts || [])
-        .filter(part => typeof part.text === 'string')
-        .map(part => part.text)
-        .join('\n')
-        .trim();
+    const content = response.choices?.[0]?.message?.content;
+    if (typeof content === 'string') return content.trim();
+    return Array.isArray(content)
+        ? content.filter(part => part.type === 'text' && typeof part.text === 'string').map(part => part.text).join('\n').trim()
+        : '';
 }
 
 function formatCurrency(value) {
@@ -459,59 +428,58 @@ function formatToolResult(name, result) {
     return 'Mình đã kiểm tra dữ liệu cửa hàng cho bạn.';
 }
 
-async function runStoreAssistant({ message, history, userId, db = pool, requestAI = createGeminiResponse }) {
-    const contents = sanitizeHistory(history).map(item => ({
-        role: item.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: item.content }]
-    }));
-    contents.push({ role: 'user', parts: [{ text: cleanText(message, 1000) }] });
+async function runStoreAssistant({ message, history, userId, db = pool, requestAI = requestOpenAI }) {
+    const messages = [
+        { role: 'system', content: ASSISTANT_INSTRUCTIONS },
+        ...sanitizeHistory(history),
+        { role: 'user', content: cleanText(message, 1000) }
+    ];
     const collectedProducts = new Map();
     const toolsUsed = [];
+    const toolReplies = [];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         const response = await requestAI({
-            model: process.env.GEMINI_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
-            systemInstruction: { parts: [{ text: ASSISTANT_INSTRUCTIONS }] },
-            contents: [...contents],
-            tools: [{ functionDeclarations: geminiFunctionDeclarations() }],
-            toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-            generationConfig: {
-                maxOutputTokens: 1000,
-                thinkingConfig: {
-                    thinkingLevel: geminiThinkingLevel(process.env.GEMINI_THINKING_LEVEL)
-                }
-            }
+            model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+            messages: [...messages],
+            tools: openAITools(),
+            tool_choice: round === MAX_TOOL_ROUNDS - 1 ? 'none' : 'auto',
+            max_completion_tokens: 1000
         });
-        const modelContent = response.candidates?.[0]?.content;
-        const calls = (modelContent?.parts || []).flatMap(part => part.functionCall ? [part.functionCall] : []);
-        if (modelContent) contents.push(modelContent);
+        const modelMessage = response.choices?.[0]?.message;
+        const calls = Array.isArray(modelMessage?.tool_calls) ? modelMessage.tool_calls : [];
         if (!calls.length) {
             return {
-                reply: extractReply(response) || 'Xin lỗi, tôi chưa tạo được câu trả lời. Bạn vui lòng hỏi lại rõ hơn nhé.',
+                reply: extractReply(response) || [...new Set(toolReplies.filter(Boolean))].join('\n')
+                    || 'Xin lỗi, tôi chưa tạo được câu trả lời. Bạn vui lòng hỏi lại rõ hơn nhé.',
                 products: [...collectedProducts.values()].slice(0, 6),
                 tools_used: toolsUsed
             };
         }
-        const toolReplies = [];
+        if (round === MAX_TOOL_ROUNDS - 1) break;
+        if (calls.some(call => call.type !== 'function' || !call.id || typeof call.function?.name !== 'string')) {
+            throw Object.assign(new Error('Dịch vụ AI trả về yêu cầu tra cứu không hợp lệ.'), { code: 'AI_INVALID_RESPONSE' });
+        }
+        messages.push({ role: 'assistant', content: modelMessage.content || null, tool_calls: calls });
         for (const call of calls) {
-            const result = await executeStoreTool(call.name, call.args || {}, { db, userId });
-            toolsUsed.push(call.name);
+            let args;
+            try { args = JSON.parse(call.function.arguments); } catch (_) { args = null; }
+            const result = args && typeof args === 'object' && !Array.isArray(args)
+                ? await executeStoreTool(call.function.name, args, { db, userId })
+                : { error: 'Thông tin tra cứu không hợp lệ. Vui lòng làm rõ yêu cầu.' };
+            toolsUsed.push(call.function.name);
             if (result.product) collectedProducts.set(result.product.id, result.product);
             for (const product of result.products || []) collectedProducts.set(product.id, product);
-            toolReplies.push(formatToolResult(call.name, result));
+            toolReplies.push(formatToolResult(call.function.name, result));
+            messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
         }
-        return {
-            reply: [...new Set(toolReplies.filter(Boolean))].join('\n'),
-            products: [...collectedProducts.values()].slice(0, 6),
-            tools_used: toolsUsed
-        };
     }
     const error = new Error('AI đã gọi quá nhiều công cụ trong một lượt.');
     error.code = 'AI_TOOL_LIMIT';
     throw error;
 }
 
-async function compareProductsWithAI({ productIds, db = pool, requestAI = createGeminiResponse }) {
+async function compareProductsWithAI({ productIds, db = pool, requestAI = requestOpenAI }) {
     const ids = [...new Set((Array.isArray(productIds) ? productIds : [])
         .map(value => Number.parseInt(value, 10))
         .filter(value => Number.isSafeInteger(value) && value > 0))].slice(0, 4);
@@ -551,10 +519,12 @@ async function compareProductsWithAI({ productIds, db = pool, requestAI = create
         throw error;
     }
     const response = await requestAI({
-        model: process.env.GEMINI_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
-        systemInstruction: { parts: [{ text: 'Bạn là chuyên gia tư vấn công nghệ của AnhTraiStore. Chỉ dùng dữ liệu sản phẩm được cung cấp. Hãy chọn đúng một sản phẩm đáng mua nhất về giá trị tổng thể, nêu tên rõ ràng và giải thích ngắn gọn bằng tiếng Việt trong tối đa 3 câu. Nếu mỗi sản phẩm phù hợp một nhu cầu khác nhau, vẫn phải chọn một sản phẩm tổng thể tốt nhất rồi nhắc ngắn gọn trường hợp ngoại lệ. Không dùng Markdown, ký hiệu tiêu đề hoặc danh sách.' }] },
-        contents: [{ role: 'user', parts: [{ text: `Hãy so sánh và kết luận sản phẩm đáng chọn nhất từ dữ liệu sau:\n${JSON.stringify(products)}` }] }],
-        generationConfig: { maxOutputTokens: 350, thinkingConfig: { thinkingLevel: geminiThinkingLevel(process.env.GEMINI_THINKING_LEVEL) } }
+        model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+        messages: [
+            { role: 'system', content: 'Bạn là chuyên gia tư vấn công nghệ của AnhTraiStore. Chỉ dùng dữ liệu sản phẩm được cung cấp. Hãy chọn đúng một sản phẩm đáng mua nhất về giá trị tổng thể, nêu tên rõ ràng và giải thích ngắn gọn bằng tiếng Việt trong tối đa 3 câu. Nếu mỗi sản phẩm phù hợp một nhu cầu khác nhau, vẫn phải chọn một sản phẩm tổng thể tốt nhất rồi nhắc ngắn gọn trường hợp ngoại lệ. Không dùng Markdown, ký hiệu tiêu đề hoặc danh sách.' },
+            { role: 'user', content: `Hãy so sánh và kết luận sản phẩm đáng chọn nhất từ dữ liệu sau:\n${JSON.stringify(products)}` }
+        ],
+        max_completion_tokens: 350
     });
     const conclusion = extractReply(response).replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
     if (!conclusion) {
@@ -567,9 +537,7 @@ async function compareProductsWithAI({ productIds, db = pool, requestAI = create
 
 module.exports = {
     TOOL_DEFINITIONS,
-    toGeminiSchema,
     sanitizeHistory,
-    geminiThinkingLevel,
     isStoreDataUnavailable,
     formatToolResult,
     normalizeProductThumbnail,

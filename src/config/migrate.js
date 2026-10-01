@@ -6,13 +6,9 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 const { projectRoot } = require('../core/paths');
 
-const migrationsDir = path.join(projectRoot, 'database', 'migrations');
+const schemaPath = path.join(projectRoot, 'database', 'anhtraistore.sql');
+const upgradeName = 'merged_schema_upgrade';
 const lockName = 'anhtraistore_schema_migrations';
-const embeddedMigrations = new Set([
-    '001_schema_integrity.sql',
-    '002_unique_user_coupon.sql',
-    '003_checkout_delivery.sql'
-]);
 
 function databaseOptions() {
     return {
@@ -27,21 +23,24 @@ function databaseOptions() {
 }
 
 function checksum(content) {
-    return crypto.createHash('sha256').update(content).digest('hex');
+    return crypto.createHash('sha256').update(content.replace(/\r\n/g, '\n')).digest('hex');
 }
 
-async function migrationFiles() {
-    let entries;
-    try { entries = await fs.readdir(migrationsDir, { withFileTypes: true }); }
-    catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-    return entries
-        .filter(entry => entry.isFile() && /^\d{3}_[a-z0-9_-]+\.sql$/i.test(entry.name))
-        .map(entry => entry.name)
-        .sort((left, right) => left.localeCompare(right));
+async function loadSchemaUpgrade() {
+    const schema = (await fs.readFile(schemaPath, 'utf8')).replace(/\r\n/g, '\n');
+    const block = schema.match(/^-- BEGIN EXISTING DATABASE UPGRADE\n([\s\S]*?)^-- END EXISTING DATABASE UPGRADE$/m);
+    if (!block || !block[1].trim()) throw new Error('Không tìm thấy khối nâng cấp trong database/anhtraistore.sql.');
+    const sql = block[1].trim() + '\n';
+    // Full imports reset demo data; upgrades must never run those statements.
+    if (/\b(?:TRUNCATE\s+TABLE|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO)\b/i.test(sql)) {
+        throw new Error('Khối nâng cấp chứa lệnh thay đổi dữ liệu mẫu không được phép.');
+    }
+    return { name: upgradeName, sql, checksum: checksum(sql) };
 }
 
-async function migrate() {
-    const connection = await mysql.createConnection(databaseOptions());
+async function migrate({ createConnection = mysql.createConnection } = {}) {
+    const upgrade = await loadSchemaUpgrade();
+    const connection = await createConnection(databaseOptions());
     let locked = false;
     try {
         const [[lock]] = await connection.query('SELECT GET_LOCK(?, 30) AS acquired', [lockName]);
@@ -59,42 +58,28 @@ async function migrate() {
 
         const [appliedRows] = await connection.query('SELECT name, checksum FROM schema_migrations');
         const applied = new Map(appliedRows.map(row => [row.name, row.checksum]));
-        const files = await migrationFiles();
-        const fileSet = new Set(files);
-        for (const name of applied.keys()) {
-            if (!fileSet.has(name) && !embeddedMigrations.has(name)) {
-                throw new Error(`Migration đã ghi nhận nhưng file không còn tồn tại: ${name}`);
+        if (applied.has(upgrade.name)) {
+            if (applied.get(upgrade.name) !== upgrade.checksum) {
+                throw new Error(`Migration đã chạy nhưng checksum thay đổi: ${upgrade.name}`);
             }
-        }
-        let appliedCount = 0;
-
-        for (const name of files) {
-            const sql = await fs.readFile(path.join(migrationsDir, name), 'utf8');
-            const digest = checksum(sql);
-            if (applied.has(name)) {
-                if (applied.get(name) !== digest) {
-                    throw new Error(`Migration đã chạy nhưng checksum thay đổi: ${name}`);
-                }
-                continue;
-            }
-
-            console.log(`Applying migration ${name}...`);
-            await connection.beginTransaction();
-            try {
-                await connection.query(sql);
-                await connection.query(
-                    'INSERT INTO schema_migrations (name, checksum) VALUES (?, ?)',
-                    [name, digest]
-                );
-                await connection.commit();
-            } catch (error) {
-                await connection.rollback().catch(() => {});
-                throw error;
-            }
-            appliedCount++;
+            console.log('Database schema is up to date.');
+            return;
         }
 
-        console.log(appliedCount ? `Applied ${appliedCount} migration(s).` : 'Database schema is up to date.');
+        console.log(`Applying migration ${upgrade.name}...`);
+        await connection.beginTransaction();
+        try {
+            await connection.query(upgrade.sql);
+            await connection.query(
+                'INSERT INTO schema_migrations (name, checksum) VALUES (?, ?)',
+                [upgrade.name, upgrade.checksum]
+            );
+            await connection.commit();
+        } catch (error) {
+            await connection.rollback().catch(() => {});
+            throw error;
+        }
+        console.log('Applied 1 migration(s).');
     } finally {
         if (locked) await connection.query('SELECT RELEASE_LOCK(?)', [lockName]).catch(() => {});
         await connection.end();
@@ -108,4 +93,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { migrate, checksum, migrationFiles };
+module.exports = { migrate, checksum, loadSchemaUpgrade };

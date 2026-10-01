@@ -1,6 +1,6 @@
 # AnhTraiStore
 
-AnhTraiStore là đồ án website thương mại điện tử bán điện thoại, máy tính, đồng hồ và phụ kiện công nghệ. Ứng dụng dùng Node.js/Express, MySQL và giao diện HTML/CSS/JavaScript thuần; có khu vực khách hàng, trang quản trị, chat hỗ trợ realtime và trợ lý mua sắm Gemini.
+AnhTraiStore là đồ án website thương mại điện tử bán điện thoại, máy tính, đồng hồ và phụ kiện công nghệ. Ứng dụng dùng Node.js/Express, MySQL và giao diện HTML/CSS/JavaScript thuần; có khu vực khách hàng, trang quản trị, chat hỗ trợ realtime và trợ lý mua sắm GPT.
 
 > Đây là dự án phục vụ học tập. Luồng VNPay và MoMo chỉ mô phỏng kết quả thanh toán, không kết nối cổng thanh toán thật.
 
@@ -37,7 +37,7 @@ AnhTraiStore là đồ án website thương mại điện tử bán điện tho�
 - Realtime: Socket.IO.
 - Email: Nodemailer qua SMTP.
 - Lưu ảnh: Multer và Cloudinary.
-- AI: Gemini `generateContent` API với function calling tới dữ liệu cửa hàng.
+- AI: OpenAI Chat Completions API với function calling tới dữ liệu cửa hàng; hỗ trợ base URL riêng của dịch vụ tương thích OpenAI.
 - Frontend: HTML5, CSS3, JavaScript thuần và Bootstrap Icons.
 - Kiểm thử: Node.js `assert` và test runner tự xây dựng trong `tests/product-regressions.test.js`.
 
@@ -48,7 +48,7 @@ AnhTraiStore là đồ án website thương mại điện tử bán điện tho�
 - MySQL/MariaDB; có thể dùng MySQL trong XAMPP và phpMyAdmin.
 - Một database trống cho dữ liệu mẫu.
 - Tài khoản Cloudinary nếu cần tải ảnh mới.
-- Tài khoản SMTP, Google OAuth và Gemini chỉ khi muốn dùng các tính năng tương ứng.
+- Tài khoản SMTP, Google OAuth và OpenAI hoặc dịch vụ API tương thích chỉ khi muốn dùng các tính năng tương ứng.
 
 ## Cài đặt và chạy
 
@@ -78,15 +78,17 @@ mysql -u root -p anhtraisstore < database/anhtraistore.sql
 
 File SQL đã bao gồm `contacts.user_id`, các khóa ngoại, unique constraint và index phục vụ đơn hàng, giỏ hàng, đánh giá, coupon và chat.
 
-`database/anhtraistore.sql` là file database chính, đã bao gồm schema hiện tại và đánh dấu các thay đổi `001`/`002`/`003` trong `schema_migrations`.
+`database/anhtraistore.sql` là file SQL duy nhất, bao gồm schema, dữ liệu mẫu, các lệnh nâng cấp và lịch sử trong `schema_migrations`.
 
-Với database cũ, chạy migration theo thứ tự bằng lệnh:
+Với database cũ, nâng cấp bằng lệnh:
 
 ```bash
 npm run migrate
 ```
 
-Database đã chạy trước đó có thể tiếp tục dùng `npm run migrate`; các thay đổi đã gộp trong file cài mới được runner nhận diện là embedded migration, còn file migration vẫn được giữ để kiểm tra checksum và nâng cấp database cũ.
+Lệnh `npm run migrate` chỉ đọc khối nằm giữa `BEGIN EXISTING DATABASE UPGRADE` và `END EXISTING DATABASE UPGRADE` trong SQL tổng. Khối này bổ sung các cột giao hàng còn thiếu và đồng bộ ràng buộc/index; không chạy phần tạo lại dữ liệu mẫu. Runner chỉ theo dõi khối gộp bằng `merged_schema_upgrade` và kiểm tra checksum thống nhất giữa Windows/Linux. Database vừa import SQL tổng đã có bản ghi này nên không nâng cấp lại. Các bản ghi migration cũ trong database hiện hữu được bỏ qua để tương thích ngược.
+
+Import toàn bộ file SQL chỉ dành cho database cài mới vì có các lệnh `TRUNCATE` để tạo lại dữ liệu demo. Dùng `npm run migrate` khi cần nâng cấp database đang có dữ liệu.
 
 ### 3. Cấu hình môi trường
 
@@ -151,14 +153,22 @@ CLOUDINARY_PRODUCT_FOLDER=anhtraisstore/products
 CLOUDINARY_BANNER_FOLDER=anhtraisstore/banners
 CLOUDINARY_AVATAR_FOLDER=anhtraisstore/avatars
 
-# Trợ lý AI Gemini
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.6-flash
-GEMINI_API_TIMEOUT_MS=60000
-GEMINI_THINKING_LEVEL=minimal
+# Trợ lý AI GPT
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.6-terra
+OPENAI_API_TIMEOUT_MS=60000
 ```
 
-Không có cấu hình SMTP hoặc Google OAuth thì server vẫn chạy và tự vô hiệu hóa tính năng tương ứng. Không có Cloudinary thì vẫn xem được ảnh sẵn có, nhưng các API upload trả lỗi `503`. Không có `GEMINI_API_KEY` thì chat AI không hoạt động; chat hỗ trợ với admin vẫn dùng được.
+`OPENAI_BASE_URL` là URL gốc của API, thường kết thúc bằng `/v1`; không thêm `/chat/completions` vì client tự nối endpoint này. `OPENAI_API_KEY` là khóa của dịch vụ tại base URL đó. `OPENAI_MODEL` là Model ID chính xác do dịch vụ cung cấp. Model cần hỗ trợ Chat Completions và function calling (`tools`, `tool_calls`). Xem [tài liệu OpenAI về function calling](https://developers.openai.com/api/docs/guides/function-calling).
+
+Với API key từ [ModelAPI](https://modelapi.vn/keys), đặt `OPENAI_BASE_URL=https://modelapi.vn/v1`. Có thể kiểm tra danh sách model của key qua `GET /v1/models` tại dịch vụ này.
+
+Model mặc định là `gpt-5.6-terra`. Với GPT-5.4 và GPT-5.6, client đặt `reasoning_effort: none` để gọi function tools qua Chat Completions, theo [hướng dẫn tương thích API của OpenAI](https://developers.openai.com/api/docs/guides/migrate-to-responses).
+
+Khóa API chỉ nằm trong `.env` ở máy chủ, không đưa vào HTML hoặc JavaScript phía trình duyệt. Sau khi thay base URL, API key hoặc model, khởi động lại server. Các biến `GEMINI_*` cũ không còn được sử dụng.
+
+Không có cấu hình SMTP hoặc Google OAuth thì server vẫn chạy và tự vô hiệu hóa tính năng tương ứng. Không có Cloudinary thì vẫn xem được ảnh sẵn có, nhưng các API upload trả lỗi `503`. Không có `OPENAI_API_KEY` thì chat AI không hoạt động; chat hỗ trợ với admin vẫn dùng được.
 
 ### 4. Khởi động
 
@@ -215,7 +225,7 @@ Các coupon mẫu gồm `WELCOME10`, `FREESHIP`, `VIP20`, `SALE5TR`, `PHONE15` v
 
 ## Cấu trúc dự án
 
-Các luồng đơn hàng và dashboard admin được tổ chức theo lớp `controller -> service -> repository`; route chỉ còn lo HTTP và quyền truy cập. Tích hợp Gemini dùng client riêng tại `src/services/ai/gemini-client.js`. JavaScript dùng chung cho request/CSRF và hộp chat nằm trong `public/js/modules/`, các trang mới nên dùng module này thay vì thêm script inline.
+Các luồng đơn hàng và dashboard admin được tổ chức theo lớp `controller -> service -> repository`; route chỉ còn lo HTTP và quyền truy cập. Tích hợp GPT dùng client riêng tại `src/services/ai/openai-client.js`. Backend gửi kết quả tra cứu từ database lại cho GPT để tạo câu trả lời tiếng Việt và giữ kiểm tra quyền sở hữu đơn hàng. JavaScript dùng chung cho request/CSRF và hộp chat nằm trong `public/js/modules/`, các trang mới nên dùng module này thay vì thêm script inline.
 
 ```text
 Website/
@@ -223,8 +233,7 @@ Website/
 ├── package.json                  # Dependencies và npm scripts
 ├── .env.example                  # Mẫu biến môi trường
 ├── database/
-│   └── anhtraistore.sql          # Schema 19 bảng, phiên bản sản phẩm và dữ liệu demo
-│   └── migrations/               # Nâng cấp schema có phiên bản cho database cũ
+│   └── anhtraistore.sql          # Schema, dữ liệu demo và khối nâng cấp database cũ
 ├── docs/
 │   └── references/               # Ảnh tham chiếu giao diện dùng khi phát triển
 │       └── cart-reference.png
@@ -241,7 +250,7 @@ Website/
 │   ├── middleware/               # Auth, rate limit, security, error handler
 │   ├── realtime/                 # Socket.IO cho chat hỗ trợ
 │   ├── routes/                   # Page routes và API nghiệp vụ
-│   └── services/                 # Cloudinary và trợ lý Gemini
+│   └── services/                 # Cloudinary và trợ lý GPT
 ├── tests/
 │   └── product-regressions.test.js
 └── views/
@@ -271,7 +280,7 @@ Test hiện bao phủ các luồng quan trọng như lọc sản phẩm, giỏ h
 - Session hiện dùng MemoryStore mặc định của `express-session`; phù hợp demo/local nhưng cần thay bằng Redis hoặc persistent store khi chạy nhiều tiến trình hay triển khai production lâu dài.
 - API có rate limit trong bộ nhớ: toàn bộ `/api` tối đa 300 request/15 phút/IP; đăng nhập tối đa 10 lần/15 phút/IP; yêu cầu/kiểm tra OTP tối đa 5 lần/15 phút/IP.
 - Upload chấp nhận `jpg`, `jpeg`, `png`, `gif`, `webp`. Avatar tối đa 2 MB; mỗi ảnh sản phẩm/banner tối đa 5 MB.
-- Không commit `.env` hoặc khóa SMTP, Google, Cloudinary, Gemini vào repository.
+- Không commit `.env` hoặc khóa SMTP, Google, Cloudinary, OpenAI vào repository.
 
 ## Xử lý lỗi thường gặp
 
@@ -293,7 +302,7 @@ Test hiện bao phủ các luồng quan trọng như lọc sản phẩm, giỏ h
 
 ### AI báo chưa được cấu hình
 
-Điền `GEMINI_API_KEY`; đồng thời kiểm tra `GEMINI_MODEL` là model mà API key có quyền sử dụng.
+Điền `OPENAI_API_KEY`; đồng thời kiểm tra `OPENAI_BASE_URL` và `OPENAI_MODEL` thuộc cùng dịch vụ. Nếu dùng OpenAI chính thức, giữ base URL `https://api.openai.com/v1`. Nếu dùng dịch vụ trung gian, dùng URL gốc và Model ID do dịch vụ cung cấp. Model phải hỗ trợ function calling. Khởi động lại server sau khi sửa `.env`.
 
 ### Port 3000 đang được dùng trên Windows
 

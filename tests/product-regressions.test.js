@@ -40,21 +40,104 @@ test('database schema includes ownership constraints and operational indexes', (
     assert.match(sql, /Skipped uq_user_coupons_user_coupon: duplicate coupon history must be resolved first/);
 });
 
-test('merged database schema keeps embedded migration history', async () => {
+test('one SQL file contains the schema, upgrade block and migration history', async () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     assert.equal(packageJson.scripts.migrate, 'node src/config/migrate.js');
-    const { checksum, migrationFiles } = require('../src/config/migrate');
-    const files = await migrationFiles();
-    assert.deepEqual(files, ['003_checkout_delivery.sql']);
+    const { loadSchemaUpgrade } = require('../src/config/migrate');
+    const upgrade = await loadSchemaUpgrade();
+    assert.deepEqual(fs.readdirSync(path.join(root, 'database')), ['anhtraistore.sql']);
     const schema = fs.readFileSync(path.join(root, 'database', 'anhtraistore.sql'), 'utf8');
-    assert.match(schema, /001_schema_integrity\.sql/);
-    assert.match(schema, /002_unique_user_coupon\.sql/);
+    assert.doesNotMatch(schema, /00[1-3]_[a-z0-9_-]+\.sql/i);
     assert.match(schema, /shipping_method ENUM\('standard','express'\)/);
-    assert.match(fs.readFileSync(path.join(root, 'database', 'migrations', '003_checkout_delivery.sql'), 'utf8'), /estimated_delivery_to/);
+    assert.match(upgrade.sql, /estimated_delivery_to/);
+    assert.match(upgrade.sql, /ALTER TABLE contacts ADD COLUMN user_id/);
+    assert.ok(schema.includes(`('${upgrade.name}', '${upgrade.checksum}')`));
+    assert.doesNotMatch(upgrade.sql, /TRUNCATE\s+TABLE|INSERT\s+INTO\s+(?:users|products|coupons)/i);
     const runner = fs.readFileSync(path.join(root, 'src', 'config', 'migrate.js'), 'utf8');
     assert.match(runner, /CREATE TABLE IF NOT EXISTS schema_migrations/);
     assert.match(runner, /GET_LOCK/);
     assert.match(runner, /checksum thay đổi/);
+});
+
+test('migration checksums stay stable between Windows and Linux line endings', async () => {
+    const { checksum } = require('../src/config/migrate');
+    const { sql } = await require('../src/config/migrate').loadSchemaUpgrade();
+    const unixSql = sql.replace(/\r\n/g, '\n');
+    assert.equal(checksum(unixSql), checksum(unixSql.replace(/\n/g, '\r\n')));
+});
+
+function migrationDatabase(storedChecksum, rejectMigration = false, legacyHistory = []) {
+    const name = 'merged_schema_upgrade';
+    const history = new Map(legacyHistory);
+    if (storedChecksum) history.set(name, storedChecksum);
+    const events = [];
+    let executions = 0;
+    let closed = false;
+    return {
+        history, events,
+        get executions() { return executions; },
+        get closed() { return closed; },
+        async query(sql, params) {
+            if (sql.includes('GET_LOCK')) return [[{ acquired: 1 }]];
+            if (sql.includes('RELEASE_LOCK')) { events.push('unlock'); return [[{ released: 1 }]]; }
+            if (sql.includes('CREATE TABLE IF NOT EXISTS schema_migrations')) return [[]];
+            if (sql === 'SELECT name, checksum FROM schema_migrations') {
+                return [[...history].map(([migrationName, digest]) => ({ name: migrationName, checksum: digest }))];
+            }
+            if (sql.includes('SET @column_exists')) {
+                assert.doesNotMatch(sql, /TRUNCATE\s+TABLE|INSERT\s+INTO\s+(?:users|products|coupons)/i);
+                executions++;
+                if (rejectMigration) throw new Error('Simulated DDL failure');
+                return [[]];
+            }
+            if (sql.startsWith('INSERT INTO schema_migrations')) {
+                history.set(params[0], params[1]);
+                return [{ affectedRows: 1 }];
+            }
+            throw new Error('Unexpected migration query');
+        },
+        async beginTransaction() { events.push('begin'); },
+        async commit() { events.push('commit'); },
+        async rollback() { events.push('rollback'); },
+        async end() { closed = true; }
+    };
+}
+
+test('merged SQL upgrade runs once and ignores unrelated historical records', async () => {
+    const { migrate, loadSchemaUpgrade } = require('../src/config/migrate');
+    const { name, checksum: currentChecksum } = await loadSchemaUpgrade();
+    for (const scenario of [
+        { previous: undefined, legacy: [] },
+        { previous: undefined, legacy: [['legacy_migration', 'legacy-checksum']] },
+        { previous: currentChecksum, legacy: [] }
+    ]) {
+        const { previous, legacy } = scenario;
+        const database = migrationDatabase(previous, false, legacy);
+        await migrate({ createConnection: async () => database });
+        assert.equal(database.history.get(name), currentChecksum);
+        legacy.forEach(([legacyName, digest]) => assert.equal(database.history.get(legacyName), digest));
+        assert.equal(database.executions, previous === currentChecksum ? 0 : 1);
+        assert.equal(database.closed, true);
+        assert.equal(database.events.at(-1), 'unlock');
+        await migrate({ createConnection: async () => database });
+        assert.equal(database.executions, previous === currentChecksum ? 0 : 1);
+    }
+});
+
+test('merged upgrade rejects checksum changes and retains history when SQL fails', async () => {
+    const { migrate } = require('../src/config/migrate');
+    const changed = migrationDatabase('unknown-checksum');
+    await assert.rejects(migrate({ createConnection: async () => changed }), /checksum thay đổi/);
+    assert.equal(changed.executions, 0);
+    assert.equal(changed.history.get('merged_schema_upgrade'), 'unknown-checksum');
+    assert.equal(changed.closed, true);
+
+    const failed = migrationDatabase(undefined, true, [['legacy_migration', 'legacy-checksum']]);
+    await assert.rejects(migrate({ createConnection: async () => failed }), /Simulated DDL failure/);
+    assert.equal(failed.history.get('legacy_migration'), 'legacy-checksum');
+    assert.equal(failed.history.has('merged_schema_upgrade'), false);
+    assert.deepEqual(failed.events, ['begin', 'rollback', 'unlock']);
+    assert.equal(failed.closed, true);
 });
 
 test('shared request validation normalizes input and returns structured field errors', () => {
@@ -1126,25 +1209,32 @@ test('AI assistant calls a product function before answering and sends no catalo
     const requestAI = async body => {
         requests.push(body);
         if (requests.length === 1) {
-            return { candidates: [{ content: { role: 'model', parts: [{ functionCall: {
-                name: 'search_products', id: 'call_1',
-                args: { query: 'Samsung', brand: 'Samsung', min_price: null, max_price: 15000000, ram: null, storage: null, in_stock: true, sort: 'relevance', limit: 4 }
-            } }] } }] };
+            return { choices: [{ message: { role: 'assistant', content: null, tool_calls: [{
+                id: 'call_1', type: 'function', function: {
+                    name: 'search_products',
+                    arguments: JSON.stringify({ query: 'Samsung', brand: 'Samsung', min_price: null, max_price: 15000000, ram: null, storage: null, in_stock: true, sort: 'relevance', limit: 4 })
+                }
+            }] } }] };
         }
-        return { candidates: [{ content: { role: 'model', parts: [{ text: 'Tôi tìm thấy một mẫu phù hợp.' }] } }] };
+        return { choices: [{ message: { role: 'assistant', content: 'Samsung A phù hợp với ngân sách của bạn.' } }] };
     };
     const db = { async query() { return [[{ id: 7, name: 'Samsung A', price: 12000000, stock: 2 }]]; } };
     const result = await runStoreAssistant({ message: 'Tìm Samsung dưới 15 triệu', db, requestAI });
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].contents.length, 1);
-    assert.equal(requests[0].contents[0].parts[0].text, 'Tìm Samsung dưới 15 triệu');
-    assert.equal(requests[0].tools[0].functionDeclarations[0].parameters.additionalProperties, undefined);
-    assert.equal(requests[0].generationConfig.thinkingConfig.thinkingLevel, 'minimal');
-    assert.equal(requests[0].generationConfig.maxOutputTokens, 1000);
-    assert.equal(requests[0].generationConfig.temperature, undefined);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].messages.length, 2);
+    assert.equal(requests[0].messages[0].role, 'system');
+    assert.equal(requests[0].messages[1].content, 'Tìm Samsung dưới 15 triệu');
+    assert.equal(requests[0].tools[0].function.parameters.additionalProperties, false);
+    assert.equal(requests[0].tools[0].function.strict, true);
+    assert.equal(requests[0].max_completion_tokens, 1000);
+    assert.equal(requests[0].model, process.env.OPENAI_MODEL || 'gpt-5.6-terra');
+    const toolMessage = requests[1].messages.at(-1);
+    assert.equal(toolMessage.role, 'tool');
+    assert.equal(toolMessage.tool_call_id, 'call_1');
+    assert.equal(JSON.parse(toolMessage.content).products[0].id, 7);
     assert.equal(result.products[0].id, 7);
     assert.deepEqual(result.tools_used, ['search_products']);
-    assert.match(result.reply, /1 sản phẩm phù hợp/);
+    assert.match(result.reply, /Samsung A/);
 });
 
 test('AI comparison uses authoritative database products and returns a conclusion', async () => {
@@ -1160,23 +1250,148 @@ test('AI comparison uses authoritative database products and returns a conclusio
     const result = await compareProductsWithAI({
         productIds: [2, 3], db,
         async requestAI(body) {
-            assert.match(body.contents[0].parts[0].text, /Máy A/);
-            return { candidates: [{ content: { parts: [{ text: 'Máy B đáng chọn hơn nhờ RAM và bộ nhớ lớn.' }] } }] };
+            assert.equal(body.messages[0].role, 'system');
+            assert.match(body.messages[1].content, /Máy A/);
+            assert.equal(body.max_completion_tokens, 350);
+            return { choices: [{ message: { content: 'Máy B đáng chọn hơn nhờ RAM và bộ nhớ lớn.' } }] };
         }
     });
     assert.match(result.conclusion, /Máy B đáng chọn hơn/);
 });
 
 test('AI product thumbnails use the public product image route', () => {
-    const { normalizeProductThumbnail, geminiThinkingLevel, isStoreDataUnavailable } = require('../src/services/store-ai');
+    const { normalizeProductThumbnail, isStoreDataUnavailable } = require('../src/services/store-ai');
     assert.equal(normalizeProductThumbnail('product-123.jpg'), '/assets/images/products/product-123.jpg');
     assert.equal(normalizeProductThumbnail('/uploads/products/product-123.jpg'), '/uploads/products/product-123.jpg');
     assert.equal(normalizeProductThumbnail('https://cdn.example.com/product.jpg'), 'https://cdn.example.com/product.jpg');
-    assert.equal(geminiThinkingLevel('LOW'), 'low');
-    assert.equal(geminiThinkingLevel('invalid'), 'minimal');
     assert.equal(isStoreDataUnavailable({ code: 'ECONNREFUSED' }), true);
     assert.equal(isStoreDataUnavailable({ code: 'ER_PARSE_ERROR' }), false);
     assert.equal(isStoreDataUnavailable({ errors: [{ code: 'ETIMEDOUT' }] }), true);
+});
+
+async function withOpenAISettings(settings, callback) {
+    const previous = Object.fromEntries(Object.keys(settings).map(name => [name, process.env[name]]));
+    try {
+        for (const [name, value] of Object.entries(settings)) {
+            if (value == null) delete process.env[name];
+            else process.env[name] = value;
+        }
+        return await callback();
+    } finally {
+        for (const [name, value] of Object.entries(previous)) {
+            if (value === undefined) delete process.env[name];
+            else process.env[name] = value;
+        }
+    }
+}
+
+test('OpenAI client uses the configured base URL, bearer key and exact model ID', async () => {
+    const { request } = require('../src/services/ai/openai-client');
+    await withOpenAISettings({
+        OPENAI_API_KEY: 'test-openai-key',
+        OPENAI_BASE_URL: 'https://gateway.example/api/v1/',
+        OPENAI_MODEL: 'provider/custom-gpt'
+    }, async () => {
+        let captured;
+        const response = await request({ messages: [{ role: 'user', content: 'Xin chào' }] }, {
+            async fetchImpl(url, options) {
+                captured = { url, options };
+                return { ok: true, json: async () => ({ choices: [{ message: { content: 'Chào bạn' } }] }) };
+            }
+        });
+        assert.equal(captured.url, 'https://gateway.example/api/v1/chat/completions');
+        assert.equal(captured.options.headers.Authorization, 'Bearer test-openai-key');
+        assert.equal(JSON.parse(captured.options.body).model, 'provider/custom-gpt');
+        assert.equal(captured.options.redirect, 'error');
+        assert.equal(response.choices[0].message.content, 'Chào bạn');
+    });
+});
+
+test('OpenAI client requires its own API key and never reuses the Gemini key', async () => {
+    const { request } = require('../src/services/ai/openai-client');
+    await withOpenAISettings({ OPENAI_API_KEY: null, GEMINI_API_KEY: 'gemini-only-key' }, async () => {
+        await assert.rejects(request({}, {
+            fetchImpl() { throw new Error('A request must not be sent without an OpenAI key'); }
+        }), { code: 'AI_NOT_CONFIGURED' });
+    });
+});
+
+test('OpenAI client uses official defaults and hides provider error details', async () => {
+    const { request } = require('../src/services/ai/openai-client');
+    await withOpenAISettings({ OPENAI_API_KEY: 'test-key', OPENAI_BASE_URL: null, OPENAI_MODEL: null }, async () => {
+        await assert.rejects(request({}, {
+            async fetchImpl(url, options) {
+                assert.equal(url, 'https://api.openai.com/v1/chat/completions');
+                assert.equal(JSON.parse(options.body).model, 'gpt-5.6-terra');
+                return { ok: false, status: 401, json: async () => ({ error: { message: 'secret upstream details' } }) };
+            }
+        }), error => error.code === 'AI_UPSTREAM_ERROR' && error.status === 401 && !error.message.includes('secret'));
+    });
+});
+
+test('OpenAI client handles malformed responses and aborted requests', async () => {
+    const { request } = require('../src/services/ai/openai-client');
+    await withOpenAISettings({ OPENAI_API_KEY: 'test-key', OPENAI_BASE_URL: null }, async () => {
+        await assert.rejects(request({}, {
+            async fetchImpl() { return { ok: true, json: async () => ({ unrelated: true }) }; }
+        }), { code: 'AI_INVALID_RESPONSE' });
+        await assert.rejects(request({}, {
+            async fetchImpl() { throw Object.assign(new Error('Aborted'), { name: 'AbortError' }); }
+        }), { code: 'AI_TIMEOUT', status: 504 });
+    });
+});
+
+test('GPT-5.4 and GPT-5.6 requests disable reasoning for Chat Completions function calling', async () => {
+    const { request } = require('../src/services/ai/openai-client');
+    await withOpenAISettings({ OPENAI_API_KEY: 'test-key', OPENAI_BASE_URL: null, OPENAI_MODEL: 'gpt-5.4' }, async () => {
+        for (const model of ['gpt-5.4', 'gpt-5.4-2026-03-05', 'gpt-5.6-terra', 'gpt-4.1-mini']) {
+            await request({ model, messages: [{ role: 'user', content: 'Xin chào' }] }, {
+                async fetchImpl(url, options) {
+                    const payload = JSON.parse(options.body);
+                    assert.equal(payload.model, model);
+                    assert.equal(payload.reasoning_effort, /^gpt-5\.(?:4|6)/.test(model) ? 'none' : undefined);
+                    return { ok: true, json: async () => ({ choices: [{ message: { content: 'Chào bạn' } }] }) };
+                }
+            });
+        }
+    });
+});
+
+test('GPT tool calls reject malformed arguments without querying the database', async () => {
+    const { runStoreAssistant } = require('../src/services/store-ai');
+    let requests = 0;
+    const result = await runStoreAssistant({
+        message: 'Tra cứu đơn hàng', userId: 7,
+        db: { async query() { throw new Error('Malformed arguments must not reach the database'); } },
+        async requestAI(body) {
+            requests++;
+            if (requests === 1) return { choices: [{ message: { content: null, tool_calls: [{
+                type: 'function', id: 'bad_args', function: { name: 'get_order_status', arguments: '{invalid' }
+            }] } }] };
+            assert.match(JSON.parse(body.messages.at(-1).content).error, /không hợp lệ/);
+            return { choices: [{ message: { content: 'Bạn muốn tra cứu mã đơn nào?' } }] };
+        }
+    });
+    assert.equal(requests, 2);
+    assert.match(result.reply, /mã đơn/);
+});
+
+test('GPT tool calling remains bounded and disables tools on the final request', async () => {
+    const { runStoreAssistant } = require('../src/services/store-ai');
+    let requests = 0;
+    const result = await runStoreAssistant({
+        message: 'Hướng dẫn thanh toán',
+        async requestAI(body) {
+            requests++;
+            if (body.tool_choice === 'none') return { choices: [{ message: { content: 'Bạn có thể chọn COD.' } }] };
+            return { choices: [{ message: { content: null, tool_calls: [{
+                type: 'function', id: `call_${requests}`,
+                function: { name: 'get_store_information', arguments: '{"topic":"payment"}' }
+            }] } }] };
+        }
+    });
+    assert.equal(requests, 3);
+    assert.equal(result.reply, 'Bạn có thể chọn COD.');
 });
 
 test('AI chat history is retained in the current Express session', () => {

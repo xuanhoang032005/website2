@@ -359,6 +359,70 @@ CREATE TABLE IF NOT EXISTS banners (
 );
 
 -- BEGIN EXISTING DATABASE UPGRADE
+-- 003 CHECKOUT DELIVERY: chỉ thêm các cột chưa tồn tại.
+-- Upgrade the orders table with checkout delivery options.
+-- Each column is added only when missing, so interrupted upgrades can be retried.
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'shipping_method'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN shipping_method ENUM(''standard'',''express'') NOT NULL DEFAULT ''standard'' AFTER shipping_fee',
+    'SELECT ''orders.shipping_method already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'delivery_min_days'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN delivery_min_days TINYINT UNSIGNED NULL AFTER shipping_method',
+    'SELECT ''orders.delivery_min_days already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'delivery_max_days'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN delivery_max_days TINYINT UNSIGNED NULL AFTER delivery_min_days',
+    'SELECT ''orders.delivery_max_days already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'estimated_delivery_from'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN estimated_delivery_from DATE NULL AFTER delivery_max_days',
+    'SELECT ''orders.estimated_delivery_from already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'estimated_delivery_to'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN estimated_delivery_to DATE NULL AFTER estimated_delivery_from',
+    'SELECT ''orders.estimated_delivery_to already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- ĐỒNG BỘ RÀNG BUỘC CHO DATABASE CŨ
 -- Các lệnh dưới đây có thể chạy lại. Nếu database cũ có dữ liệu trùng, việc
 -- tạo UNIQUE sẽ dừng để dữ liệu được kiểm tra thay vì tự động xóa bản ghi.
@@ -858,7 +922,7 @@ ALTER TABLE messages MODIFY id INT(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2
 SELECT '========================================' AS '';
 
 -- Đánh dấu các thay đổi schema đã được gộp vào file cài mới.
--- Nhờ đó `npm run migrate` không chạy lại 001/002 trên database vừa cài.
+-- Nhờ đó `npm run migrate` không chạy lại khối nâng cấp trên database vừa cài.
 CREATE TABLE IF NOT EXISTS schema_migrations (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL UNIQUE,
@@ -867,9 +931,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 
 INSERT IGNORE INTO schema_migrations (name, checksum) VALUES
-    ('001_schema_integrity.sql', 'aa62e9419d68fc8452dbb918f425bf48ad3a1cf0f46d7c916b5472c0455c721b'),
-    ('002_unique_user_coupon.sql', 'e21740c5ee1f4b8320ed0495c7172242fc205763c4cbd45b116764833dfa284d'),
-    ('003_checkout_delivery.sql', 'a064a7d65cd8fccf1405f8619b50d6a399f9accdc927649e275df0f9e7992a90');
+    ('merged_schema_upgrade', 'cf6ef5d2550189962f8756a5b8c42e75da301fd7150c5f7aa678dbbf21007226');
 SELECT 'Database setup completed!' AS status;
 SELECT 'New features:' AS '';
 SELECT '  - product_images: Gallery nhiều ảnh/sản phẩm' AS '';
