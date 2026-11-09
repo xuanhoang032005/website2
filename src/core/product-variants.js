@@ -1,3 +1,5 @@
+const { recordStockMovement } = require('../services/stock-ledger');
+
 function nullableText(value, maximum = 100) {
     const text = value == null ? '' : String(value).trim();
     return text ? text.slice(0, maximum) : null;
@@ -91,14 +93,25 @@ function variantSummary(variants, fallback) {
     };
 }
 
-async function saveProductVariants(db, productId, variants) {
+async function saveProductVariants(db, productId, variants, performedBy = null, productName = '', previousProductStock = null) {
     if (!variants.length) return;
     const [existing] = await db.query(
-        'SELECT id FROM product_variants WHERE product_id = ? FOR UPDATE',
+        'SELECT id, stock, sku, ram, storage, color FROM product_variants WHERE product_id = ? FOR UPDATE',
         [productId]
     );
-    const existingIds = new Set(existing.map(row => Number(row.id)));
+    const existingById = new Map(existing.map(row => [Number(row.id), row]));
+    const existingIds = new Set(existingById.keys());
     const retainedIds = new Set();
+
+    if (existing.length === 0 && Number(previousProductStock) > 0) {
+        const stock = Number(previousProductStock);
+        await recordStockMovement(db, {
+            product_id: productId, product_name: productName || `Sản phẩm #${productId}`,
+            movement_type: 'adjustment', quantity_change: -stock, stock_before: stock, stock_after: 0,
+            reference_type: 'adjustment', note: 'Chuyển tồn kho sản phẩm sang quản lý theo phiên bản',
+            performed_by: performedBy
+        });
+    }
 
     await db.query('UPDATE product_variants SET is_default = 0 WHERE product_id = ?', [productId]);
     for (const variant of variants) {
@@ -107,6 +120,7 @@ async function saveProductVariants(db, productId, variants) {
                 throw Object.assign(new Error('Phiên bản sản phẩm không thuộc sản phẩm này!'), { status: 400 });
             }
             retainedIds.add(variant.id);
+            const oldVariant = existingById.get(variant.id);
             await db.query(
                 `UPDATE product_variants
                  SET sku=?, ram=?, storage=?, color=?, price=?, old_price=?, stock=?, is_default=?, is_active=?
@@ -114,6 +128,14 @@ async function saveProductVariants(db, productId, variants) {
                 [variant.sku, variant.ram, variant.storage, variant.color, variant.price, variant.old_price,
                     variant.stock, variant.is_default ? 1 : 0, variant.is_active, variant.id, productId]
             );
+            if (Number(oldVariant.stock) !== variant.stock) {
+                await recordStockMovement(db, {
+                    product_id: productId, variant_id: variant.id, product_name: productName || `Sản phẩm #${productId}`,
+                    ...variant, movement_type: 'adjustment', quantity_change: variant.stock - Number(oldVariant.stock),
+                    stock_before: Number(oldVariant.stock), stock_after: variant.stock,
+                    reference_type: 'adjustment', note: 'Điều chỉnh tồn kho từ quản trị viên', performed_by: performedBy
+                });
+            }
         } else {
             const [result] = await db.query(
                 `INSERT INTO product_variants
@@ -123,16 +145,34 @@ async function saveProductVariants(db, productId, variants) {
                     variant.old_price, variant.stock, variant.is_default ? 1 : 0, variant.is_active]
             );
             retainedIds.add(Number(result.insertId));
+            await recordStockMovement(db, {
+                product_id: productId, variant_id: Number(result.insertId), product_name: productName || `Sản phẩm #${productId}`,
+                ...variant, movement_type: 'opening', quantity_change: variant.stock,
+                stock_before: 0, stock_after: variant.stock, reference_type: 'product', reference_id: productId,
+                note: 'Thêm sản phẩm, tồn kho ban đầu của phiên bản', performed_by: performedBy
+            });
         }
     }
 
     const removedIds = [...existingIds].filter(id => !retainedIds.has(id));
     if (removedIds.length) {
         await db.query(
-            'UPDATE product_variants SET is_active = 0, is_default = 0 WHERE product_id = ? AND id IN (?)',
+            'UPDATE product_variants SET stock = 0, is_active = 0, is_default = 0 WHERE product_id = ? AND id IN (?)',
             [productId, removedIds]
         );
+        for (const id of removedIds) {
+            const oldVariant = existingById.get(id);
+            if (Number(oldVariant.stock) > 0) {
+                await recordStockMovement(db, {
+                    product_id: productId, variant_id: id, product_name: productName || `Sản phẩm #${productId}`,
+                    ...oldVariant, movement_type: 'adjustment', quantity_change: -Number(oldVariant.stock),
+                    stock_before: Number(oldVariant.stock), stock_after: 0,
+                    reference_type: 'adjustment', note: 'Ngừng bán phiên bản và loại khỏi tồn kho', performed_by: performedBy
+                });
+            }
+        }
     }
+    await syncProductStock(db, productId);
 }
 
 async function syncProductStock(db, productId) {

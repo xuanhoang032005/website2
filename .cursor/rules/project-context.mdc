@@ -17,9 +17,9 @@ alwaysApply: true
 ## Trạng thái hiện tại
 
 - Backend là Express modular monolith trong `src/`; entry point tương thích hosting là `server.js`.
-- Database MySQL gồm 19 bảng và được khởi tạo từ `database/anhtraistore.sql`.
+- Database MySQL được khởi tạo từ `database/anhtraistore.sql`; các bảng bổ sung có migration tương thích database cũ.
 - Bộ kiểm tra hồi quy nằm tại `tests/product-regressions.test.js`.
-- Session, OTP, rate limit và trạng thái Socket.IO hiện còn lưu trong bộ nhớ tiến trình.
+- Session, rate limit và trạng thái Socket.IO hiện còn lưu trong bộ nhớ tiến trình; OTP đặt lại mật khẩu được lưu dưới dạng HMAC-SHA-256 trong MySQL và tự hết hạn.
 - Upload ảnh hiện lưu trên filesystem local.
 - API đã có header bảo mật, CORS production, rate limit, generic 500 response và session cookie an toàn hơn.
 - Ảnh tham chiếu giao diện nằm tại `docs/references/`.
@@ -28,7 +28,7 @@ alwaysApply: true
 
 1. Giữ kiến trúc modular monolith; chưa tách microservice.
 2. Ưu tiên migration, constraint/index và xử lý lệch schema trước.
-3. Chuyển session, OTP và rate limit sang Redis khi chạy nhiều instance.
+3. Chuyển session và rate limit sang Redis khi chạy nhiều instance; trạng thái Socket.IO cần đồng bộ nếu mở rộng nhiều instance.
 4. Chuẩn hóa validation, `/api/v1`, OpenAPI và response API.
 5. Thêm integration test MySQL, E2E, lint/type-check và CI.
 6. Sau đó mới tách service/repository, module frontend, queue email, object storage và observability.
@@ -37,7 +37,7 @@ alwaysApply: true
 ## Điểm cần nhớ khi nâng cấp
 
 - Code đang truy vấn `product_variants`; schema hiện tại đã có bảng tương ứng.
-- Bảng `reset_tokens` tồn tại nhưng luồng OTP hiện dùng bộ nhớ.
-- README ghi Node.js 16 trong khi `package.json` yêu cầu Node.js 20 trở lên.
+- Luồng OTP dùng bảng `reset_tokens`; mỗi mã chỉ lưu HMAC-SHA-256 với `SESSION_SECRET`, hết hạn sau 5 phút và bị xóa sau khi dùng hoặc nhập sai 5 lần.
+- `package.json` và README yêu cầu Node.js 20 trở lên.
 - Tài khoản admin demo và mật khẩu mẫu phải được loại bỏ trước khi triển khai thật.
 - Các file lớn cần tách dần: `src/routes/admin.js` và các trang HTML chứa nhiều CSS/JavaScript inline.

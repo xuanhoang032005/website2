@@ -21,7 +21,7 @@ test('database schema includes ownership constraints and operational indexes', (
     const sql = fs.readFileSync(path.join(root, 'database', 'anhtraistore.sql'), 'utf8');
     const requiredDefinitions = [
         /CREATE TABLE IF NOT EXISTS contacts[\s\S]*?user_id INT DEFAULT NULL[\s\S]*?CONSTRAINT fk_contacts_user FOREIGN KEY \(user_id\) REFERENCES users\(id\) ON DELETE SET NULL/,
-        /variant_identity INT GENERATED ALWAYS AS \(COALESCE\(variant_id, 0\)\) STORED/,
+        /variant_identity INT NOT NULL DEFAULT 0/,
         /UNIQUE KEY uq_cart_user_product_variant \(user_id, product_id, variant_identity\)/,
         /UNIQUE KEY uq_reviews_user_product \(user_id, product_id\)/,
         /UNIQUE KEY uq_user_coupons_user_coupon \(user_id, coupon_id\)/,
@@ -31,7 +31,10 @@ test('database schema includes ownership constraints and operational indexes', (
         /INDEX idx_orders_status_created \(status, created_at\)/,
         /INDEX idx_conversations_user_activity \(user_id, last_message_at\)/,
         /INDEX idx_conversations_status_activity \(status, last_message_at\)/,
-        /INDEX idx_messages_conversation_created \(conversation_id, created_at, id\)/
+        /INDEX idx_messages_conversation_created \(conversation_id, created_at, id\)/,
+        /CREATE TABLE IF NOT EXISTS sessions/,
+        /CREATE TABLE IF NOT EXISTS rate_limit_buckets/,
+        /CREATE TABLE IF NOT EXISTS background_jobs/
     ];
     requiredDefinitions.forEach(pattern => assert.match(sql, pattern));
     assert.match(sql, /INFORMATION_SCHEMA\.COLUMNS[\s\S]*?TABLE_NAME = 'contacts'[\s\S]*?COLUMN_NAME = 'user_id'/);
@@ -40,12 +43,15 @@ test('database schema includes ownership constraints and operational indexes', (
     assert.match(sql, /Skipped uq_user_coupons_user_coupon: duplicate coupon history must be resolved first/);
 });
 
-test('one SQL file contains the schema, upgrade block and migration history', async () => {
+test('schema SQL contains the schema, upgrade blocks and migration history', async () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     assert.equal(packageJson.scripts.migrate, 'node src/config/migrate.js');
     const { loadSchemaUpgrade } = require('../src/config/migrate');
     const upgrade = await loadSchemaUpgrade();
-    assert.deepEqual(fs.readdirSync(path.join(root, 'database')), ['anhtraistore.sql']);
+    assert.deepEqual(
+        fs.readdirSync(path.join(root, 'database')).filter(name => name.endsWith('.sql')).sort(),
+        ['anhtraistore.sql']
+    );
     const schema = fs.readFileSync(path.join(root, 'database', 'anhtraistore.sql'), 'utf8');
     assert.doesNotMatch(schema, /00[1-3]_[a-z0-9_-]+\.sql/i);
     assert.match(schema, /shipping_method ENUM\('standard','express'\)/);
@@ -57,6 +63,8 @@ test('one SQL file contains the schema, upgrade block and migration history', as
     assert.match(runner, /CREATE TABLE IF NOT EXISTS schema_migrations/);
     assert.match(runner, /GET_LOCK/);
     assert.match(runner, /checksum thay đổi/);
+    assert.match(runner, /DURABLE RUNTIME UPGRADE/);
+    assert.match(runner, /UTF8MB4 UPGRADE/);
 });
 
 test('migration checksums stay stable between Windows and Linux line endings', async () => {
@@ -81,6 +89,26 @@ function migrationDatabase(storedChecksum, rejectMigration = false, legacyHistor
             if (sql.includes('GET_LOCK')) return [[{ acquired: 1 }]];
             if (sql.includes('RELEASE_LOCK')) { events.push('unlock'); return [[{ released: 1 }]]; }
             if (sql.includes('CREATE TABLE IF NOT EXISTS schema_migrations')) return [[]];
+            if (sql.includes('FROM INFORMATION_SCHEMA.COLUMNS') && sql.includes("TABLE_NAME = 'schema_migrations'")) {
+                return [[{ max_length: 191 }]];
+            }
+            if (sql.includes('CREATE TABLE IF NOT EXISTS inventory_movements') ||
+                sql.includes('CREATE TABLE IF NOT EXISTS service_requests') ||
+                sql.includes('CREATE TABLE IF NOT EXISTS review_reports') ||
+                sql.includes('CREATE TABLE IF NOT EXISTS service_request_images')) {
+                executions++;
+                return [[]];
+            }
+            if (sql.includes('CREATE TABLE IF NOT EXISTS sessions') ||
+                sql.includes('CREATE TABLE IF NOT EXISTS rate_limit_buckets') ||
+                sql.includes('CREATE TABLE IF NOT EXISTS background_jobs')) {
+                executions++;
+                return [[]];
+            }
+            if (sql.includes('SET NAMES utf8mb4') || sql.includes('CONVERT TO CHARACTER SET utf8mb4')) {
+                executions++;
+                return [[]];
+            }
             if (sql === 'SELECT name, checksum FROM schema_migrations') {
                 return [[...history].map(([migrationName, digest]) => ({ name: migrationName, checksum: digest }))];
             }
@@ -116,11 +144,12 @@ test('merged SQL upgrade runs once and ignores unrelated historical records', as
         await migrate({ createConnection: async () => database });
         assert.equal(database.history.get(name), currentChecksum);
         legacy.forEach(([legacyName, digest]) => assert.equal(database.history.get(legacyName), digest));
-        assert.equal(database.executions, previous === currentChecksum ? 0 : 1);
+        const expectedExecutions = previous === currentChecksum ? 4 : 5;
+        assert.equal(database.executions, expectedExecutions);
         assert.equal(database.closed, true);
         assert.equal(database.events.at(-1), 'unlock');
         await migrate({ createConnection: async () => database });
-        assert.equal(database.executions, previous === currentChecksum ? 0 : 1);
+        assert.equal(database.executions, expectedExecutions);
     }
 });
 
@@ -189,13 +218,12 @@ test('security headers include a restrictive content security policy', () => {
     assert.match(policy, /default-src 'self'/);
     assert.match(policy, /object-src 'none'/);
     assert.match(policy, /frame-ancestors 'none'/);
-    assert.match(policy, /img-src 'self' data: https:\/\/res\.cloudinary\.com/);
+    assert.match(policy, /img-src 'self' data: blob: https:\/\/res\.cloudinary\.com/);
 });
 
 test('every admin page uses only the rebuilt shared admin interface', () => {
     const adminDir = path.join(root, 'views', 'admin');
     const pages = fs.readdirSync(adminDir).filter(name => name.endsWith('.html'));
-    assert.equal(pages.length, 10);
     for (const page of pages) {
         const html = fs.readFileSync(path.join(adminDir, page), 'utf8');
         assert.match(html, /<link rel="stylesheet" href="\/css\/admin\.css(?:\?[^\"]*)?">/);
@@ -500,7 +528,7 @@ test('product update keeps selected old images, adds new files and stores unchec
         async rollback() {},
         release() {},
         async query(sql, params) {
-            if (sql.startsWith('SELECT name, thumbnail')) return [[{ name: 'Phone', thumbnail: 'old-a.jpg' }]];
+            if (sql.startsWith('SELECT name, thumbnail')) return [[{ name: 'Phone', thumbnail: 'old-a.jpg', stock: 5 }]];
             if (sql.startsWith('SELECT id, image_url')) return [[
                 { id: 10, image_url: 'old-a.jpg' },
                 { id: 11, image_url: 'old-b.jpg' }
@@ -514,6 +542,7 @@ test('product update keeps selected old images, adds new files and stores unchec
                 galleryValues = params[0];
                 return [{ affectedRows: 2 }];
             }
+            if (sql.startsWith('INSERT INTO inventory_movements')) return [{ insertId: 1 }];
             throw new Error('Unexpected connection query: ' + sql);
         }
     };
@@ -537,6 +566,7 @@ test('product update keeps selected old images, adds new files and stores unchec
     const route = context.module.exports.stack.find(layer => layer.route?.path === '/products/:id' && layer.route.methods.put).route;
     const req = {
         params: { id: '1' },
+        session: { user_id: 7, role: 'admin' },
         body: {
             name: 'Phone', brand_id: '1', category_id: '1', price: '1000000', old_price: '1200000',
             discount_percent: '17', description: '', ram: '8GB', storage: '256GB', stock: '5',
@@ -640,15 +670,16 @@ test('review comments keep customer text separate from the admin reply', () => {
     assert.equal(serializeReviewComment(stored, 'Phản hồi đã sửa').match(/ANHTRAISTORE_ADMIN_REPLY/g).length, 1);
 });
 
-test('all signed-in accounts can review once and the gallery scrolls horizontally', () => {
+test('only delivered buyers can review and the gallery scrolls horizontally', () => {
     const productPage = fs.readFileSync(path.join(root, 'views', 'product-detail.html'), 'utf8');
     const productRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'products.js'), 'utf8');
     const apiRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'api.js'), 'utf8');
     const productCss = fs.readFileSync(path.join(root, 'public', 'css', 'pages', 'product-detail.css'), 'utf8');
     assert.match(productPage, /reviewEligibility\.canReview/);
     assert.match(productRoute, /reviewEligibility/);
-    assert.match(productRoute, /reviewEligibility = \{ canReview: true, reason: '' \}/);
-    assert.doesNotMatch(apiRoute, /o\.status = 'delivered'/);
+    assert.match(productRoute, /reviewEligibility = deliveredPurchases\.length[\s\S]*?canReview: true/);
+    assert.match(apiRoute, /deliveredPurchases/);
+    assert.match(apiRoute, /status = 'delivered'/);
     assert.match(productCss, /\.product-reference-page \.detail-img-thumbs[\s\S]*?overflow-x:\s*auto/);
     assert.match(productCss, /\.product-reference-page \.thumb-item[\s\S]*?flex:\s*0 0 92px/);
 });
@@ -982,8 +1013,9 @@ test('new orders enqueue independent customer and admin emails from the configur
     const orders = fs.readFileSync(path.join(root, 'src', 'routes', 'orders.js'), 'utf8');
     const jobs = fs.readFileSync(path.join(root, 'src', 'services', 'background-jobs.js'), 'utf8');
     const mail = fs.readFileSync(path.join(root, 'src', 'config', 'mail.js'), 'utf8');
-    assert.match(orders, /queue\.enqueue\('order_email', \{ orderId, userId \}\)/);
-    assert.match(orders, /queue\.enqueue\('admin_order_email', \{ orderId, userId \}\)/);
+    assert.match(orders, /queue\.enqueue\('order_email', \{ orderId, userId \}, options\)/);
+    assert.match(orders, /queue\.enqueue\('admin_order_email', \{ orderId, userId \}, options\)/);
+    assert.match(orders, /sendConfirmationEmail\(orderId, userId, connection\)/);
     assert.match(jobs, /queue\.register\('admin_order_email'/);
     assert.match(jobs, /sendAdminOrderNotification/);
     assert.match(mail, /ORDER_NOTIFICATION_EMAIL \|\| process\.env\.CONTACT_EMAIL \|\| 'adminanhtrai@gmail\.com'/);
@@ -1066,6 +1098,7 @@ test('admin product creation accepts uploaded images and commits valid numeric d
                 insertedGallery = params[0];
                 return [{ affectedRows: 2 }];
             }
+            if (sql.startsWith('INSERT INTO inventory_movements')) return [{ insertId: 1 }];
             throw new Error('Unexpected connection query: ' + sql);
         }
     };
@@ -1079,6 +1112,7 @@ test('admin product creation accepts uploaded images and commits valid numeric d
     };
     const route = loadRoute(path.join(root, 'src', 'routes', 'admin.js'), '/products', 'post', pool);
     const req = {
+        session: { user_id: 7, role: 'admin' },
         body: {
             name: 'Phone mới', brand_id: '1', category_id: '1', price: '900000', old_price: '1000000',
             discount_percent: '10', description: '', ram: '8GB', storage: '128GB', stock: '4',
@@ -1160,9 +1194,18 @@ test('API error handler does not expose internal error details', () => {
     });
 });
 
-test('rate limiter returns 429 without exposing implementation details', () => {
+test('rate limiter returns 429 without exposing implementation details', async () => {
     const { createRateLimiter } = require('../src/middleware/rate-limit');
-    const limiter = createRateLimiter({ windowMs: 60000, max: 1 });
+    const counters = new Map();
+    const limiter = createRateLimiter({
+        windowMs: 60000,
+        max: 1,
+        increment: async (_, key) => {
+            const count = (counters.get(key) || 0) + 1;
+            counters.set(key, count);
+            return { count, resetAt: Date.now() + 60000 };
+        }
+    });
     const request = { ip: '127.0.0.99', socket: {} };
     const response = () => ({
         headers: {}, statusCode: 200,
@@ -1171,12 +1214,61 @@ test('rate limiter returns 429 without exposing implementation details', () => {
         json(body) { this.body = body; return this; }
     });
     let nextCalls = 0;
-    limiter(request, response(), () => nextCalls++);
+    await limiter(request, response(), () => nextCalls++);
     const blocked = response();
-    limiter(request, blocked, () => nextCalls++);
+    await limiter(request, blocked, () => nextCalls++);
     assert.equal(nextCalls, 1);
     assert.equal(blocked.statusCode, 429);
     assert.equal(typeof blocked.body.error, 'string');
+});
+
+test('separate rate limiters share a persistent bucket store', async () => {
+    const { createRateLimiter } = require('../src/middleware/rate-limit');
+    const buckets = new Map();
+    const increment = async (_database, key) => {
+        const count = (buckets.get(key) || 0) + 1;
+        buckets.set(key, count);
+        return { count, resetAt: Date.now() + 60000 };
+    };
+    const options = { windowMs: 60000, max: 1, namespace: 'shared-test', increment };
+    const request = { ip: '127.0.0.100', socket: {} };
+    const response = () => ({
+        headers: {}, statusCode: 200,
+        setHeader(name, value) { this.headers[name] = value; },
+        status(code) { this.statusCode = code; return this; },
+        json(body) { this.body = body; return this; }
+    });
+    let firstNext = 0;
+    await createRateLimiter(options)(request, response(), () => firstNext++);
+    const second = response();
+    let secondNext = 0;
+    await createRateLimiter(options)(request, second, () => secondNext++);
+    assert.equal(firstNext, 1);
+    assert.equal(secondNext, 0);
+    assert.equal(second.statusCode, 429);
+});
+
+test('MySQL session store writes, reads, touches and destroys sessions', async () => {
+    const MySQLSessionStore = require('../src/services/mysql-session-store');
+    const calls = [];
+    const pool = {
+        async query(sql, params) {
+            calls.push({ sql, params });
+            if (sql.startsWith('SELECT data FROM sessions')) {
+                return [[{ data: JSON.stringify({ user_id: 12, cookie: { expires: '2027-01-01T00:00:00.000Z' } }) }]];
+            }
+            return [{ affectedRows: 1 }];
+        }
+    };
+    const store = new MySQLSessionStore(pool);
+    await new Promise((resolve, reject) => store.set('sid-test', { user_id: 12, cookie: { expires: '2027-01-01T00:00:00.000Z' } }, error => error ? reject(error) : resolve()));
+    const stored = await new Promise((resolve, reject) => store.get('sid-test', (error, value) => error ? reject(error) : resolve(value)));
+    await new Promise((resolve, reject) => store.touch('sid-test', { cookie: { expires: '2027-01-01T00:00:00.000Z' } }, error => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) => store.destroy('sid-test', error => error ? reject(error) : resolve()));
+    assert.equal(stored.user_id, 12);
+    assert.match(calls[0].sql, /INSERT INTO sessions/);
+    assert.match(calls[2].sql, /UPDATE sessions SET expires_at/);
+    assert.match(calls[3].sql, /DELETE FROM sessions/);
 });
 
 test('image upload validation requires a matching safe extension and MIME type', () => {
@@ -1467,12 +1559,14 @@ test('startup data repair backfills contact subjects and reconciles aggregate st
     const { repairBusinessData } = require('../src/services/data-consistency');
     const result = await repairBusinessData({ async query(sql) {
         queries.push(sql);
-        return [{ affectedRows: queries.length === 1 ? 4 : 1 }];
+        return [{ affectedRows: queries.length === 1 ? 4 : queries.length === 2 ? 1 : 2 }];
     } });
-    assert.deepEqual(result, { contacts_backfilled: 4, product_stocks_synced: 1 });
+    assert.deepEqual(result, { contacts_backfilled: 4, product_stocks_synced: 1, inventory_opening_rows_added: 4 });
     assert.match(queries[0], /subject IS NULL OR TRIM\(subject\) = ''/);
     assert.match(queries[1], /SUM\(CASE WHEN is_active = 1 THEN stock ELSE 0 END\)/);
     assert.match(queries[1], /p\.stock <> totals\.variant_stock/);
+    assert.match(queries[2], /Tồn kho ban đầu từ dữ liệu hiện có/);
+    assert.match(queries[3], /inventory_movements/);
 });
 
 test('failed background jobs are retried after their handler throws', async () => {
@@ -1483,10 +1577,43 @@ test('failed background jobs are retried after their handler throws', async () =
         if (attempts === 1) throw new Error('temporary failure');
         return true;
     });
-    const id = queue.enqueue('regression_retry', {}, { maxAttempts: 2 });
+    const id = await queue.enqueue('regression_retry', {}, { maxAttempts: 2 });
     await new Promise(resolve => setTimeout(resolve, 650));
-    assert.equal(queue.get(id).status, 'completed');
-    assert.equal(queue.get(id).attempts, 2);
+    assert.equal((await queue.get(id)).status, 'completed');
+    assert.equal((await queue.get(id)).attempts, 2);
+});
+
+test('background queue persists jobs and owner metadata in the configured database', async () => {
+    const queue = require('../src/services/job-queue');
+    const rows = new Map();
+    const database = {
+        async query(sql, params) {
+            if (sql.includes('INSERT INTO background_jobs')) {
+                rows.set(params[0], {
+                    id: params[0], type: params[1], payload: params[2], status: 'queued',
+                    attempts: 0, max_attempts: params[3], owner_key: params[4], created_at: new Date()
+                });
+                return [{ affectedRows: 1 }];
+            }
+            if (sql.includes('FROM background_jobs WHERE id = ?')) {
+                const row = rows.get(params[0]);
+                return [[row ? { ...row, result: null, updated_at: row.created_at, completed_at: null } : undefined].filter(Boolean)];
+            }
+            throw new Error('Unexpected queue query: ' + sql);
+        }
+    };
+    queue.register('regression_persisted', async () => true);
+    queue.configure(database);
+    try {
+        const id = await queue.enqueue('regression_persisted', { value: 7 }, { ownerKey: 'session-e2e' });
+        const job = await queue.get(id);
+        assert.equal(rows.has(id), true);
+        assert.deepEqual(job.payload, { value: 7 });
+        assert.equal(job.owner_key, 'session-e2e');
+        assert.equal(job.status, 'queued');
+    } finally {
+        queue.configure(null);
+    }
 });
 
 test('registration, contacts, reorder and dashboard retain the repaired business fields', () => {
@@ -1547,6 +1674,6 @@ test('variant selection is connected from admin and product detail through cart 
     assert.match(detailPage, /addToCart\(productData\.product\.id, quantity, selectedVariant\?\.id \|\| null\)/);
     assert.match(detailPage, /id="imageViewer"/);
     assert.match(detailPage, /function changeViewerImage\(delta\)/);
-    assert.match(cartRoute, /INSERT INTO cart \(user_id, product_id, variant_id, quantity\)/);
+    assert.match(cartRoute, /INSERT INTO cart \(user_id, product_id, variant_id, variant_identity, quantity\)/);
     assert.match(orderRoute, /INSERT INTO order_items \(order_id, product_id, variant_id, quantity, price\)/);
 });

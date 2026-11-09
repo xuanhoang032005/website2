@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý đánh giá - Admin</title>
+    <title>Đánh giá và hỏi đáp - Admin</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20261001-1">
+    <link rel="stylesheet" href="/css/admin.css?v=20261110-2">
     <script>
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -72,7 +72,7 @@
         <main class="main-content">
             <header class="top-header">
                 <div class="top-header-left">
-                    <h1 class="top-header-title">Quản lý đánh giá</h1>
+                    <h1 class="top-header-title">Đánh giá và hỏi đáp</h1>
                 </div>
                 <div class="top-header-right">
                     <span class="header-date" id="currentDate"></span>
@@ -89,13 +89,14 @@
                                     <th>Khách hàng</th>
                                     <th>Đánh giá</th>
                                     <th>Nội dung</th>
+                                    <th>Báo cáo</th>
                                     <th>Phản hồi cửa hàng</th>
                                     <th>Ngày</th>
                                     <th style="width: 130px;">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody id="reviewsBody">
-                                <tr><td colspan="7" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
+                                <tr><td colspan="8" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -107,16 +108,16 @@
     <div class="modal-overlay" id="replyModal">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title"><i class="fas fa-reply"></i> Phản hồi đánh giá</h2>
+                <h2 class="modal-title"><i class="fas fa-reply"></i> Phản hồi khách hàng</h2>
                 <button class="modal-close" type="button" onclick="closeReplyModal()" aria-label="Đóng"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="replyReviewId">
                 <div class="review-reply-context" id="replyContext"></div>
                 <div class="form-group">
-                    <label class="form-label" for="replyContent">Nội dung phản hồi</label>
+                    <label class="form-label" for="replyContent">Câu trả lời của quản trị viên</label>
                     <textarea class="form-control" id="replyContent" maxlength="2000" rows="5" placeholder="Nhập lời cảm ơn hoặc giải đáp cho khách hàng..."></textarea>
-                    <div class="form-hint">Phản hồi này sẽ hiển thị công khai dưới đánh giá sản phẩm.</div>
+                    <div class="form-hint">Câu trả lời sẽ hiển thị công khai dưới đánh giá hoặc câu hỏi.</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -179,13 +180,19 @@
                 const tbody = document.getElementById('reviewsBody');
 
                 if (reviews.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-star"></i><h3>Chưa có đánh giá nào</h3></div></td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><i class="fas fa-star"></i><h3>Chưa có nội dung nào</h3></div></td></tr>`;
                     return;
                 }
 
                 let html = '';
                 reviews.forEach(r => {
-                    const stars = '★'.repeat(r.rating || 5) + '☆'.repeat(5 - (r.rating || 5));
+                    const isQuestion = r.entry_type === 'question';
+                    const stars = isQuestion
+                        ? '<span class="review-kind-question">Câu hỏi</span>'
+                        : '<span style="color:#F59E0B">' + '★'.repeat(r.rating || 5) + '☆'.repeat(5 - (r.rating || 5)) + '</span>';
+                    const aiReply = r.ai_reply ? '<div class="review-ai-admin"><strong>AI:</strong> ' + escapeHtml(r.ai_reply) + '</div>' : '';
+                    const escalation = Number(r.needs_admin) === 1 ? '<span class="review-admin-needed">Cần xử lý</span>' : '';
+                    const content = '<div class="review-admin-content"><span class="review-admin-entry-type">' + (isQuestion ? 'Hỏi về sản phẩm' : 'Đánh giá đã mua') + '</span><span>' + escapeHtml(r.comment || '-') + '</span>' + aiReply + escalation + '</div>';
                     html += `<tr>
                         <td><strong>${escapeHtml(r.product_name || 'N/A')}</strong></td>
                         <td>
@@ -194,8 +201,9 @@
                                 <div><strong>${escapeHtml(r.user_name || 'Khách hàng')}</strong><small>${escapeHtml(r.user_email || '')}</small></div>
                             </div>
                         </td>
-                        <td><span style="color: #F59E0B;">${stars}</span></td>
-                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(r.comment || '-')}</td>
+                        <td>${stars}</td>
+                        <td style="max-width: 320px;">${content}</td>
+                        <td>${Number(r.report_count) > 0 ? '<strong>' + Number(r.report_count) + '</strong><div class="review-report-reasons">' + escapeHtml(r.report_reasons || '') + '</div>' : '—'}</td>
                         <td>${r.admin_reply ? `<div class="review-reply-preview"><i class="fas fa-store"></i><span>${escapeHtml(r.admin_reply)}</span></div>` : '<span class="review-no-reply">Chưa phản hồi</span>'}</td>
                         <td>${r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : '-'}</td>
                         <td>
@@ -209,13 +217,13 @@
                 tbody.innerHTML = html;
             } catch (e) {
                 console.error('Load reviews error:', e);
-                document.getElementById('reviewsBody').innerHTML = `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Lỗi tải dữ liệu</h3></div></td></tr>`;
+                document.getElementById('reviewsBody').innerHTML = `<tr><td colspan="8"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Lỗi tải dữ liệu</h3></div></td></tr>`;
             }
         }
 
         function openReplyModal(id) {
             const review = loadedReviews.find(item => Number(item.id) === Number(id));
-            if (!review) return showToast('Không tìm thấy đánh giá!', 'error');
+            if (!review) return showToast('Không tìm thấy nội dung này!', 'error');
             document.getElementById('replyReviewId').value = id;
             document.getElementById('replyContent').value = review.admin_reply || '';
             document.getElementById('replyContext').innerHTML = `<strong>${escapeHtml(review.user_name || 'Khách hàng')}</strong><p>${escapeHtml(review.comment || 'Không có nội dung')}</p>`;
@@ -277,6 +285,6 @@
             }
         }
     </script>
-    <script src="/js/admin-ui.js?v=20260914-4"></script>
+    <script src="/js/admin-ui.js?v=20261110-2"></script>
 </body>
 </html>

@@ -7,6 +7,25 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: e2e-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pe2e-root-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASS: e2e-root-password
+      DB_NAME: anhtraistore_ci
+      SESSION_SECRET: ci-test-session-secret-at-least-32-characters-long
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,3 +36,4 @@ jobs:
       - run: npm run lint
       - run: npm run format
       - run: npm test
+      - run: npm run test:e2e

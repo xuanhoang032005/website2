@@ -4,6 +4,10 @@
 -- Các tính năng: Sản phẩm, Giỏ hàng, Đơn hàng, Yêu thích, So sánh, 
 --                Coupon, Chat, Liên hệ, Banner, Khuyến mãi
 
+-- Ensure Vietnamese text is read and stored using full Unicode support.
+SET NAMES utf8mb4;
+ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- 1. USERS TABLE (khách hàng + admin)
 -- 
 CREATE TABLE IF NOT EXISTS users (
@@ -17,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
     gender ENUM('male', 'female', 'other') DEFAULT NULL,
     role ENUM('customer', 'admin') DEFAULT 'customer',
     avatar VARCHAR(255) DEFAULT NULL,
-    google_id VARCHAR(255) NULL UNIQUE,
+    google_id VARCHAR(191) NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -155,6 +159,8 @@ CREATE TABLE IF NOT EXISTS orders (
     total_price DECIMAL(15,0) NOT NULL,
     shipping_fee DECIMAL(15,0) DEFAULT 0,
     shipping_method ENUM('standard','express') NOT NULL DEFAULT 'standard',
+    tracking_carrier VARCHAR(100) NULL,
+    tracking_number VARCHAR(100) NULL,
     delivery_min_days TINYINT UNSIGNED NULL,
     delivery_max_days TINYINT UNSIGNED NULL,
     estimated_delivery_from DATE NULL,
@@ -176,6 +182,54 @@ CREATE TABLE IF NOT EXISTS orders (
     INDEX idx_orders_user_created (user_id, created_at),
     INDEX idx_orders_status_created (status, created_at),
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS order_status_history (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    order_id INT NOT NULL,
+    status ENUM('pending','confirmed','shipping','delivered','cancelled') NOT NULL,
+    note VARCHAR(500) NULL,
+    changed_by INT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_order_status_history_order_created (order_id, created_at),
+    CONSTRAINT fk_order_status_history_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    CONSTRAINT fk_order_status_history_user FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    sid VARCHAR(191) NOT NULL PRIMARY KEY,
+    expires_at DATETIME(3) NOT NULL,
+    data MEDIUMTEXT NOT NULL,
+    INDEX idx_sessions_expires_at (expires_at)
+);
+
+CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+    bucket_key VARCHAR(191) NOT NULL PRIMARY KEY,
+    window_started_at DATETIME(3) NOT NULL,
+    reset_at DATETIME(3) NOT NULL,
+    request_count INT UNSIGNED NOT NULL DEFAULT 0,
+    INDEX idx_rate_limit_reset_at (reset_at)
+);
+
+CREATE TABLE IF NOT EXISTS background_jobs (
+    id CHAR(36) NOT NULL PRIMARY KEY,
+    type VARCHAR(80) NOT NULL,
+    payload JSON NOT NULL,
+    result JSON NULL,
+    status ENUM('queued','running','retrying','completed','failed') NOT NULL DEFAULT 'queued',
+    attempts INT UNSIGNED NOT NULL DEFAULT 0,
+    max_attempts INT UNSIGNED NOT NULL DEFAULT 3,
+    available_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    worker_token CHAR(36) NULL,
+    locked_until DATETIME(3) NULL,
+    owner_key VARCHAR(191) NULL,
+    last_error TEXT NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    completed_at DATETIME(3) NULL,
+    INDEX idx_background_jobs_claim (status, available_at, created_at),
+    INDEX idx_background_jobs_lease (status, locked_until),
+    INDEX idx_background_jobs_owner (owner_key, created_at)
 );
 
 -- 
@@ -202,7 +256,7 @@ CREATE TABLE IF NOT EXISTS cart (
     user_id INT NOT NULL,
     product_id INT NOT NULL,
     variant_id INT NULL,
-    variant_identity INT GENERATED ALWAYS AS (COALESCE(variant_id, 0)) STORED,
+    variant_identity INT NOT NULL DEFAULT 0,
     quantity INT DEFAULT 1,
     INDEX idx_cart_variant (variant_id),
     UNIQUE KEY uq_cart_user_product_variant (user_id, product_id, variant_identity),
@@ -218,13 +272,28 @@ CREATE TABLE IF NOT EXISTS reviews (
     id INT PRIMARY KEY AUTO_INCREMENT,
     product_id INT NOT NULL,
     user_id INT NOT NULL,
-    rating INT,
+    entry_type ENUM('review', 'question') NOT NULL DEFAULT 'review',
+    rating INT NULL,
     comment TEXT,
+    ai_reply TEXT NULL,
+    needs_admin TINYINT(1) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_reviews_user_product (user_id, product_id),
+    UNIQUE KEY uq_reviews_user_product_type (user_id, product_id, entry_type),
     INDEX idx_reviews_product_created (product_id, created_at),
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS review_reports (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    review_id INT NOT NULL,
+    user_id INT NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_review_reports_review_user (review_id, user_id),
+    INDEX idx_review_reports_created (created_at),
+    CONSTRAINT fk_review_reports_review FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE,
+    CONSTRAINT fk_review_reports_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- 
@@ -358,6 +427,58 @@ CREATE TABLE IF NOT EXISTS banners (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS inventory_movements (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    product_id INT NULL,
+    variant_id INT NULL,
+    product_name VARCHAR(200) NOT NULL,
+    variant_label VARCHAR(255) NULL,
+    movement_type ENUM('opening', 'sale', 'cancellation', 'adjustment') NOT NULL,
+    quantity_change INT NOT NULL,
+    stock_before INT UNSIGNED NOT NULL,
+    stock_after INT UNSIGNED NOT NULL,
+    reference_type VARCHAR(32) NULL,
+    reference_id INT NULL,
+    note VARCHAR(255) NULL,
+    performed_by INT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_inventory_product_created (product_id, created_at),
+    INDEX idx_inventory_reference (reference_type, reference_id),
+    CONSTRAINT fk_inventory_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
+    CONSTRAINT fk_inventory_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL,
+    CONSTRAINT fk_inventory_user FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS service_requests (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    order_id INT NOT NULL,
+    order_item_id INT NOT NULL,
+    request_type ENUM('return', 'warranty') NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    status ENUM('submitted', 'reviewing', 'approved', 'rejected', 'resolved') NOT NULL DEFAULT 'submitted',
+    admin_note VARCHAR(1000) NULL,
+    resolved_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_service_request_item_type (order_item_id, request_type),
+    INDEX idx_service_requests_status_created (status, created_at),
+    INDEX idx_service_requests_user_created (user_id, created_at),
+    CONSTRAINT fk_service_request_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_service_request_order FOREIGN KEY (order_id) REFERENCES orders(id),
+    CONSTRAINT fk_service_request_item FOREIGN KEY (order_item_id) REFERENCES order_items(id)
+);
+
+CREATE TABLE IF NOT EXISTS service_request_images (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    service_request_id INT NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_service_request_images_request (service_request_id),
+    CONSTRAINT fk_service_request_images_request FOREIGN KEY (service_request_id) REFERENCES service_requests(id) ON DELETE CASCADE
+);
+
 -- BEGIN EXISTING DATABASE UPGRADE
 -- 003 CHECKOUT DELIVERY: chỉ thêm các cột chưa tồn tại.
 -- Upgrade the orders table with checkout delivery options.
@@ -445,8 +566,21 @@ SET @ddl_exists = (
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cart' AND COLUMN_NAME = 'variant_identity'
 );
 SET @ddl = IF(@ddl_exists = 0,
-    'ALTER TABLE cart ADD COLUMN variant_identity INT GENERATED ALWAYS AS (COALESCE(variant_id, 0)) STORED AFTER variant_id',
+    'ALTER TABLE cart ADD COLUMN variant_identity INT NOT NULL DEFAULT 0 AFTER variant_id',
     'SELECT ''cart.variant_identity already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @variant_identity_generated = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cart' AND COLUMN_NAME = 'variant_identity'
+      AND EXTRA LIKE '%GENERATED%'
+);
+SET @ddl = IF(@variant_identity_generated = 0,
+    'UPDATE cart SET variant_identity = IFNULL(variant_id, 0)',
+    'SELECT ''cart.variant_identity is generated, skip backfill'' AS message'
 );
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;
@@ -632,6 +766,277 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- END EXISTING DATABASE UPGRADE
+
+-- BEGIN VERIFIED REVIEWS, INVENTORY AND SERVICE REQUESTS UPGRADE
+CREATE TABLE IF NOT EXISTS review_reports (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    review_id INT NOT NULL,
+    user_id INT NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_review_reports_review_user (review_id, user_id),
+    INDEX idx_review_reports_created (created_at),
+    CONSTRAINT fk_review_reports_review FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE,
+    CONSTRAINT fk_review_reports_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    product_id INT NULL,
+    variant_id INT NULL,
+    product_name VARCHAR(200) NOT NULL,
+    variant_label VARCHAR(255) NULL,
+    movement_type ENUM('opening', 'sale', 'cancellation', 'adjustment') NOT NULL,
+    quantity_change INT NOT NULL,
+    stock_before INT UNSIGNED NOT NULL,
+    stock_after INT UNSIGNED NOT NULL,
+    reference_type VARCHAR(32) NULL,
+    reference_id INT NULL,
+    note VARCHAR(255) NULL,
+    performed_by INT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_inventory_product_created (product_id, created_at),
+    INDEX idx_inventory_reference (reference_type, reference_id),
+    CONSTRAINT fk_inventory_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
+    CONSTRAINT fk_inventory_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL,
+    CONSTRAINT fk_inventory_user FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS service_requests (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    order_id INT NOT NULL,
+    order_item_id INT NOT NULL,
+    request_type ENUM('return', 'warranty') NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    status ENUM('submitted', 'reviewing', 'approved', 'rejected', 'resolved') NOT NULL DEFAULT 'submitted',
+    admin_note VARCHAR(1000) NULL,
+    resolved_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_service_request_item_type (order_item_id, request_type),
+    INDEX idx_service_requests_status_created (status, created_at),
+    INDEX idx_service_requests_user_created (user_id, created_at),
+    CONSTRAINT fk_service_request_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_service_request_order FOREIGN KEY (order_id) REFERENCES orders(id),
+    CONSTRAINT fk_service_request_item FOREIGN KEY (order_item_id) REFERENCES order_items(id)
+);
+
+CREATE TABLE IF NOT EXISTS service_request_images (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    service_request_id INT NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_service_request_images_request (service_request_id),
+    CONSTRAINT fk_service_request_images_request FOREIGN KEY (service_request_id) REFERENCES service_requests(id) ON DELETE CASCADE
+);
+-- END VERIFIED REVIEWS, INVENTORY AND SERVICE REQUESTS UPGRADE
+
+-- BEGIN ORDER TRACKING UPGRADE
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'tracking_carrier'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN tracking_carrier VARCHAR(100) NULL AFTER shipping_method',
+    'SELECT ''orders.tracking_carrier already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'tracking_number'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN tracking_number VARCHAR(100) NULL AFTER tracking_carrier',
+    'SELECT ''orders.tracking_number already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS order_status_history (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    order_id INT NOT NULL,
+    status ENUM('pending','confirmed','shipping','delivered','cancelled') NOT NULL,
+    note VARCHAR(500) NULL,
+    changed_by INT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_order_status_history_order_created (order_id, created_at),
+    CONSTRAINT fk_order_status_history_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    CONSTRAINT fk_order_status_history_user FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+-- END ORDER TRACKING UPGRADE
+
+-- BEGIN DURABLE RUNTIME UPGRADE
+CREATE TABLE IF NOT EXISTS sessions (
+    sid VARCHAR(191) NOT NULL PRIMARY KEY,
+    expires_at DATETIME(3) NOT NULL,
+    data MEDIUMTEXT NOT NULL,
+    INDEX idx_sessions_expires_at (expires_at)
+);
+
+CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+    bucket_key VARCHAR(191) NOT NULL PRIMARY KEY,
+    window_started_at DATETIME(3) NOT NULL,
+    reset_at DATETIME(3) NOT NULL,
+    request_count INT UNSIGNED NOT NULL DEFAULT 0,
+    INDEX idx_rate_limit_reset_at (reset_at)
+);
+
+CREATE TABLE IF NOT EXISTS background_jobs (
+    id CHAR(36) NOT NULL PRIMARY KEY,
+    type VARCHAR(80) NOT NULL,
+    payload JSON NOT NULL,
+    result JSON NULL,
+    status ENUM('queued','running','retrying','completed','failed') NOT NULL DEFAULT 'queued',
+    attempts INT UNSIGNED NOT NULL DEFAULT 0,
+    max_attempts INT UNSIGNED NOT NULL DEFAULT 3,
+    available_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    worker_token CHAR(36) NULL,
+    locked_until DATETIME(3) NULL,
+    owner_key VARCHAR(191) NULL,
+    last_error TEXT NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    completed_at DATETIME(3) NULL,
+    INDEX idx_background_jobs_claim (status, available_at, created_at),
+    INDEX idx_background_jobs_lease (status, locked_until),
+    INDEX idx_background_jobs_owner (owner_key, created_at)
+);
+-- END DURABLE RUNTIME UPGRADE
+
+-- BEGIN UTF8MB4 UPGRADE
+-- Existing tables keep their old charset when CREATE TABLE IF NOT EXISTS skips them.
+-- Convert them before loading the seed data below.
+SET NAMES utf8mb4;
+ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET FOREIGN_KEY_CHECKS = 0;
+ALTER TABLE users MODIFY google_id VARCHAR(191) NULL;
+ALTER TABLE sessions MODIFY sid VARCHAR(191) NOT NULL;
+ALTER TABLE background_jobs CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE banners CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE brands CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE cart CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE categories CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE contacts CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE conversations CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE coupons CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE inventory_movements CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE messages CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE order_items CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE order_status_history CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE orders CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE product_images CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE product_variants CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE products CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE promotions CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE rate_limit_buckets CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE reset_tokens CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE review_reports CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE reviews CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE service_request_images CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE service_requests CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE sessions CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE user_coupons CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE users CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE wishlists CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET FOREIGN_KEY_CHECKS = 1;
+-- END UTF8MB4 UPGRADE
+
+-- BEGIN PRODUCT QUESTIONS AND AI REPLIES UPGRADE
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND COLUMN_NAME = 'entry_type'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE reviews ADD COLUMN entry_type ENUM(''review'',''question'') NOT NULL DEFAULT ''review'' AFTER user_id',
+    'SELECT ''reviews.entry_type already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND COLUMN_NAME = 'ai_reply'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE reviews ADD COLUMN ai_reply TEXT NULL AFTER comment',
+    'SELECT ''reviews.ai_reply already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND COLUMN_NAME = 'needs_admin'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE reviews ADD COLUMN needs_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER ai_reply',
+    'SELECT ''reviews.needs_admin already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @old_index_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND INDEX_NAME = 'uq_reviews_user_product'
+);
+SET @new_index_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND INDEX_NAME = 'uq_reviews_user_product_type'
+);
+SET @ddl = IF(@old_index_exists > 0,
+    IF(@new_index_exists > 0,
+        'ALTER TABLE reviews DROP INDEX uq_reviews_user_product',
+        'ALTER TABLE reviews DROP INDEX uq_reviews_user_product, ADD UNIQUE KEY uq_reviews_user_product_type (user_id, product_id, entry_type)'
+    ),
+    IF(@new_index_exists = 0,
+        'ALTER TABLE reviews ADD UNIQUE KEY uq_reviews_user_product_type (user_id, product_id, entry_type)',
+        'SELECT ''reviews question index already exists'' AS message'
+    )
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- END PRODUCT QUESTIONS AND AI REPLIES UPGRADE
+
+-- BEGIN MULTIPLE PRODUCT QUESTIONS UPGRADE
+SET @old_index_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND INDEX_NAME = 'uq_reviews_user_product'
+);
+SET @type_index_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND INDEX_NAME = 'uq_reviews_user_product_type'
+);
+SET @lookup_index_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reviews' AND INDEX_NAME = 'idx_reviews_user_product_type'
+);
+SET @ddl = IF(@old_index_exists > 0,
+    IF(@type_index_exists > 0,
+        'ALTER TABLE reviews DROP INDEX uq_reviews_user_product, DROP INDEX uq_reviews_user_product_type, ADD INDEX idx_reviews_user_product_type (user_id, product_id, entry_type)',
+        'ALTER TABLE reviews DROP INDEX uq_reviews_user_product, ADD INDEX idx_reviews_user_product_type (user_id, product_id, entry_type)'
+    ),
+    IF(@type_index_exists > 0,
+        'ALTER TABLE reviews DROP INDEX uq_reviews_user_product_type, ADD INDEX idx_reviews_user_product_type (user_id, product_id, entry_type)',
+        IF(@lookup_index_exists = 0,
+            'ALTER TABLE reviews ADD INDEX idx_reviews_user_product_type (user_id, product_id, entry_type)',
+            'SELECT ''reviews question lookup index already exists'' AS message'
+        )
+    )
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- END MULTIPLE PRODUCT QUESTIONS UPGRADE
 
 -- 
 -- DỮ LIỆU MẪU - BRANDS
@@ -925,13 +1330,18 @@ SELECT '========================================' AS '';
 -- Nhờ đó `npm run migrate` không chạy lại khối nâng cấp trên database vừa cài.
 CREATE TABLE IF NOT EXISTS schema_migrations (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(191) NOT NULL UNIQUE,
     checksum CHAR(64) NOT NULL,
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 INSERT IGNORE INTO schema_migrations (name, checksum) VALUES
-    ('merged_schema_upgrade', 'cf6ef5d2550189962f8756a5b8c42e75da301fd7150c5f7aa678dbbf21007226');
+    ('merged_schema_upgrade', '7aae6ab1db4936b801a36f37ea0fe6b2afc6485ab267a7b7153a47da2f2cdc2b'),
+    ('verified_reviews_inventory_service_requests', 'f2f0cee766bc0aee36897860a019d71c1e193fac30419adac819438a6d0eecf2'),
+    ('order_tracking', '06b182569f077639209a48b1d4b9a7d9a20a38355c65135a5a0e7ae6d7cdb43e'),
+    ('durable_runtime', 'b0b76304a84e10e39a0d0d5090ac05dfc7d03b8d0e47d5ddba5128abaca1276d'),
+    ('product_questions_ai', '922b5dd39444e5eaf62e59876a80d9f8f661765e11eb2764d41cf73bcb66dfa6'),
+    ('multiple_product_questions', 'e3cb4dccce0e83a719274dd88e2d6120e608b516898c6280f268fea8d1c61638');
 SELECT 'Database setup completed!' AS status;
 SELECT 'New features:' AS '';
 SELECT '  - product_images: Gallery nhiều ảnh/sản phẩm' AS '';

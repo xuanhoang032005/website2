@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/product-detail.css?v=20260930-4">
+    <link rel="stylesheet" href="/css/pages/product-detail.css?v=20261110-5">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body class="product-reference-page">
@@ -614,8 +614,40 @@
             return (variant.ram || '') + '|' + (variant.storage || '');
         }
 
-        function memoryLabel(variant) {
-            return [variant.ram, variant.storage].filter(Boolean).join(' / ') || 'Phiên bản chuẩn';
+        function memoryLabel(variant, variants = []) {
+            if (!variant.storage) return variant.ram || 'Phiên bản chuẩn';
+            const sameCapacity = variants.filter(item => item.storage === variant.storage);
+            const hasRamChoices = sameCapacity.some(item => item.ram !== variant.ram);
+            return hasRamChoices && variant.ram ? `${variant.ram} / ${variant.storage}` : variant.storage;
+        }
+
+        function variantSwatchColor(value) {
+            const key = String(value || '').trim().toLocaleLowerCase('vi-VN')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+            const colors = {
+                den: '#242428', black: '#242428', midnight: '#242428',
+                trang: '#f1f2f3', white: '#f1f2f3', starlight: '#e8dfcf',
+                bac: '#c7cbd0', silver: '#c7cbd0', titanium: '#8c8f94',
+                xam: '#85878c', gray: '#85878c', grey: '#85878c',
+                'xam titan': '#777a80',
+                'titan tu nhien': '#aaa08f', 'natural titanium': '#aaa08f',
+                'titan sa mac': '#b89073', 'titan xanh': '#6f8491', 'titan den': '#48494d',
+                vang: '#d0ad56', yellow: '#d0ad56', gold: '#c7a354',
+                'vang hong': '#d6a2a0', hong: '#e8a9bc', pink: '#e8a9bc', rose: '#d98c9f',
+                tim: '#8979aa', purple: '#8979aa', violet: '#8979aa',
+                'tim lavender': '#b7add5',
+                'xanh duong': '#4f6eaa', blue: '#4f6eaa',
+                'xanh navy': '#303d68', navy: '#303d68',
+                'xanh nhat': '#9dc8e7', 'xanh mint': '#a9ccb7', mint: '#a9ccb7',
+                'xanh la': '#63896b', green: '#63896b', 'xanh reu': '#68775b', olive: '#68775b',
+                'xanh teal': '#398b89', teal: '#398b89',
+                cam: '#eb8846', orange: '#eb8846', 'cam vu tru': '#df703e',
+                do: '#d74b4b', red: '#d74b4b', 'do san ho': '#ed8072', coral: '#ed8072',
+                'vang nhat': '#e3cf83', beige: '#d7c7aa', be: '#d7c7aa',
+                nau: '#8d6754', brown: '#8d6754', 'than chi': '#4c5055',
+                'xanh bang': '#d5e5ee'
+            };
+            return colors[key] || '#64748b';
         }
 
         function renderVariantSelectors(variants) {
@@ -643,8 +675,13 @@
             const colorVariants = variants.filter(variant => memoryKey(variant) === selectedMemoryKey);
             container.classList.add('show');
             container.innerHTML = `
-                ${memoryVariants.length > 1 || memoryLabel(memoryVariants[0]) !== 'Phiên bản chuẩn' ? `<div class="variant-group"><span class="variant-group-label">Bộ nhớ</span><div class="variant-options" id="memoryOptions">${memoryVariants.map((variant, index) => `<button type="button" class="variant-option ${memoryKey(variant) === selectedMemoryKey ? 'active' : ''}" data-memory-index="${index}">${escapeHtml(memoryLabel(variant))}</button>`).join('')}</div></div>` : ''}
-                ${colorVariants.some(variant => variant.color) ? `<div class="variant-group"><span class="variant-group-label">Màu sắc</span><div class="variant-options" id="colorOptions">${colorVariants.map(variant => `<button type="button" class="variant-option ${Number(variant.id) === Number(selectedVariant.id) ? 'active' : ''} ${Number(variant.stock) < 1 ? 'out-of-stock' : ''}" data-variant-id="${variant.id}">${escapeHtml(variant.color || 'Mặc định')}</button>`).join('')}</div></div>` : ''}`;
+                ${memoryVariants.length > 1 || memoryLabel(memoryVariants[0], memoryVariants) !== 'Phiên bản chuẩn' ? `<div class="variant-group variant-memory-group"><span class="variant-group-label">Dung lượng</span><div class="variant-options" id="memoryOptions" role="group" aria-label="Chọn dung lượng">${memoryVariants.map((variant, index) => `<button type="button" class="variant-option variant-memory-option ${memoryKey(variant) === selectedMemoryKey ? 'active' : ''}" data-memory-index="${index}" aria-pressed="${memoryKey(variant) === selectedMemoryKey}">${escapeHtml(memoryLabel(variant, memoryVariants))}</button>`).join('')}</div></div>` : ''}
+                ${colorVariants.some(variant => variant.color) ? `<div class="variant-group variant-color-group"><span class="variant-group-label">Màu sắc <span class="variant-selected-color">${escapeHtml(selectedVariant.color || '')}</span></span><div class="variant-options" id="colorOptions" role="group" aria-label="Chọn màu sắc">${colorVariants.map(variant => {
+                    const isSelected = Number(variant.id) === Number(selectedVariant.id);
+                    const isOutOfStock = Number(variant.stock) < 1;
+                    const colorName = variant.color || 'Mặc định';
+                    return `<button type="button" class="variant-color-option ${isSelected ? 'active' : ''} ${isOutOfStock ? 'out-of-stock' : ''}" data-variant-id="${variant.id}" title="${escapeHtml(colorName)}${isOutOfStock ? ' - Hết hàng' : ''}" aria-label="${escapeHtml(colorName)}${isOutOfStock ? ', hết hàng' : ''}" aria-pressed="${isSelected}"><span class="variant-color-swatch" style="--variant-swatch-color:${variantSwatchColor(colorName)}"></span></button>`;
+                }).join('')}</div></div>` : ''}`;
             container.querySelectorAll('[data-memory-index]').forEach(button => button.addEventListener('click', () => {
                 const target = memoryVariants[Number(button.dataset.memoryIndex)];
                 selectedMemoryKey = memoryKey(target);
@@ -933,7 +970,7 @@
         }
 
         function renderReviews(reviews, ratingStats, isLoggedIn) {
-            let html = '<div class="reviews-header"><h2 class="reviews-title">Đánh giá sản phẩm</h2></div>';
+            let html = '<div class="reviews-header"><h2 class="reviews-title">Đánh giá và hỏi đáp sản phẩm</h2></div>';
 
             const totalReviews = ratingStats.total || ratingStats.totalReviews || 0;
             const avgRating = parseFloat(ratingStats.avgRating) || 0;
@@ -945,7 +982,7 @@
             for (let i = 1; i <= 5; i++) {
                 html += '<i class="bi bi-star' + (i <= Math.round(avgRating) ? '-fill' : '') + '"></i>';
             }
-            html += '</div><div class="reviews-count">' + totalReviews + ' đánh giá</div></div>';
+            html += '</div><div class="reviews-count">' + totalReviews + ' đánh giá · ' + Number(ratingStats.questionCount || 0) + ' câu hỏi</div></div>';
 
             html += '<div class="reviews-bars">';
             for (let i = 5; i >= 1; i--) {
@@ -959,54 +996,132 @@
             }
             html += '</div></div>';
 
-            const reviewEligibility = productData?.reviewEligibility || { canReview: !isLoggedIn, reason: '' };
-            if (isLoggedIn && !reviewEligibility.canReview) {
-                html += '<div class="review-eligibility-note"><i class="bi bi-shield-lock"></i><div><strong>Chưa thể gửi đánh giá</strong><span>' + escapeHtml(reviewEligibility.reason) + '</span></div></div>';
-            } else {
+            const reviewEligibility = productData?.reviewEligibility || { canReview: false, canAsk: false, reason: '', questionReason: '' };
+            const isDeliveredBuyer = Boolean(isLoggedIn && reviewEligibility.isDeliveredBuyer);
+            const canReview = Boolean(isDeliveredBuyer && reviewEligibility.canReview);
+            const initialEntryType = canReview ? 'review' : 'question';
+            if (isLoggedIn && !isDeliveredBuyer) {
+                html += '<div class="review-eligibility-note"><i class="bi bi-chat-square-text"></i><div><strong>Bạn chưa mua sản phẩm này</strong><span>Bạn có thể đặt câu hỏi; phần đánh giá sao sẽ mở sau khi đơn hàng được giao.</span></div></div>';
+            } else if (isLoggedIn && !reviewEligibility.canReview && reviewEligibility.reason) {
+                html += '<div class="review-eligibility-note"><i class="bi bi-shield-lock"></i><div><strong>Bạn đã gửi đánh giá</strong><span>' + escapeHtml(reviewEligibility.reason) + '</span></div></div>';
+            }
             html += '<div class="inline-review-form">' +
-                '<h3>Gửi đánh giá của bạn</h3>' +
-                '<p>Chọn số sao và chia sẻ trải nghiệm thực tế về sản phẩm.</p>' +
-                '<div class="review-form-group"><label>Bạn đánh giá sản phẩm này thế nào?</label>' +
+                '<h3>' + (initialEntryType === 'review' ? 'Đánh giá sản phẩm' : 'Hỏi về sản phẩm') + '</h3>' +
+                '<p>' + (canReview ? 'Chọn số sao để gửi đánh giá; để trống phần sao nếu bạn muốn đặt câu hỏi.' : 'Trợ lý AI sẽ trả lời các câu hỏi cơ bản về sản phẩm.') + '</p>' +
+                (canReview ? '<div class="review-form-group review-rating-fields" id="reviewRatingFields"><label>Đánh giá sao (không bắt buộc khi đặt câu hỏi)</label>' +
                     '<div class="star-rating" id="starRating" role="radiogroup" aria-label="Chọn số sao">' +
                         '<i class="bi bi-star" data-rating="1" role="radio" aria-label="1 sao" tabindex="0"></i>' +
                         '<i class="bi bi-star" data-rating="2" role="radio" aria-label="2 sao" tabindex="0"></i>' +
                         '<i class="bi bi-star" data-rating="3" role="radio" aria-label="3 sao" tabindex="0"></i>' +
                         '<i class="bi bi-star" data-rating="4" role="radio" aria-label="4 sao" tabindex="0"></i>' +
                         '<i class="bi bi-star" data-rating="5" role="radio" aria-label="5 sao" tabindex="0"></i>' +
-                    '</div><div class="star-rating-text" id="starRatingText">Chọn số sao</div></div>' +
-                '<div class="review-form-group"><label for="reviewComment">Nội dung đánh giá</label>' +
-                    '<textarea id="reviewComment" rows="4" maxlength="2000" placeholder="Nhập nhận xét của bạn về sản phẩm..."></textarea></div>' +
+                    '</div><div class="star-rating-text" id="starRatingText">Chọn số sao</div></div>' : '') +
+                '<div class="review-form-group"><label for="reviewComment">' + (initialEntryType === 'review' ? 'Nội dung đánh giá' : 'Câu hỏi') + '</label>' +
+                    '<textarea id="reviewComment" rows="4" maxlength="2000" placeholder="' + (initialEntryType === 'review' ? 'Chia sẻ trải nghiệm thực tế của bạn...' : 'Bạn muốn biết gì về sản phẩm này?') + '"></textarea></div>' +
                 '<div id="reviewAlert" style="display:none" class="review-alert" aria-live="polite"></div>' +
-                '<div class="inline-review-actions"><button class="btn-submit-review" id="btnSubmitReview" onclick="submitReview(' + Boolean(isLoggedIn) + ')"><i class="bi bi-send"></i> Gửi đánh giá</button></div>' +
+                '<div class="inline-review-actions"><button class="btn-submit-review" id="btnSubmitReview" onclick="submitReview(' + Boolean(isLoggedIn) + ')"><i class="bi bi-send"></i> Gửi</button></div>' +
             '</div>';
-            }
 
+            const questionCount = Number(ratingStats.questionCount || reviews.filter(review => review.entry_type === 'question').length);
+            html += '<div class="review-qa-list ' + (questionCount > 2 ? 'scrollable' : '') + '"' + (questionCount > 2 ? ' role="region" aria-label="Câu hỏi và câu trả lời" tabindex="0"' : '') + '>';
             reviews.forEach(r => {
+                const isQuestion = r.entry_type === 'question';
                 let stars = '';
-                for (let i = 1; i <= 5; i++) {
-                    stars += '<i class="bi bi-star' + (i <= r.rating ? '-fill' : '') + '"></i>';
+                if (!isQuestion) {
+                    for (let i = 1; i <= 5; i++) stars += '<i class="bi bi-star' + (i <= r.rating ? '-fill' : '') + '"></i>';
                 }
                 const initial = escapeHtml(r.full_name ? r.full_name.charAt(0).toUpperCase() : 'U');
                 const adminReply = r.admin_reply ? '<div class="review-admin-reply"><div class="review-admin-reply-title"><i class="bi bi-shop"></i> Phản hồi từ AnhTraiStore</div><div class="review-admin-reply-content">' + escapeHtml(r.admin_reply) + '</div></div>' : '';
-                html += '<div class="review-card">' +
+                const verifiedPurchase = Number(r.is_verified_purchase) === 1 ? '<span class="verified-purchase"><i class="bi bi-patch-check-fill"></i> Đã mua hàng</span>' : '';
+                const aiReply = r.ai_reply ? '<div class="review-ai-reply"><div class="review-ai-reply-title"><i class="bi bi-stars"></i> AnhTrai Store</div><div>' + escapeHtml(r.ai_reply) + '</div>' + (Number(r.needs_admin) === 1 && !r.admin_reply ? '<span class="review-needs-admin">Cần quản trị viên hỗ trợ</span>' : '') + '</div>' : '';
+                const entryLabel = isQuestion ? '<span class="review-entry-badge question"><i class="bi bi-chat-square-text"></i> Câu hỏi</span>' : verifiedPurchase;
+                const isOwnEntry = isLoggedIn && Number(r.user_id) === Number(window.currentUser?.id);
+                const reviewActions = isOwnEntry
+                    ? (!isQuestion ? '<div class="review-actions"><button type="button" class="review-action-button" onclick="openReviewEditor(' + Number(r.id) + ', ' + Number(r.rating) + ')"><i class="bi bi-pencil"></i> Sửa đánh giá</button><div class="review-edit-form" id="reviewEdit-' + Number(r.id) + '" hidden></div></div>' : '')
+                    : isLoggedIn
+                        ? (Number(r.reported_by_current_user) === 1
+                            ? '<span class="review-reported-note">Đã gửi báo cáo</span>'
+                            : '<div class="review-actions"><button type="button" class="review-action-button" onclick="openReviewReport(' + Number(r.id) + ')"><i class="bi bi-flag"></i> Báo cáo</button><div class="review-report-form" id="reviewReport-' + Number(r.id) + '" hidden></div></div>')
+                        : '';
+                html += '<div class="review-card ' + (isQuestion ? 'question-card' : '') + '" id="reviewCard-' + Number(r.id) + '">' +
                     '<div class="review-header">' +
                         '<div class="review-user">' +
                             '<div class="review-avatar">' + initial + '</div>' +
-                            '<div><div class="review-name">' + escapeHtml(r.full_name || 'Người dùng ẩn danh') + '</div>' +
+                            '<div><div class="review-name">' + escapeHtml(r.full_name || 'Người dùng ẩn danh') + '</div>' + entryLabel +
                             '<div class="review-date">' + formatDate(r.created_at) + '</div></div>' +
                         '</div>' +
                         '<div class="review-stars">' + stars + '</div>' +
                     '</div>' +
-                    '<div class="review-content">' + escapeHtml(r.comment) + '</div>' + adminReply +
+                    '<div class="review-content">' + escapeHtml(r.comment) + '</div>' + reviewActions + aiReply + adminReply +
                 '</div>';
             });
+            html += '</div>';
 
             if (reviews.length === 0) {
-                html += '<div class="empty-state"><h3>Chưa có đánh giá nào</h3><p>Hãy là người đầu tiên đánh giá sản phẩm này!</p></div>';
+                html += '<div class="empty-state"><h3>Chưa có nội dung nào</h3><p>Hãy gửi đánh giá hoặc đặt câu hỏi đầu tiên về sản phẩm này.</p></div>';
             }
 
             document.getElementById('reviewsSection').innerHTML = html;
             bindInlineReviewForm();
+        }
+
+        function openReviewEditor(reviewId, rating) {
+            const form = document.getElementById('reviewEdit-' + reviewId);
+            if (!form) return;
+            const comment = document.querySelector('#reviewCard-' + reviewId + ' .review-content')?.textContent || '';
+            form.hidden = false;
+            form.innerHTML = '<div class="review-edit-stars" role="group" aria-label="Chọn số sao">' +
+                [1, 2, 3, 4, 5].map(value => '<button type="button" class="review-edit-star ' + (value <= rating ? 'active' : '') + '" aria-label="' + value + ' sao" onclick="setReviewEditRating(' + reviewId + ', ' + value + ')"><i class="bi bi-star-fill"></i></button>').join('') +
+                '</div><textarea id="reviewEditComment-' + reviewId + '" maxlength="2000" rows="3">' + escapeHtml(comment) + '</textarea><div class="review-edit-buttons"><button type="button" class="review-action-button" onclick="saveReviewEdit(' + reviewId + ', ' + Number(currentProductId) + ')">Lưu</button><button type="button" class="review-action-button" onclick="document.getElementById(\'reviewEdit-' + reviewId + '\').hidden = true">Hủy</button></div>';
+            form.dataset.rating = String(rating);
+        }
+
+        function setReviewEditRating(reviewId, rating) {
+            const form = document.getElementById('reviewEdit-' + reviewId);
+            if (!form) return;
+            form.dataset.rating = String(rating);
+            form.querySelectorAll('.review-edit-star').forEach((button, index) => button.classList.toggle('active', index < rating));
+        }
+
+        async function saveReviewEdit(reviewId, productId) {
+            const form = document.getElementById('reviewEdit-' + reviewId);
+            const comment = document.getElementById('reviewEditComment-' + reviewId)?.value.trim() || '';
+            const rating = Number(form?.dataset.rating);
+            if (!comment || comment.length < 5 || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+                return showToast('Nội dung cần ít nhất 5 ký tự và chọn từ 1 đến 5 sao.', 'error');
+            }
+            try {
+                const response = await fetch('/api/review/' + reviewId, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ product_id: Number(productId), rating, comment })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể cập nhật đánh giá.');
+                showToast('Đã cập nhật đánh giá.', 'success');
+                await loadProduct();
+            } catch (error) { showToast(error.message || 'Không thể cập nhật đánh giá.', 'error'); }
+        }
+
+        function openReviewReport(reviewId) {
+            const form = document.getElementById('reviewReport-' + reviewId);
+            if (!form) return;
+            form.hidden = false;
+            form.innerHTML = '<textarea id="reviewReportReason-' + reviewId + '" maxlength="500" rows="2" placeholder="Mô tả lý do báo cáo" required></textarea><button type="button" class="review-action-button" onclick="submitReviewReport(' + reviewId + ')">Gửi báo cáo</button>';
+        }
+
+        async function submitReviewReport(reviewId) {
+            const reason = document.getElementById('reviewReportReason-' + reviewId)?.value.trim() || '';
+            if (!reason) return showToast('Vui lòng nhập lý do báo cáo.', 'error');
+            try {
+                const response = await fetch('/api/review/' + reviewId + '/report', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+                    body: JSON.stringify({ reason })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể gửi báo cáo.');
+                showToast('Đã gửi báo cáo cho quản trị viên.', 'success');
+                await loadProduct();
+            } catch (error) { showToast(error.message || 'Không thể gửi báo cáo.', 'error'); }
         }
 
         function renderRelated(products) {
@@ -1107,24 +1222,20 @@
 
         async function submitReview(isLoggedIn) {
             if (!isLoggedIn) {
-                showLoginPrompt('Vui lòng đăng nhập để gửi đánh giá sản phẩm.');
+                showLoginPrompt('Vui lòng đăng nhập để gửi đánh giá hoặc câu hỏi sản phẩm.');
                 return;
             }
 
+            const canReview = Boolean(isLoggedIn && productData?.reviewEligibility?.canReview);
+            const isReview = canReview && selectedRating > 0;
+            const entryType = isReview ? 'review' : 'question';
             const comment = document.getElementById('reviewComment').value.trim();
             const btn = document.getElementById('btnSubmitReview');
             const alertEl = document.getElementById('reviewAlert');
 
-            if (selectedRating === 0) {
-                alertEl.className = 'review-alert error';
-                alertEl.textContent = 'Vui lòng chọn số sao đánh giá!';
-                alertEl.style.display = 'block';
-                return;
-            }
-
             if (!comment || comment.length < 5) {
                 alertEl.className = 'review-alert error';
-                alertEl.textContent = 'Vui lòng nhập nội dung đánh giá (ít nhất 5 ký tự)!';
+                alertEl.textContent = 'Nội dung cần có ít nhất 5 ký tự.';
                 alertEl.style.display = 'block';
                 return;
             }
@@ -1139,7 +1250,8 @@
                     credentials: 'include',
                     body: JSON.stringify({
                         product_id: currentProductId,
-                        rating: selectedRating,
+                        entry_type: entryType,
+                        ...(isReview ? { rating: selectedRating } : {}),
                         comment: comment
                     })
                 });
@@ -1147,35 +1259,31 @@
                 const data = await response.json();
 
                 if (response.status === 401 || data.requireLogin) {
-                    showLoginPrompt('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để gửi đánh giá.');
+                    showLoginPrompt('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.');
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-send"></i> Gửi đánh giá';
+                    btn.innerHTML = '<i class="bi bi-send"></i> Gửi';
                     return;
                 }
 
                 if (data.success) {
                     alertEl.className = 'review-alert success';
-                    alertEl.textContent = data.message || 'Cảm ơn bạn đã đánh giá!';
+                    alertEl.textContent = data.message || 'Đã gửi nội dung.';
                     alertEl.style.display = 'block';
-
-                    setTimeout(() => {
-                        showToast('Cảm ơn bạn đã đánh giá!', 'success');
-                        // Reload page to show new review
-                        window.location.reload();
-                    }, 1500);
+                    await loadProduct();
+                    showToast(isReview ? 'Đã gửi đánh giá.' : 'Đã gửi câu hỏi.', 'success');
                 } else {
                     alertEl.className = 'review-alert error';
                     alertEl.textContent = data.error || 'Có lỗi xảy ra!';
                     alertEl.style.display = 'block';
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-send"></i> Gửi đánh giá';
+                    btn.innerHTML = '<i class="bi bi-send"></i> ' + (isReview ? 'Gửi đánh giá' : 'Gửi câu hỏi');
                 }
             } catch (error) {
                 alertEl.className = 'review-alert error';
                 alertEl.textContent = 'Đã xảy ra lỗi kết nối!';
                 alertEl.style.display = 'block';
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-send"></i> Gửi đánh giá';
+                btn.innerHTML = '<i class="bi bi-send"></i> ' + (isReview ? 'Gửi đánh giá' : 'Gửi câu hỏi');
             }
         }
 

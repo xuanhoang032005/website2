@@ -77,7 +77,7 @@ function configureGoogleOAuth(passport) {
 
             // Gửi email chào mừng (async, không block)
             const queue = require('../services/job-queue');
-            queue.enqueue('welcome_email', { user: newUser });
+            await queue.enqueue('welcome_email', { user: newUser });
 
             return done(null, newUser);
         } catch (error) {

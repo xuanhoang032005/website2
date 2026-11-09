@@ -13,7 +13,7 @@ async function listCustomerOrders(userId, db) {
 async function getCustomerOrder(orderId, userId, db) {
     const result = await repository.findOwnedWithItems(orderId, userId, db);
     if (!result) return null;
-    return { order: customerOrder(result.order), items: result.items };
+    return { order: customerOrder(result.order), items: result.items, status_history: result.status_history };
 }
 
 module.exports = { customerOrder, listCustomerOrders, getCustomerOrder };

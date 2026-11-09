@@ -14,8 +14,9 @@ AnhTraiStore là đồ án website thương mại điện tử bán điện tho�
 - Xem gallery, thông số, đánh giá và sản phẩm liên quan; so sánh tối đa 4 sản phẩm.
 - Quản lý giỏ hàng, mua ngay, danh sách yêu thích và mã giảm giá.
 - Thanh toán COD hoặc chạy luồng VNPay/MoMo mô phỏng.
-- Xem lịch sử, chi tiết, trạng thái và hủy đơn đang chờ xác nhận.
-- Đánh giá sản phẩm đã mua và đã nhận hàng.
+- Xem lịch sử, chi tiết, tiến trình trạng thái theo thời gian, mã vận đơn và hủy đơn đang chờ xác nhận.
+- Đánh giá sản phẩm trong đơn đã giao; người mua được sửa đánh giá và báo cáo đánh giá khác.
+- Yêu cầu đổi trả hoặc bảo hành từ sản phẩm trong đơn đã giao, đính kèm tối đa 4 ảnh và theo dõi trạng thái xử lý.
 - Gửi liên hệ và chat hai chiều với quản trị viên qua Socket.IO.
 - Chat với trợ lý AI để tìm/tư vấn sản phẩm, kiểm tra tồn kho, xem chính sách và tra cứu đơn của tài khoản đang đăng nhập.
 
@@ -23,11 +24,14 @@ AnhTraiStore là đồ án website thương mại điện tử bán điện tho�
 
 - Dashboard doanh thu, đơn hàng, khách hàng, cảnh báo tồn kho, biểu đồ và thông báo.
 - Quản lý sản phẩm và gallery ảnh, danh mục, thương hiệu.
-- Xem đơn hàng và cập nhật trạng thái theo đúng luồng nghiệp vụ.
+- Xem đơn hàng, cập nhật trạng thái theo đúng luồng nghiệp vụ và nhập đơn vị/mã vận chuyển cùng ghi chú gửi khách.
 - Xem người dùng và tạo tài khoản người dùng mới.
 - Xem, phản hồi hoặc xóa đánh giá.
 - Tiếp nhận và trả lời hội thoại hỗ trợ realtime; đóng/mở lại hội thoại.
 - Quản lý coupon.
+- Xem báo cáo đánh giá; điều chỉnh kho và xem sổ biến động theo phiên bản.
+- Xử lý yêu cầu đổi trả và bảo hành theo trạng thái.
+- Điều chỉnh tồn kho và xem lịch sử nhập, xuất, hoàn kho và điều chỉnh theo từng phiên bản.
 - Quản lý banner trang chủ; banner chính hỗ trợ tối đa 10 ảnh.
 
 ## Công nghệ
@@ -86,7 +90,9 @@ Với database cũ, nâng cấp bằng lệnh:
 npm run migrate
 ```
 
-Lệnh `npm run migrate` chỉ đọc khối nằm giữa `BEGIN EXISTING DATABASE UPGRADE` và `END EXISTING DATABASE UPGRADE` trong SQL tổng. Khối này bổ sung các cột giao hàng còn thiếu và đồng bộ ràng buộc/index; không chạy phần tạo lại dữ liệu mẫu. Runner chỉ theo dõi khối gộp bằng `merged_schema_upgrade` và kiểm tra checksum thống nhất giữa Windows/Linux. Database vừa import SQL tổng đã có bản ghi này nên không nâng cấp lại. Các bản ghi migration cũ trong database hiện hữu được bỏ qua để tương thích ngược.
+Lệnh `npm run migrate` chỉ chạy các khối nâng cấp được đánh dấu trong SQL tổng. Các khối này bổ sung cấu trúc và ràng buộc mà không chạy lại dữ liệu mẫu. Runner kiểm tra checksum thống nhất giữa Windows/Linux. Database mới có sẵn dấu migration tương ứng; khi khởi động server tự áp dụng migration còn thiếu trước khi mở cổng, sau đó ghi sổ tồn kho ban đầu nếu cần.
+
+Migration theo dõi đơn hàng thêm mã vận chuyển và bảng lịch sử trạng thái. Hãng vận chuyển và mã vận đơn do quản trị viên nhập thủ công; hệ thống chưa đồng bộ trạng thái trực tiếp với hãng giao hàng.
 
 Import toàn bộ file SQL chỉ dành cho database cài mới vì có các lệnh `TRUNCATE` để tạo lại dữ liệu demo. Dùng `npm run migrate` khi cần nâng cấp database đang có dữ liệu.
 
@@ -98,7 +104,7 @@ Import toàn bộ file SQL chỉ dành cho database cài mới vì có các lệ
 
 Backup database thủ công bằng `npm run backup`; lệnh này gọi `mysqldump`, dùng `DB_*` trong `.env` và ghi file vào `BACKUP_DIR` (mặc định `./backups`). Nên chạy bằng Task Scheduler/cron và lưu thư mục backup sang storage riêng.
 
-Email xác nhận đơn, OTP và email chào mừng được đưa vào queue nền với retry/backoff. Dọn ảnh Cloudinary sau thao tác xóa cũng chạy nền. Yêu cầu AI dài (trên 600 ký tự hoặc gửi `async: true`) trả `202` kèm `job_id`; client poll `GET /api/chat/ai/jobs/:id`.
+Session, bộ đếm rate limit và queue nền được lưu trong MySQL nên dùng chung giữa các tiến trình và tồn tại qua lần khởi động lại. Queue có retry/backoff, lease để phục hồi job bị bỏ dở và giữ kết quả 30 ngày; delivery là at-least-once, nên handler gửi tới dịch vụ ngoài có thể chạy lại nếu worker dừng sau khi dịch vụ nhận yêu cầu nhưng trước khi queue ghi nhận hoàn tất. Email xác nhận đơn, OTP, email chào mừng và dọn ảnh chạy nền. Yêu cầu AI dài (trên 600 ký tự hoặc gửi `async: true`) trả `202` kèm `job_id`; client poll `GET /api/chat/ai/jobs/:id`, chỉ session tạo job mới đọc được kết quả. Các session hết hạn và rate-limit bucket cũ được dọn định kỳ.
 
 Sao chép `.env.example` thành `.env`:
 
@@ -154,6 +160,7 @@ CLOUDINARY_API_SECRET=
 CLOUDINARY_PRODUCT_FOLDER=anhtraisstore/products
 CLOUDINARY_BANNER_FOLDER=anhtraisstore/banners
 CLOUDINARY_AVATAR_FOLDER=anhtraisstore/avatars
+CLOUDINARY_SERVICE_REQUEST_FOLDER=anhtraisstore/service-requests
 
 # Trợ lý AI GPT
 OPENAI_BASE_URL=https://api.openai.com/v1
@@ -263,26 +270,30 @@ Website/
     └── *.html                    # 16 trang khách hàng
 ```
 
-Database gồm 19 bảng, trong đó `product_variants` lưu riêng RAM, ROM, màu sắc, SKU, giá và tồn kho của từng phiên bản sản phẩm.
+Database gồm các bảng nghiệp vụ, trong đó `product_variants` lưu riêng RAM, ROM, màu sắc, SKU, giá và tồn kho theo phiên bản; `inventory_movements` lưu lịch sử thay đổi kho; `service_requests` và `review_reports` lưu yêu cầu hậu mãi và báo cáo đánh giá.
+
+Khách chỉ đánh giá được sản phẩm có trong đơn đã giao. Với mỗi dòng sản phẩm trong đơn, khách có thể tạo tối đa một yêu cầu đổi trả và một yêu cầu bảo hành. Trạng thái xử lý gồm `submitted`, `reviewing`, `approved`, `rejected` và `resolved`.
 
 ## Kiểm tra dự án
 
 ```bash
-# Chạy 47 bài kiểm tra hồi quy
+# Chạy bộ kiểm tra hồi quy
 npm test
+
+# E2E trên MySQL: tạo và xóa database dùng tên ngẫu nhiên
+npm run test:e2e
 
 # Kiểm tra cú pháp entry point rồi chạy test
 npm run check
 ```
 
-Test hiện bao phủ các luồng quan trọng như lọc sản phẩm, giỏ hàng, đặt/hủy đơn, coupon, banner, upload Cloudinary, phân quyền, giới hạn request, bảo mật lỗi API và function calling của trợ lý AI.
+Test hồi quy bao phủ các luồng quan trọng như lọc sản phẩm, giỏ hàng, đặt/hủy đơn, coupon, banner, upload Cloudinary, phân quyền, giới hạn request, bảo mật lỗi API và function calling của trợ lý AI. `npm run test:e2e` tạo một database có tên ngẫu nhiên trên MySQL đã cấu hình, chạy qua đăng nhập/session bền vững, giỏ hàng, COD, thanh toán mô phỏng, trạng thái đơn, đánh giá, hậu mãi, chat, rate limit và queue; email được stub, database tạm được xóa khi hoàn tất. Tài khoản DB cần quyền CREATE/DROP DATABASE. CI khởi tạo MySQL riêng và chạy cả bộ E2E này.
 
 ## Ghi chú triển khai
 
 - Khi `NODE_ENV=production`, `SESSION_SECRET` bắt buộc dài ít nhất 32 ký tự, cookie session bật `secure`, Express tin proxy cấp đầu tiên và HSTS được bật. Vì vậy production cần HTTPS và cấu hình reverse proxy đúng.
 - `CORS_ORIGINS` nhận một hoặc nhiều origin, phân cách bằng dấu phẩy. Hãy khai báo origin frontend thật khi chạy production.
-- Session hiện dùng MemoryStore mặc định của `express-session`; phù hợp demo/local nhưng cần thay bằng Redis hoặc persistent store khi chạy nhiều tiến trình hay triển khai production lâu dài.
-- API có rate limit trong bộ nhớ: toàn bộ `/api` tối đa 300 request/15 phút/IP; đăng nhập tối đa 10 lần/15 phút/IP; yêu cầu/kiểm tra OTP tối đa 5 lần/15 phút/IP.
+- Session, rate limit và queue được lưu trong MySQL. OTP đặt lại mật khẩu lưu dưới dạng HMAC-SHA-256 trong `reset_tokens`, hết hạn sau 5 phút và bị xóa sau khi dùng hoặc nhập sai 5 lần. Rate limit: toàn bộ `/api` tối đa 1.200 request/15 phút/IP khi production (5.000 khi development); đăng nhập tối đa 10 lần/15 phút/IP; yêu cầu/kiểm tra OTP tối đa 5 lần/15 phút/IP.
 - Upload chấp nhận `jpg`, `jpeg`, `png`, `gif`, `webp`. Avatar tối đa 2 MB; mỗi ảnh sản phẩm/banner tối đa 5 MB.
 - Không commit `.env` hoặc khóa SMTP, Google, Cloudinary, OpenAI vào repository.
 

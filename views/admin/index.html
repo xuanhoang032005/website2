@@ -888,22 +888,23 @@
                 });
             }
 
-            // Đánh giá mới
+            // Đánh giá và câu hỏi mới
             if (data.new_reviews && data.new_reviews.length > 0) {
                 html += `<div class="notification-section-title">
                     <i class="fas fa-star" style="color: #f59e0b;"></i>
-                    Đánh giá mới (${data.new_reviews.length})
+                    Nội dung mới (${data.new_reviews.length})
                 </div>`;
                 data.new_reviews.forEach(r => {
-                    const stars = '★'.repeat(r.rating || 0) + '☆'.repeat(5 - (r.rating || 0));
+                    const isQuestion = r.entry_type === 'question';
+                    const detail = isQuestion ? 'Câu hỏi mới' : 'Đánh giá ' + '★'.repeat(r.rating || 0);
                     html += `
                         <div class="notification-item" onclick="window.location.href='/admin/reviews'">
                             <div class="notification-icon review">
-                                <i class="fas fa-star"></i>
+                                <i class="fas ${isQuestion ? 'fa-question-circle' : 'fa-star'}"></i>
                             </div>
                             <div class="notification-content">
                                 <div class="notification-title">
-                                    ${escapeHtml(r.user_name || 'Khách')} - ${stars}
+                                    ${escapeHtml(r.user_name || 'Khách')} - ${detail}
                                 </div>
                                 <div class="notification-text">${escapeHtml(r.product_name || 'Sản phẩm')}: "${escapeHtml(r.comment ? r.comment.substring(0, 50) + '...' : '')}"</div>
                                 <div class="notification-time"><i class="fas fa-clock"></i> ${timeAgo(r.created_at)}</div>
@@ -1133,6 +1134,6 @@
             if (notificationInterval) clearInterval(notificationInterval);
         });
     </script>
-    <script src="/js/admin-ui.js?v=20260914-4"></script>
+    <script src="/js/admin-ui.js?v=20261110-2"></script>
 </body>
 </html>

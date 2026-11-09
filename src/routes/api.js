@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { validateBody, stringField, emailField, integerField } = require('../middleware/validate');
+const { validateBody, stringField, emailField, integerField, enumField } = require('../middleware/validate');
+const { createRateLimiter } = require('../middleware/rate-limit');
+const { answerProductQuestion, isPromotionQuestion, reviewReply, ADMIN_ESCALATION_REPLY } = require('../services/product-qa');
 
 const contactValidation = validateBody({
     full_name: stringField({ required: true, min: 1, max: 100, disallowHtml: true, label: 'Họ tên' }),
@@ -9,10 +11,19 @@ const contactValidation = validateBody({
     subject: stringField({ max: 200, disallowHtml: true, label: 'Chủ đề' }),
     message: stringField({ required: true, min: 1, max: 3000, disallowHtml: true, label: 'Nội dung' })
 });
+const reviewSubmissionValidation = validateBody({
+    product_id: integerField({ required: true, min: 1, label: 'Sản phẩm' }),
+    entry_type: enumField(['review', 'question'], { label: 'Loại nội dung' }),
+    comment: stringField({ required: true, min: 1, max: 2000, disallowHtml: true, label: 'Nội dung đánh giá' })
+});
 const reviewValidation = validateBody({
     product_id: integerField({ required: true, min: 1, label: 'Sản phẩm' }),
     rating: integerField({ required: true, min: 1, max: 5, label: 'Số sao' }),
     comment: stringField({ required: true, min: 1, max: 2000, disallowHtml: true, label: 'Nội dung đánh giá' })
+});
+const productQuestionRateLimit = createRateLimiter({
+    namespace: 'product-question', windowMs: 15 * 60 * 1000, max: 10,
+    message: 'Bạn đã gửi quá nhiều câu hỏi. Vui lòng thử lại sau!'
 });
 const multer = require('multer');
 const pool = require('../config/database');
@@ -20,6 +31,7 @@ const { requireAdminApi: requireAdmin } = require('../middleware/auth');
 const queue = require('../services/background-jobs');
 const { isAllowedImage } = require('../core/image-upload');
 const { categoryCloudinaryStorage } = require('../services/cloud-storage');
+const { parseReviewComment, serializeReviewComment } = require('../core/review-comment');
 
 function escapeMailHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -161,17 +173,13 @@ router.post('/contact', contactValidation, async (req, res) => {
             savedMessage = messages[0] || null;
         }
 
-        await connection.commit();
-        connection.release();
-        connection = null;
-
         const contactEmail = process.env.CONTACT_EMAIL || 'adminanhtrai@gmail.com';
         const safeName = escapeMailHtml(full_name);
         const safeEmail = escapeMailHtml(email);
         const safePhone = escapeMailHtml(phone || 'Không cung cấp');
         const safeSubject = escapeMailHtml(subject || 'Liên hệ từ website');
         const safeMessage = escapeMailHtml(message).replace(/\r?\n/g, '<br>');
-        const emailJobId = queue.enqueue('contact_email', {
+        const emailJobId = await queue.enqueue('contact_email', {
             to: contactEmail,
             replyTo: email,
             subject: `[AnhTraiStore] ${subject || 'Liên hệ mới từ khách hàng'}`,
@@ -183,7 +191,11 @@ router.post('/contact', contactValidation, async (req, res) => {
                     <p><strong>Số điện thoại:</strong> ${safePhone}</p><p><strong>Chủ đề:</strong> ${safeSubject}</p>
                     <div style="margin-top:18px;padding:16px;background:#f5f8fc;border-radius:8px;line-height:1.6">${safeMessage}</div>
                 </div></div>`
-        });
+        }, { connection });
+
+        await connection.commit();
+        connection.release();
+        connection = null;
 
         const io = req.app?.get?.('io');
         if (io && savedMessage) {
@@ -207,48 +219,177 @@ router.post('/contact', contactValidation, async (req, res) => {
 });
 
 // Submit review
-router.post('/review', reviewValidation, async (req, res) => {
+router.post('/review', productQuestionRateLimit, reviewSubmissionValidation, async (req, res) => {
     try {
         if (!req.session.user_id) {
             return res.status(401).json({ error: 'Vui lòng đăng nhập!' });
         }
 
         const productId = Number.parseInt(req.body.product_id, 10);
-        const rating = Number(req.body.rating);
+        const rawRating = req.body.rating;
+        const parsedRating = rawRating == null || rawRating === '' ? null : Number(rawRating);
+        const rating = Number.isInteger(parsedRating) && parsedRating >= 1 && parsedRating <= 5 ? parsedRating : null;
+        // A question has no rating; infer its type from the submitted fields so
+        // stale clients cannot accidentally require a star selection.
+        const entryType = rating == null ? 'question' : 'review';
         const comment = String(req.body.comment || '').trim();
         const user_id = req.session.user_id;
 
-        if (!Number.isInteger(productId) || productId < 1 || !Number.isInteger(rating) || rating < 1 || rating > 5) {
-            return res.status(400).json({ error: 'Vui lòng chọn số sao!' });
+        if (!Number.isSafeInteger(productId) || productId < 1 || !['review', 'question'].includes(entryType)) {
+            return res.status(400).json({ error: 'Thông tin gửi lên không hợp lệ!' });
+        }
+        if (comment.length < 5 || comment.length > 2000) return res.status(400).json({ error: 'Nội dung phải có từ 5 đến 2000 ký tự!' });
+        if (comment.includes('[[ANHTRAISTORE_ADMIN_REPLY]]')) {
+            return res.status(400).json({ error: 'Nội dung đánh giá chứa dấu phân cách không hợp lệ.' });
         }
 
-        if (!comment) {
-            return res.status(400).json({ error: 'Vui lòng nhập nội dung đánh giá!' });
+        if (entryType === 'review') {
+            const [deliveredPurchases] = await pool.query(
+                `SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                 WHERE o.user_id = ? AND o.status = 'delivered' AND oi.product_id = ? LIMIT 1`,
+                [user_id, productId]
+            );
+            if (!deliveredPurchases.length) {
+                return res.status(403).json({ error: 'Chỉ khách đã nhận sản phẩm này mới được gửi đánh giá!' });
+            }
         }
-        if (comment.length > 2000) return res.status(400).json({ error: 'Đánh giá không được vượt quá 2000 ký tự!' });
 
-        // Check if already reviewed
-        const [existing] = await pool.query(
-            'SELECT id FROM reviews WHERE product_id = ? AND user_id = ?',
-            [productId, user_id]
+        if (entryType === 'review') {
+            const [existing] = await pool.query(
+                'SELECT id FROM reviews WHERE product_id = ? AND user_id = ? AND entry_type = ? LIMIT 1',
+                [productId, user_id, entryType]
+            );
+            if (existing.length) return res.status(409).json({ error: 'Bạn đã đánh giá sản phẩm này rồi!' });
+        }
+
+        const [[product]] = await pool.query(
+            `SELECT id, name, price, old_price, ram, storage, os, chipset, screen_size, screen_resolution, stock
+             FROM products WHERE id = ?`,
+            [productId]
         );
+        if (!product) return res.status(404).json({ error: 'Sản phẩm không tồn tại!' });
 
-        if (existing.length > 0) {
-            return res.status(400).json({ error: 'Bạn đã đánh giá sản phẩm này rồi!' });
+        let aiReply;
+        let needsAdmin;
+        if (entryType === 'question') {
+            let variants = [];
+            try {
+                [variants] = await pool.query(
+                    `SELECT ram, storage, color, price, stock FROM product_variants
+                     WHERE product_id = ? AND is_active = 1 ORDER BY is_default DESC, id LIMIT 40`,
+                    [productId]
+                );
+            } catch (error) {
+                if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+            }
+            let promotions;
+            if (isPromotionQuestion(comment)) {
+                const [[coupons], [campaigns]] = await Promise.all([
+                    pool.query(`SELECT code, description, discount_type, discount_value, min_order_value, max_discount
+                                FROM coupons WHERE is_active = 1
+                                  AND (start_date IS NULL OR start_date <= NOW())
+                                  AND (expires_at IS NULL OR expires_at >= NOW())
+                                  AND (usage_limit IS NULL OR used_count < usage_limit)
+                                ORDER BY created_at DESC LIMIT 8`),
+                    pool.query(`SELECT title, description FROM promotions
+                                WHERE is_active = 1
+                                  AND (start_date IS NULL OR start_date <= CURRENT_DATE())
+                                  AND (end_date IS NULL OR end_date >= CURRENT_DATE())
+                                ORDER BY start_date DESC, id DESC LIMIT 8`)
+                ]);
+                promotions = { coupons, campaigns };
+            }
+            try {
+                ({ reply: aiReply, needsAdmin } = await answerProductQuestion({ question: comment, product, variants, promotions }));
+            } catch (error) {
+                console.error('Product question AI error:', error.code || error.name);
+                aiReply = ADMIN_ESCALATION_REPLY;
+                needsAdmin = true;
+            }
+        } else {
+            ({ reply: aiReply, needsAdmin } = reviewReply(rating));
         }
 
         await pool.query(
-            'INSERT INTO reviews (product_id, user_id, rating, comment) VALUES (?, ?, ?, ?)',
-            [productId, user_id, rating, comment]
+            `INSERT INTO reviews (product_id, user_id, entry_type, rating, comment, ai_reply, needs_admin)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [productId, user_id, entryType, entryType === 'review' ? rating : null, comment, aiReply, needsAdmin ? 1 : 0]
         );
 
-        res.json({ success: true, message: 'Cảm ơn bạn đã đánh giá!' });
+        res.json({
+            success: true,
+            entry_type: entryType,
+            message: entryType === 'review' ? 'Đã gửi đánh giá.' : 'Đã gửi câu hỏi.',
+            ai_reply: aiReply,
+            needs_admin: needsAdmin
+        });
     } catch (error) {
         console.error('Review error:', error);
         if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(400).json({ error: 'Bạn đã đánh giá sản phẩm này rồi!' });
+            return res.status(409).json({ error: 'Bạn đã gửi nội dung thuộc loại này về sản phẩm rồi.' });
         }
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });
+    }
+});
+
+router.put('/review/:id', reviewValidation, async (req, res) => {
+    const reviewId = Number(req.params.id);
+    if (!req.session.user_id) return res.status(401).json({ success: false, error: 'Vui lòng đăng nhập!' });
+    if (!Number.isSafeInteger(reviewId) || reviewId < 1) {
+        return res.status(400).json({ success: false, error: 'Mã đánh giá không hợp lệ!' });
+    }
+
+    try {
+        const productId = req.body.product_id;
+        if (String(req.body.comment).includes('[[ANHTRAISTORE_ADMIN_REPLY]]')) {
+            return res.status(400).json({ success: false, error: 'Nội dung đánh giá chứa dấu phân cách không hợp lệ.' });
+        }
+        const [reviews] = await pool.query(
+            `SELECT id, comment FROM reviews WHERE id = ? AND product_id = ? AND user_id = ?
+             AND entry_type = 'review' LIMIT 1`,
+            [reviewId, productId, req.session.user_id]
+        );
+        if (!reviews.length) return res.status(404).json({ success: false, error: 'Không tìm thấy đánh giá của bạn.' });
+        const [purchases] = await pool.query(
+            `SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id
+             WHERE o.user_id = ? AND o.status = 'delivered' AND oi.product_id = ? LIMIT 1`,
+            [req.session.user_id, productId]
+        );
+        if (!purchases.length) return res.status(403).json({ success: false, error: 'Không thể sửa đánh giá vì đơn hàng chưa được giao.' });
+        const { admin_reply: existingReply } = parseReviewComment(reviews[0].comment);
+        const updatedReply = reviewReply(req.body.rating);
+        await pool.query(
+            'UPDATE reviews SET rating = ?, comment = ?, ai_reply = ?, needs_admin = ? WHERE id = ? AND user_id = ?',
+            [req.body.rating, serializeReviewComment(req.body.comment, existingReply), updatedReply.reply,
+                updatedReply.needsAdmin ? 1 : 0, reviewId, req.session.user_id]
+        );
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Edit review error:', error);
+        return res.status(500).json({ success: false, error: 'Không thể cập nhật đánh giá lúc này.' });
+    }
+});
+
+router.post('/review/:id/report', async (req, res) => {
+    if (!req.session.user_id) return res.status(401).json({ success: false, error: 'Vui lòng đăng nhập!' });
+    const reviewId = Number(req.params.id);
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+    if (!Number.isSafeInteger(reviewId) || reviewId < 1 || !reason || reason.length > 500 || /[<>]/.test(reason)) {
+        return res.status(400).json({ success: false, error: 'Vui lòng nhập lý do báo cáo hợp lệ.' });
+    }
+    try {
+        const [reviews] = await pool.query('SELECT user_id FROM reviews WHERE id = ? LIMIT 1', [reviewId]);
+        if (!reviews.length) return res.status(404).json({ success: false, error: 'Không tìm thấy đánh giá.' });
+        if (Number(reviews[0].user_id) === Number(req.session.user_id)) {
+            return res.status(400).json({ success: false, error: 'Bạn không thể báo cáo đánh giá của chính mình.' });
+        }
+        await pool.query('INSERT INTO review_reports (review_id, user_id, reason) VALUES (?, ?, ?)',
+            [reviewId, req.session.user_id, reason]);
+        return res.status(201).json({ success: true });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, error: 'Bạn đã báo cáo đánh giá này rồi.' });
+        console.error('Report review error:', error);
+        return res.status(500).json({ success: false, error: 'Không thể gửi báo cáo lúc này.' });
     }
 });
 

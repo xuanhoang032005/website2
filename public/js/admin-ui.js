@@ -165,6 +165,21 @@ import('/js/modules/http.js').then(({ installFetch }) => installFetch()).catch((
             categoriesLink.insertAdjacentElement('afterend', brandsLink);
         }
 
+        const brandsLink = sidebar.querySelector('.nav-item[href="/admin/brands"]');
+        if (brandsLink && !sidebar.querySelector('.nav-item[href="/admin/inventory"]')) {
+            const inventoryLink = document.createElement('a');
+            inventoryLink.href = '/admin/inventory';
+            inventoryLink.className = 'nav-item';
+            inventoryLink.innerHTML = '<i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Lịch sử';
+            brandsLink.insertAdjacentElement('afterend', inventoryLink);
+
+            const serviceLink = document.createElement('a');
+            serviceLink.href = '/admin/service-requests';
+            serviceLink.className = 'nav-item';
+            serviceLink.innerHTML = '<i class="fas fa-screwdriver-wrench" aria-hidden="true"></i> Đổi trả & bảo hành';
+            inventoryLink.insertAdjacentElement('afterend', serviceLink);
+        }
+
         const current = normalizedPath(window.location.pathname);
         document.querySelectorAll('.sidebar .nav-item[href]').forEach(function (item) {
             const href = normalizedPath(new URL(item.href, window.location.origin).pathname);

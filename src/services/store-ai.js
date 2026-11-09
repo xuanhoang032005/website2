@@ -129,6 +129,7 @@ const TOOL_DEFINITIONS = [
 ];
 
 const ASSISTANT_INSTRUCTIONS = `Bạn là trợ lý mua sắm tiếng Việt của AnhTraiStore.
+- Mọi câu trả lời cho khách phải bắt đầu bằng lời chào thân thiện "Chào bạn!"; nếu câu trả lời trước đó đã có lời chào thì không lặp lại.
 - Hãy nhận diện ý định và gọi tool cho mọi dữ liệu động: sản phẩm, giá, tồn kho, khuyến mãi và đơn hàng. Tuyệt đối không tự đoán các dữ liệu này.
 - Chỉ dùng dữ liệu trả về từ tool. Nếu thiếu thông tin để tìm chính xác, hãy hỏi một câu ngắn để làm rõ.
 - Tra cứu đơn chỉ dành cho tài khoản đang đăng nhập; không yêu cầu hoặc suy đoán user_id.
@@ -343,11 +344,18 @@ async function getStoreInformation(args, db) {
         contact: 'Bạn có thể chuyển sang tab Admin ngay trong hộp chat để được nhân viên hỗ trợ.'
     };
     if (args.topic !== 'promotions') return { topic: args.topic, information: information[args.topic] };
-    const [coupons] = await db.query(`SELECT code, discount_type, discount_value, min_order_value, max_discount,
+    const [coupons] = await db.query(`SELECT code, description, discount_type, discount_value, min_order_value, max_discount,
         start_date, expires_at FROM coupons
         WHERE is_active = 1 AND (start_date IS NULL OR start_date <= NOW())
-        AND (expires_at IS NULL OR expires_at >= NOW()) ORDER BY created_at DESC LIMIT 6`);
-    return { topic: 'promotions', promotions: coupons };
+        AND (expires_at IS NULL OR expires_at >= NOW())
+        AND (usage_limit IS NULL OR used_count < usage_limit)
+        ORDER BY created_at DESC LIMIT 8`);
+    const [campaigns] = await db.query(`SELECT title, description, start_date, end_date
+        FROM promotions WHERE is_active = 1
+        AND (start_date IS NULL OR start_date <= CURRENT_DATE())
+        AND (end_date IS NULL OR end_date >= CURRENT_DATE())
+        ORDER BY start_date DESC, id DESC LIMIT 8`);
+    return { topic: 'promotions', promotions: coupons, campaigns };
 }
 
 async function executeStoreTool(name, args, context = {}) {
@@ -385,6 +393,12 @@ function extractReply(response) {
         : '';
 }
 
+function ensureAssistantGreeting(value) {
+    const reply = typeof value === 'string' ? value.trim() : '';
+    if (!reply) return 'Chào bạn! Xin lỗi, tôi chưa tạo được câu trả lời. Bạn vui lòng hỏi lại rõ hơn nhé.';
+    return /^(?:xin\s+)?chào\b/i.test(reply) ? reply : `Chào bạn! ${reply}`;
+}
+
 function formatCurrency(value) {
     return Number(value || 0).toLocaleString('vi-VN') + 'đ';
 }
@@ -420,19 +434,41 @@ function formatToolResult(name, result) {
     }
     if (name === 'get_store_information') {
         if (result.information) return result.information;
-        if (Array.isArray(result.promotions) && result.promotions.length) {
-            return `Các mã khuyến mãi đang hoạt động: ${result.promotions.map(item => item.code).join(', ')}.`;
+        if ((result.promotions || []).length || (result.campaigns || []).length) {
+            const couponLines = (result.promotions || []).map(item => {
+                const discount = item.discount_type === 'percent'
+                    ? `giảm ${Number(item.discount_value)}%${Number(item.max_discount) > 0 ? `, tối đa ${formatCurrency(item.max_discount)}` : ''}`
+                    : `giảm ${formatCurrency(item.discount_value)}`;
+                const minimum = Number(item.min_order_value) > 0 ? `, đơn tối thiểu ${formatCurrency(item.min_order_value)}` : '';
+                const description = cleanText(item.description, 180);
+                return `Mã ${item.code}: ${description || discount}${description ? ` (${discount})` : ''}${minimum}.`;
+            });
+            const campaignLines = (result.campaigns || []).map(item => {
+                const title = cleanText(item.title, 140);
+                const description = cleanText(item.description, 220);
+                return description ? `${title}: ${description}.` : `${title}.`;
+            });
+            return `Các ưu đãi đang hoạt động: ${[...couponLines, ...campaignLines].join(' ')}`;
         }
-        return 'Hiện chưa có khuyến mãi phù hợp.';
+        return 'Hiện cửa hàng chưa có mã giảm giá hoặc chương trình ưu đãi nào đang hoạt động.';
     }
     return 'Mình đã kiểm tra dữ liệu cửa hàng cho bạn.';
 }
 
 async function runStoreAssistant({ message, history, userId, db = pool, requestAI = requestOpenAI }) {
+    const question = cleanText(message, 1000);
+    if (/(?:ưu đãi|khuyến mãi|khuyến mại|mã giảm|coupon|voucher|chương trình sale|ưu đãi khi mua|giảm giá khi mua)/i.test(question)) {
+        const promotions = await getStoreInformation({ topic: 'promotions' }, db);
+        return {
+            reply: ensureAssistantGreeting(formatToolResult('get_store_information', promotions)),
+            products: [],
+            tools_used: ['get_store_information']
+        };
+    }
     const messages = [
         { role: 'system', content: ASSISTANT_INSTRUCTIONS },
         ...sanitizeHistory(history),
-        { role: 'user', content: cleanText(message, 1000) }
+        { role: 'user', content: question }
     ];
     const collectedProducts = new Map();
     const toolsUsed = [];
@@ -450,8 +486,7 @@ async function runStoreAssistant({ message, history, userId, db = pool, requestA
         const calls = Array.isArray(modelMessage?.tool_calls) ? modelMessage.tool_calls : [];
         if (!calls.length) {
             return {
-                reply: extractReply(response) || [...new Set(toolReplies.filter(Boolean))].join('\n')
-                    || 'Xin lỗi, tôi chưa tạo được câu trả lời. Bạn vui lòng hỏi lại rõ hơn nhé.',
+                reply: ensureAssistantGreeting(extractReply(response) || [...new Set(toolReplies.filter(Boolean))].join('\n')),
                 products: [...collectedProducts.values()].slice(0, 6),
                 tools_used: toolsUsed
             };
@@ -540,6 +575,7 @@ module.exports = {
     sanitizeHistory,
     isStoreDataUnavailable,
     formatToolResult,
+    ensureAssistantGreeting,
     normalizeProductThumbnail,
     executeStoreTool,
     runStoreAssistant,

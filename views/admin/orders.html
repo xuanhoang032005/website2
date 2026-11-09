@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20261001-1">
+    <link rel="stylesheet" href="/css/admin.css?v=20261104-1">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -118,7 +118,7 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeOrderModal()">Đóng</button>
                 <button class="btn btn-primary" id="updateStatusBtn" onclick="updateOrderStatus()">
-                    <i class="fas fa-save"></i> Cập nhật
+                    <i class="fas fa-save"></i> Lưu thay đổi
                 </button>
             </div>
         </div>
@@ -262,8 +262,8 @@
             statusHtml += '</select>';
 
             const updateButton = document.getElementById('updateStatusBtn');
-            updateButton.disabled = statusOptions.length === 1;
-            updateButton.style.display = statusOptions.length === 1 ? 'none' : '';
+                updateButton.disabled = false;
+                updateButton.style.display = '';
 
             const itemsHtml = items.length > 0
                 ? items.map(item => {
@@ -306,8 +306,13 @@
                     </div>
                 </div>
                 <div style="margin-top: 20px;">
-                    <h4 style="margin-bottom: 12px; color: var(--gray-500); font-size: 0.8rem; text-transform: uppercase;">Cập nhật trạng thái</h4>
+                    <h4 style="margin-bottom: 12px; color: var(--gray-500); font-size: 0.8rem; text-transform: uppercase;">Trạng thái và vận chuyển</h4>
                     ${statusHtml}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+                        <label>Đơn vị vận chuyển<input class="form-control" id="trackingCarrier" maxlength="100" value="${escapeHtml(order.tracking_carrier || '')}" placeholder="Ví dụ: Giao Hàng Nhanh"></label>
+                        <label>Mã vận đơn<input class="form-control" id="trackingNumber" maxlength="100" value="${escapeHtml(order.tracking_number || '')}" placeholder="Nhập mã vận đơn"></label>
+                    </div>
+                    <label style="display:block;margin-top:12px;">Ghi chú cho khách<textarea class="form-control" id="orderStatusNote" maxlength="500" rows="2" placeholder="Ghi chú sẽ xuất hiện trong lịch sử đơn hàng"></textarea></label>
                 </div>
             `;
             
@@ -322,6 +327,9 @@
         async function updateOrderStatus() {
             if (!currentOrder) return;
             const newStatus = document.getElementById('orderStatus').value;
+            const trackingCarrier = document.getElementById('trackingCarrier').value.trim();
+            const trackingNumber = document.getElementById('trackingNumber').value.trim();
+            const statusNote = document.getElementById('orderStatusNote').value.trim();
 
             if (newStatus === 'cancelled' && currentOrder.status !== 'cancelled') {
                 const confirmed = await adminConfirm({
@@ -339,20 +347,22 @@
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'include',
-                    body: JSON.stringify({ status: newStatus })
+                    body: JSON.stringify({
+                        status: newStatus,
+                        tracking_carrier: trackingCarrier,
+                        tracking_number: trackingNumber,
+                        status_note: statusNote
+                    })
                 });
                 const data = await res.json();
-                console.log('Response:', data); // Debug
-
                 if (res.ok && data.success) {
-                    showAlert('Cập nhật trạng thái thành công!', 'success');
+                    showAlert('Đã lưu thông tin đơn hàng.', 'success');
                     closeOrderModal();
                     loadOrders();
                 } else {
                     showAlert(data.error || `Lỗi: ${res.status}`, 'error');
                 }
             } catch (e) {
-                console.error('Error:', e); // Debug
                 showAlert('Lỗi khi cập nhật!', 'error');
             }
         }
@@ -376,6 +386,6 @@
             if (e.target === this) closeOrderModal();
         });
     </script>
-    <script src="/js/admin-ui.js?v=20260914-4"></script>
+    <script src="/js/admin-ui.js?v=20261110-2"></script>
 </body>
 </html>

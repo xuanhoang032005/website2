@@ -135,9 +135,10 @@ router.post('/add', async (req, res) => {
         }
 
         // Insert new
+        const variantId = selectedVariant?.id || null;
         await pool.query(
-            'INSERT INTO cart (user_id, product_id, variant_id, quantity) VALUES (?, ?, ?, ?)',
-            [user_id, productId, selectedVariant?.id || null, quantity]
+            'INSERT INTO cart (user_id, product_id, variant_id, variant_identity, quantity) VALUES (?, ?, ?, ?, ?)',
+            [user_id, productId, variantId, variantId || 0, quantity]
         );
 
         res.json({ success: true, message: 'Đã thêm vào giỏ hàng!' });

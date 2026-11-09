@@ -8,7 +8,10 @@ const fs = require('fs');
 const { projectRoot, viewsDir } = require('../core/paths');
 const { isAllowedImage } = require('../core/image-upload');
 const { parseReviewComment, serializeReviewComment } = require('../core/review-comment');
-const { parseVariantPayload, variantSummary, saveProductVariants, syncProductStock } = require('../core/product-variants');
+const { parseVariantPayload, variantSummary, saveProductVariants } = require('../core/product-variants');
+const { adjustOrderStock } = require('../services/inventory');
+const { recordOpeningStock, recordStockMovement } = require('../services/stock-ledger');
+const { recordOrderStatus, getOrderStatusHistory } = require('../services/order-tracking');
 const { parseCouponPayload } = require('../core/coupon-validation');
 const { requireAdmin } = require('../middleware/auth');
 const adminController = require('../controllers/admin-controller');
@@ -308,7 +311,7 @@ router.get('/notifications', requireAdmin, async (req, res) => {
         
         // Đánh giá mới (trong 7 ngày)
         const [newReviews] = await pool.query(`
-            SELECT r.id, r.rating, r.comment, r.created_at,
+            SELECT r.id, r.entry_type, r.rating, r.comment, r.ai_reply, r.needs_admin, r.created_at,
                    u.full_name AS user_name,
                    p.name AS product_name
             FROM reviews r
@@ -531,6 +534,74 @@ router.get('/brands', requireAdmin, (req, res) => {
     res.sendFile(path.join(viewsDir, 'admin', 'brands.html'));
 });
 
+router.get('/history', requireAdmin, (req, res) => {
+    res.sendFile(path.join(viewsDir, 'admin', 'inventory.html'));
+});
+
+router.get('/inventory', requireAdmin, (req, res) => {
+    res.sendFile(path.join(viewsDir, 'admin', 'inventory.html'));
+});
+
+router.get('/inventory/products', requireAdmin, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT p.id, p.name, p.stock,
+                    EXISTS(SELECT 1 FROM product_variants any_v WHERE any_v.product_id = p.id) AS has_variants,
+                    v.id AS variant_id, v.sku, v.ram, v.storage, v.color, v.stock AS variant_stock
+             FROM products p
+             LEFT JOIN product_variants v ON v.product_id = p.id AND v.is_active = 1
+             ORDER BY p.name, v.is_default DESC, v.id
+             LIMIT 5000`
+        );
+        const productMap = new Map();
+        for (const row of rows) {
+            let product = productMap.get(Number(row.id));
+            if (!product) {
+                product = {
+                    id: Number(row.id), name: row.name, stock: Number(row.stock),
+                    has_variants: Boolean(row.has_variants), variants: []
+                };
+                productMap.set(product.id, product);
+            }
+            if (row.variant_id != null) {
+                product.variants.push({
+                    id: Number(row.variant_id), sku: row.sku, ram: row.ram,
+                    storage: row.storage, color: row.color, stock: Number(row.variant_stock)
+                });
+            }
+        }
+        const products = [...productMap.values()];
+        return res.json({ products });
+    } catch (error) {
+        console.error('List inventory products error:', error);
+        return res.status(500).json({ success: false, error: 'Không thể tải sản phẩm.' });
+    }
+});
+
+router.get('/inventory/movements', requireAdmin, async (req, res) => {
+    try {
+        const page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1));
+        const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 50));
+        const productId = req.query.product_id ? Number(req.query.product_id) : null;
+        if (productId !== null && (!Number.isSafeInteger(productId) || productId < 1)) {
+            return res.status(400).json({ success: false, error: 'Mã sản phẩm không hợp lệ.' });
+        }
+        const where = productId === null ? '' : 'WHERE m.product_id = ?';
+        const params = productId === null ? [] : [productId];
+        const [[count]] = await pool.query(`SELECT COUNT(*) AS total FROM inventory_movements m ${where}`, params);
+        const [movements] = await pool.query(
+            `SELECT m.*, u.full_name AS performed_by_name
+             FROM inventory_movements m LEFT JOIN users u ON u.id = m.performed_by
+             ${where} ORDER BY m.id DESC LIMIT ? OFFSET ?`,
+            [...params, limit, (page - 1) * limit]
+        );
+        return res.json({ success: true, movements, total: Number(count.total), page, limit });
+    } catch (error) {
+        console.error('List inventory movements error:', error);
+        return res.status(500).json({ success: false, error: 'Không thể tải lịch sử tồn kho.' });
+    }
+});
+
 router.get('/products/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -613,7 +684,10 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
 
             const productId = result.insertId;
 
-            await saveProductVariants(connection, productId, variants);
+            await saveProductVariants(connection, productId, variants, req.session.user_id, name.trim(), 0);
+            if (!variants.length) {
+                await recordOpeningStock(connection, { id: productId, name: name.trim(), stock: stockValue }, [], req.session.user_id);
+            }
 
         // Insert gallery images
         let galleryColors = [];
@@ -711,7 +785,7 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
 
         connection = await pool.getConnection();
         await connection.beginTransaction();
-        const [current] = await connection.query('SELECT name, thumbnail FROM products WHERE id = ? FOR UPDATE', [productId]);
+        const [current] = await connection.query('SELECT name, thumbnail, stock FROM products WHERE id = ? FOR UPDATE', [productId]);
         if (current.length === 0) {
             await connection.rollback();
             connection.release();
@@ -778,7 +852,30 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
         }
 
         await connection.query(query, params);
-        await saveProductVariants(connection, productId, variants);
+        await saveProductVariants(connection, productId, variants, req.session.user_id, name.trim(), current[0].stock);
+        if (!variants.length && Number(current[0].stock) !== stockValue) {
+            await recordStockMovement(connection, {
+                product_id: productId, product_name: name.trim(), movement_type: 'adjustment',
+                quantity_change: stockValue - Number(current[0].stock),
+                stock_before: Number(current[0].stock), stock_after: stockValue,
+                reference_type: 'adjustment', note: 'Điều chỉnh tồn kho từ quản trị viên',
+                performed_by: req.session.user_id
+            });
+        }
+        const [[updatedProductStock]] = await connection.query('SELECT stock FROM products WHERE id = ?', [productId]);
+        const auditStock = Number(updatedProductStock?.stock ?? stockValue);
+        await recordStockMovement(connection, {
+            product_id: productId,
+            product_name: name.trim(),
+            movement_type: 'adjustment',
+            quantity_change: 0,
+            stock_before: auditStock,
+            stock_after: auditStock,
+            reference_type: 'product_edit',
+            reference_id: productId,
+            note: 'Chỉnh sửa thông tin sản phẩm',
+            performed_by: req.session.user_id
+        });
         await connection.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
         if (finalGallery.length > 0) {
             const galleryValues = finalGallery.map((image, index) => [
@@ -859,6 +956,10 @@ router.get('/orders', requireAdmin, (req, res) => {
     res.sendFile(path.join(viewsDir, 'admin', 'orders.html'));
 });
 
+router.get('/service-requests', requireAdmin, (req, res) => {
+    res.sendFile(path.join(viewsDir, 'admin', 'service-requests.html'));
+});
+
 router.get('/orders/list', requireAdmin, async (req, res) => {
     try {
         const { status } = req.query;
@@ -917,7 +1018,8 @@ router.get('/orders/:id', requireAdmin, async (req, res) => {
             [id]
         );
 
-        res.json({ order: orders[0], items });
+        const statusHistory = await getOrderStatusHistory(pool, id);
+        res.json({ order: orders[0], items, status_history: statusHistory });
     } catch (error) {
         console.error('Get order error:', error);
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });
@@ -929,6 +1031,17 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
+        const trackingCarrier = typeof req.body.tracking_carrier === 'string' ? req.body.tracking_carrier.trim() : '';
+        const trackingNumber = typeof req.body.tracking_number === 'string' ? req.body.tracking_number.trim() : '';
+        const statusNote = typeof req.body.status_note === 'string' ? req.body.status_note.trim() : '';
+        const hasTrackingCarrier = Object.prototype.hasOwnProperty.call(req.body, 'tracking_carrier');
+        const hasTrackingNumber = Object.prototype.hasOwnProperty.call(req.body, 'tracking_number');
+        if ((hasTrackingCarrier && (typeof req.body.tracking_carrier !== 'string' || trackingCarrier.length > 100 || /[<>]/.test(trackingCarrier))) ||
+            (hasTrackingNumber && (typeof req.body.tracking_number !== 'string' || trackingNumber.length > 100 || /[<>]/.test(trackingNumber))) ||
+            (req.body.status_note !== undefined && typeof req.body.status_note !== 'string') ||
+            statusNote.length > 500 || /[<>]/.test(statusNote)) {
+            return res.status(400).json({ error: 'Thông tin vận chuyển không hợp lệ!' });
+        }
 
         const transitions = {
             pending: ['confirmed', 'cancelled'],
@@ -948,10 +1061,17 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
         }
 
         const order = orders[0];
-        if (!transitions[order.status]?.includes(status)) {
+        const statusChanged = status !== order.status;
+        if (statusChanged && !transitions[order.status]?.includes(status)) {
             await connection.rollback();
             connection.release();
             return res.status(400).json({ error: `Không thể chuyển đơn từ ${order.status} sang ${status}!` });
+        }
+
+        if (!statusChanged && !hasTrackingCarrier && !hasTrackingNumber) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'Không có thông tin nào cần cập nhật.' });
         }
 
         const [items] = await connection.query(
@@ -963,23 +1083,10 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
 
         // Đơn online chỉ trừ kho khi được xác nhận; COD đã trừ kho lúc đặt hàng.
         if (order.status === 'pending' && status === 'confirmed' && ['momo', 'vnpay'].includes(order.payment_method)) {
-            for (const item of items) {
-                const [updated] = item.variant_id
-                    ? await connection.query(
-                        'UPDATE product_variants SET stock = stock - ? WHERE id = ? AND product_id = ? AND is_active = 1 AND stock >= ?',
-                        [item.quantity, item.variant_id, item.product_id, item.quantity]
-                    )
-                    : await connection.query(
-                        'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
-                        [item.quantity, item.product_id, item.quantity]
-                    );
-                if (updated.affectedRows !== 1) {
-                    const error = new Error(`Sản phẩm "${item.name}" không đủ hàng!`);
-                    error.status = 400;
-                    throw error;
-                }
-                if (item.variant_id) await syncProductStock(connection, item.product_id);
-            }
+            await adjustOrderStock(connection, items, {
+                orderId: id, userId: req.session.user_id,
+                movementType: 'sale', note: 'Xuất kho cho đơn hàng'
+            });
 
             if (order.coupon_code && Number(order.discount_amount) > 0) {
                 const [coupons] = await connection.query('SELECT id FROM coupons WHERE code = ?', [order.coupon_code]);
@@ -1024,14 +1131,10 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
         const shouldRestoreStock = status === 'cancelled'
             && (order.status !== 'pending' || order.payment_method === 'cod');
         if (shouldRestoreStock) {
-            for (const item of items) {
-                if (item.variant_id) {
-                    await connection.query('UPDATE product_variants SET stock = stock + ? WHERE id = ?', [item.quantity, item.variant_id]);
-                    await syncProductStock(connection, item.product_id);
-                } else {
-                    await connection.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
-                }
-            }
+            await adjustOrderStock(connection, items, {
+                orderId: id, userId: req.session.user_id,
+                movementType: 'cancellation', note: 'Nhập kho do hủy đơn'
+            });
 
             if (order.coupon_code) {
                 const [deleted] = await connection.query('DELETE FROM user_coupons WHERE order_id = ?', [id]);
@@ -1048,10 +1151,19 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
             `UPDATE orders
              SET status = ?,
                  paid_at = CASE WHEN ? = 'confirmed' AND payment_method IN ('momo', 'vnpay') THEN NOW() ELSE paid_at END,
-                 cancelled_at = CASE WHEN ? = 'cancelled' THEN NOW() ELSE cancelled_at END
+                 cancelled_at = CASE WHEN ? = 'cancelled' THEN NOW() ELSE cancelled_at END,
+                 tracking_carrier = IF(?, ?, tracking_carrier),
+                 tracking_number = IF(?, ?, tracking_number)
              WHERE id = ?`,
-            [status, status, status, id]
+            [status, status, status, hasTrackingCarrier, trackingCarrier || null, hasTrackingNumber, trackingNumber || null, id]
         );
+        if (statusChanged) {
+            await recordOrderStatus(connection, {
+                orderId: Number(id), status,
+                note: statusNote || null,
+                changedBy: req.session.user_id
+            });
+        }
         await connection.commit();
         connection.release();
         connection = null;
@@ -1131,7 +1243,10 @@ router.get('/reviews', requireAdmin, (req, res) => {
 router.get('/reviews/list', requireAdmin, async (req, res) => {
     try {
         const [reviews] = await pool.query(
-            `SELECT r.*, u.full_name AS user_name, u.email AS user_email, p.name AS product_name
+            `SELECT r.*, u.full_name AS user_name, u.email AS user_email, p.name AS product_name,
+                    (SELECT COUNT(*) FROM review_reports rr WHERE rr.review_id = r.id) AS report_count,
+                    (SELECT GROUP_CONCAT(CONCAT(rr.reason, ' (', DATE_FORMAT(rr.created_at, '%d/%m/%Y'), ')') ORDER BY rr.created_at SEPARATOR ' | ')
+                     FROM review_reports rr WHERE rr.review_id = r.id) AS report_reasons
              FROM reviews r
              LEFT JOIN users u ON r.user_id = u.id
              LEFT JOIN products p ON r.product_id = p.id
@@ -1158,7 +1273,7 @@ router.put('/reviews/:id/reply', requireAdmin, async (req, res) => {
         if (!reviews.length) return res.status(404).json({ error: 'Không tìm thấy đánh giá!' });
 
         const storedComment = serializeReviewComment(reviews[0].comment, reply);
-        await pool.query('UPDATE reviews SET comment = ? WHERE id = ?', [storedComment, id]);
+        await pool.query('UPDATE reviews SET comment = ?, needs_admin = 0 WHERE id = ?', [storedComment, id]);
         res.json({ success: true, reply });
     } catch (error) {
         console.error('Reply review error:', error);

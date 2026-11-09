@@ -7,7 +7,7 @@ async function dashboardStats(db = pool) {
         db.query("SELECT COUNT(*) AS c FROM users WHERE role='customer'"),
         db.query("SELECT SUM(total_price) AS c FROM orders WHERE status='delivered'"),
         db.query("SELECT COUNT(*) AS c FROM orders WHERE status='pending'"),
-        db.query('SELECT COUNT(*) AS c FROM reviews'),
+        db.query("SELECT COUNT(*) AS c FROM reviews WHERE entry_type = 'review'"),
         db.query('SELECT COUNT(*) AS c FROM contacts WHERE is_read=0'),
         db.query('SELECT COUNT(*) AS c FROM products WHERE stock < 20'),
         db.query(`SELECT COALESCE(SUM(total_price), 0) AS revenue, COUNT(*) AS orders FROM orders WHERE status='delivered' AND YEAR(created_at)=YEAR(CURRENT_DATE) AND MONTH(created_at)=MONTH(CURRENT_DATE)`),

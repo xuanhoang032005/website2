@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/order-detail.css?v=20260930-2">
+    <link rel="stylesheet" href="/css/pages/order-detail.css?v=20261104-1">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -153,6 +153,17 @@
             'delivered': { icon: 'bi-bag-check', text: 'Giao hàng thành công', desc: 'Cảm ơn bạn đã đặt hàng!', step: 4 },
             'cancelled': { icon: 'bi-x-circle', text: 'Đã hủy', desc: 'Đơn hàng đã bị hủy', step: -1 }
         };
+        const serviceStatusLabels = {
+            submitted: 'Đã tiếp nhận', reviewing: 'Đang xem xét', approved: 'Được chấp thuận',
+            rejected: 'Từ chối', resolved: 'Đã hoàn tất'
+        };
+
+        async function loadServiceRequests() {
+            const response = await fetch('/api/service-requests/mine', { credentials: 'include' });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return data.requests || [];
+        }
 
         async function loadOrder() {
             const orderId = window.location.pathname.split('/').pop();
@@ -169,11 +180,12 @@
 
                 const order = data.order;
                 const items = data.items || [];
+                const serviceRequests = await loadServiceRequests();
 
                 document.getElementById('headerOrderCode').textContent = order.payment_code || '#' + order.id;
                 document.getElementById('breadcrumbCode').textContent = order.payment_code || ('#' + order.id);
 
-                renderOrder(order, items);
+                renderOrder(order, items, serviceRequests.filter(item => Number(item.order_id) === Number(order.id)), data.status_history || []);
             } catch (error) {
                 console.error('Load order error:', error);
                 document.getElementById('orderContent').innerHTML = `
@@ -188,7 +200,7 @@
             }
         }
 
-        function renderOrder(order, items) {
+        function renderOrder(order, items, serviceRequests = [], statusHistory = []) {
             const config = statusConfigs[order.status] || statusConfigs.pending;
             const currentStep = config.step;
 
@@ -220,21 +232,31 @@
 
             let productsHtml = '';
             items.forEach(item => {
+                const itemRequests = serviceRequests.filter(request => Number(request.order_item_id) === Number(item.id));
+                const serviceActions = order.status === 'delivered'
+                    ? '<div class="service-actions">' + ['return', 'warranty'].map(type => {
+                        const existing = itemRequests.find(request => request.request_type === type);
+                        return existing
+                            ? '<span class="service-request-status">' + (type === 'return' ? 'Đổi trả' : 'Bảo hành') + ': ' + escapeHtml(serviceStatusLabels[existing.status] || existing.status) + '</span>'
+                            : '<button type="button" class="btn btn-outline service-request-button" onclick="toggleServiceForm(' + Number(item.id) + ', \'' + type + '\')">' + (type === 'return' ? 'Yêu cầu đổi trả' : 'Yêu cầu bảo hành') + '</button>';
+                    }).join('') + '</div><div class="service-request-form" id="serviceForm-' + Number(item.id) + '" hidden></div>'
+                    : '';
                 const img = item.thumbnail
                     ? (item.thumbnail.startsWith('http') ? item.thumbnail : '/assets/images/products/' + item.thumbnail)
                     : '/images/no-image.svg';
                 productsHtml += `
                 <div class="product-item">
                     <a href="/product/${item.product_id}">
-                        <img src="${img}" alt="${item.name || ''}" class="product-img" onerror="this.src='/images/no-image.svg'">
+                        <img src="${escapeAttribute(img)}" alt="${escapeAttribute(item.name || '')}" class="product-img" onerror="this.src='/images/no-image.svg'">
                     </a>
                     <div class="product-details">
-                        ${item.brand_name ? `<div class="product-brand">${item.brand_name}</div>` : ''}
-                        <a href="/product/${item.product_id}" style="text-decoration:none">
-                            <div class="product-name">${item.name || 'Sản phẩm'}</div>
+                            ${item.brand_name ? `<div class="product-brand">${escapeHtml(item.brand_name)}</div>` : ''}
+                        <a href="/product/${Number(item.product_id)}" style="text-decoration:none">
+                            <div class="product-name">${escapeHtml(item.name || 'Sản phẩm')}</div>
                         </a>
-                        ${[item.ram, item.storage, item.color].filter(Boolean).length ? `<div class="product-qty">${[item.ram, item.storage, item.color].filter(Boolean).join(' / ')}</div>` : ''}
+                        ${[item.ram, item.storage, item.color].filter(Boolean).length ? `<div class="product-qty">${escapeHtml([item.ram, item.storage, item.color].filter(Boolean).join(' / '))}</div>` : ''}
                         <div class="product-qty">Số lượng: <strong>${item.quantity}</strong></div>
+                        ${serviceActions}
                     </div>
                     <div class="product-price">
                         <span class="product-price-main">${formatPrice(item.price)}đ</span>
@@ -294,10 +316,21 @@
             const estimateText = order.estimated_delivery_from && order.estimated_delivery_to
                 ? `${new Date(order.estimated_delivery_from).toLocaleDateString('vi-VN')} - ${new Date(order.estimated_delivery_to).toLocaleDateString('vi-VN')}`
                 : `${order.delivery_min_days || 2} - ${order.delivery_max_days || 4} ngày`;
-            const verticalSteps = [
-                ['Đã đặt hàng', 'bi-check', 0], ['Đã xác nhận', 'bi-check', 1], ['Đang chuẩn bị', 'bi-box-seam', 2],
-                ['Đang giao', 'bi-truck', 3], ['Đã giao', 'bi-house-check', 4]
-            ].map(([label, icon, index]) => `<div class="timeline-item ${index < currentStep ? 'done' : index === currentStep ? 'active' : ''}"><span><i class="bi ${index <= currentStep ? icon : ''}">${index > currentStep ? index + 1 : ''}</i></span><div><strong>${label}</strong>${index === 0 ? `<small>${formatDate(order.created_at)}</small>` : index === currentStep ? '<small>Trạng thái hiện tại</small>' : ''}</div></div>`).join('');
+            const statusLabels = {
+                pending: 'Chờ xác nhận', confirmed: 'Đã xác nhận', shipping: 'Đang giao hàng',
+                delivered: 'Đã giao hàng', cancelled: 'Đã hủy'
+            };
+            const statusIcons = {
+                pending: 'bi-clock-history', confirmed: 'bi-check-circle', shipping: 'bi-truck',
+                delivered: 'bi-house-check', cancelled: 'bi-x-circle'
+            };
+            const historyRows = statusHistory.length
+                ? statusHistory.map((entry, index) => `<div class="timeline-item ${index === statusHistory.length - 1 ? 'active' : 'done'}"><span><i class="bi ${statusIcons[entry.status] || 'bi-circle'}"></i></span><div><strong>${escapeHtml(statusLabels[entry.status] || entry.status)}</strong><small>${formatDate(entry.created_at)}${entry.changed_by_name ? ' · ' + escapeHtml(entry.changed_by_name) : ''}</small>${entry.note ? `<small>${escapeHtml(entry.note)}</small>` : ''}</div></div>`).join('')
+                : `<div class="timeline-item done"><span><i class="bi bi-cart-check"></i></span><div><strong>Đơn hàng đã được đặt</strong><small>${formatDate(order.created_at)}</small></div></div><div class="timeline-item active"><span><i class="bi ${statusIcons[order.status] || 'bi-circle'}"></i></span><div><strong>${escapeHtml(statusLabels[order.status] || order.status)}</strong><small>Đơn được tạo trước khi bật lịch sử theo dõi.</small></div></div>`;
+            const verticalSteps = historyRows;
+            const trackingHtml = order.tracking_number || order.tracking_carrier
+                ? `<div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-upc-scan"></i></div><h3>Thông tin vận đơn</h3></div><div class="card-body detail-list">${order.tracking_carrier ? `<div><span>Đơn vị vận chuyển</span><strong>${escapeHtml(order.tracking_carrier)}</strong></div>` : ''}${order.tracking_number ? `<div><span>Mã vận đơn</span><strong>${escapeHtml(order.tracking_number)}</strong></div>` : ''}</div></div>`
+                : '';
 
             const html = `
                 <div class="order-detail-grid">
@@ -320,12 +353,62 @@
                     <aside class="order-detail-aside">
                         <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-bag"></i></div><h3>Thông tin giao hàng</h3></div><div class="card-body detail-list"><div><span>Người nhận</span><strong>${escapeHtml(order.shipping_name || '---')}</strong></div><div><span>Số điện thoại</span><strong>${escapeHtml(order.shipping_phone || '---')}</strong></div><div><span>Địa chỉ</span><strong>${escapeHtml(order.shipping_address || '---')}</strong></div></div></div>
                         <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-truck"></i></div><h3>Phương thức giao hàng</h3></div><div class="card-body side-method"><div><strong>${shippingLabel}</strong><span>Thời gian giao: ${estimateText}</span></div><b>${formatPrice(shippingFee)}đ</b></div></div>
+                        ${trackingHtml}
                         <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-credit-card"></i></div><h3>Phương thức thanh toán</h3></div><div class="card-body side-method"><div><strong>${paymentLabel}</strong><span>${order.payment_method === 'cod' ? 'Thanh toán bằng tiền mặt khi nhận hàng' : 'Thanh toán QR mô phỏng'}</span></div></div></div>
-                        <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-clock-history"></i></div><h3>Trạng thái đơn hàng</h3></div><div class="card-body order-timeline">${verticalSteps}<div class="support-box"><i class="bi bi-headset"></i><div><strong>Cần hỗ trợ?</strong><span>Hotline 1800 2097</span><a href="/contact">Liên hệ ngay →</a></div></div></div></div>
+                        <div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-clock-history"></i></div><h3>Lịch sử đơn hàng</h3></div><div class="card-body order-timeline">${verticalSteps}<div class="support-box"><i class="bi bi-headset"></i><div><strong>Cần hỗ trợ?</strong><span>Hotline 1800 2097</span><a href="/contact">Liên hệ ngay →</a></div></div></div></div>
                     </aside>
                 </div>`;
 
             document.getElementById('orderContent').innerHTML = html;
+        }
+
+        function escapeAttribute(value) {
+            return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function toggleServiceForm(orderItemId, type) {
+            const container = document.getElementById('serviceForm-' + orderItemId);
+            if (!container) return;
+            if (!container.hidden && container.dataset.type === type) {
+                container.hidden = true;
+                return;
+            }
+            container.dataset.type = type;
+            container.hidden = false;
+            container.innerHTML = '<label for="serviceReason-' + orderItemId + '">Lý do ' + (type === 'return' ? 'đổi trả' : 'bảo hành') + '</label>' +
+                '<input id="serviceReason-' + orderItemId + '" maxlength="255" placeholder="Nhập lý do" required>' +
+                '<label for="serviceDescription-' + orderItemId + '">Mô tả thêm</label>' +
+                '<textarea id="serviceDescription-' + orderItemId + '" maxlength="2000" rows="3" placeholder="Mô tả tình trạng sản phẩm"></textarea>' +
+                '<label for="serviceImages-' + orderItemId + '">Ảnh minh chứng (tối đa 4 ảnh, mỗi ảnh 5 MB)</label>' +
+                '<input id="serviceImages-' + orderItemId + '" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple>' +
+                '<button type="button" class="btn btn-primary" onclick="submitServiceRequest(' + orderItemId + ', \'' + type + '\')">Gửi yêu cầu</button>';
+        }
+
+        async function submitServiceRequest(orderItemId, type) {
+            const reason = document.getElementById('serviceReason-' + orderItemId)?.value.trim() || '';
+            const description = document.getElementById('serviceDescription-' + orderItemId)?.value.trim() || '';
+            const images = Array.from(document.getElementById('serviceImages-' + orderItemId)?.files || []);
+            if (images.length > 4 || images.some(file => file.size > 5 * 1024 * 1024)) {
+                return showToast('Chọn tối đa 4 ảnh, mỗi ảnh không quá 5 MB.', 'error');
+            }
+            if (!reason) return showToast('Vui lòng nhập lý do yêu cầu.', 'error');
+            try {
+                const body = new FormData();
+                body.append('order_item_id', String(orderItemId));
+                body.append('request_type', type);
+                body.append('reason', reason);
+                body.append('description', description);
+                images.forEach(file => body.append('images', file));
+                const response = await fetch('/api/service-requests', {
+                    method: 'POST', credentials: 'include', body
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể gửi yêu cầu.');
+                showToast('Đã gửi yêu cầu. Bộ phận hỗ trợ sẽ liên hệ bạn.', 'success');
+                loadOrder();
+            } catch (error) {
+                showToast(error.message || 'Lỗi kết nối!', 'error');
+            }
         }
 
         async function cancelOrder(orderId) {

@@ -2,6 +2,11 @@ const pool = require('../config/database');
 const mail = require('../config/mail');
 const queue = require('./job-queue');
 
+function deliverEmail(handler) {
+    if (process.env.E2E_DISABLE_EMAILS === '1') return async () => ({ skipped: true });
+    return handler;
+}
+
 async function loadOrderEmailData(orderId, userId) {
     const [[orders], [users], [items]] = await Promise.all([
         pool.query('SELECT * FROM orders WHERE id = ?', [orderId]),
@@ -14,19 +19,19 @@ async function loadOrderEmailData(orderId, userId) {
     return { order: orders[0], user: users[0], items };
 }
 
-queue.register('order_email', async payload => {
+queue.register('order_email', deliverEmail(async payload => {
     const data = await loadOrderEmailData(payload.orderId, payload.userId);
     await mail.sendOrderEmail(data.order, data.user, data.items);
-});
+}));
 
-queue.register('admin_order_email', async payload => {
+queue.register('admin_order_email', deliverEmail(async payload => {
     const data = await loadOrderEmailData(payload.orderId, payload.userId);
     await mail.sendAdminOrderNotification(data.order, data.user, data.items);
-});
+}));
 
-queue.register('password_reset_email', payload => mail.sendPasswordResetOTP(payload.email, payload.otp, payload.expiresIn));
-queue.register('welcome_email', payload => mail.sendWelcomeEmail(payload.user));
-queue.register('contact_email', payload => mail.sendEmail(payload));
+queue.register('password_reset_email', deliverEmail(payload => mail.sendPasswordResetOTP(payload.email, payload.otp, payload.expiresIn)));
+queue.register('welcome_email', deliverEmail(payload => mail.sendWelcomeEmail(payload.user)));
+queue.register('contact_email', deliverEmail(payload => mail.sendEmail(payload)));
 queue.register('image_cleanup', async ({ urls }) => {
     const storage = require('./cloud-storage');
     return storage.destroyCloudinaryUrlsNow(urls);

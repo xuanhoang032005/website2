@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch sử thay đổi - AnhTraiStore</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/admin.css?v=20261110-2">
+</head>
+<body class="admin-shell">
+    <div class="admin-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-logo"><a href="/admin"><div class="sidebar-logo-icon"><i class="fas fa-store"></i></div><div><div class="sidebar-logo-text">AnhTraiStore</div><div class="sidebar-logo-sub">Admin Panel</div></div></a></div>
+            <nav class="sidebar-nav">
+                <div class="nav-section"><div class="nav-section-title">Tổng quan</div><a href="/admin" class="nav-item"><i class="fas fa-chart-pie"></i> Dashboard</a></div>
+                <div class="nav-section"><div class="nav-section-title">Quản lý</div>
+                    <a href="/admin/products" class="nav-item"><i class="fas fa-box"></i> Sản phẩm</a>
+                    <a href="/admin/orders" class="nav-item"><i class="fas fa-shopping-bag"></i> Đơn hàng</a>
+                    <a href="/admin/users" class="nav-item"><i class="fas fa-users"></i> Khách hàng</a>
+                    <a href="/admin/reviews" class="nav-item"><i class="fas fa-star"></i> Đánh giá</a>
+                    <a href="/admin/contacts" class="nav-item"><i class="fas fa-envelope"></i> Liên hệ</a>
+                </div>
+                <div class="nav-section"><div class="nav-section-title">Marketing</div>
+                    <a href="/admin/banners" class="nav-item"><i class="fas fa-images"></i> Banners</a>
+                    <a href="/admin/promotions" class="nav-item"><i class="fas fa-bullhorn"></i> Khuyến mãi</a>
+                </div>
+                <div class="nav-section"><div class="nav-section-title">Hệ thống</div>
+                    <a href="/" class="nav-item" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Xem cửa hàng</a>
+                </div>
+            </nav>
+            <div class="sidebar-footer"><div class="sidebar-user" id="adminUser"><div class="sidebar-avatar">A</div><div class="sidebar-user-info"><div class="sidebar-user-name">Admin</div><div class="sidebar-user-role">Quản trị viên</div></div></div><button class="btn-logout" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i> Đăng xuất</button></div>
+        </aside>
+        <main class="main-content">
+            <header class="top-header"><div class="top-header-left"><h1 class="top-header-title">Lịch sử thay đổi hệ thống</h1></div><div class="top-header-right"><span class="header-date" id="currentDate"></span></div></header>
+            <div class="page-content">
+                <div id="alertBox"></div>
+                <section class="card history-card">
+                    <div class="card-header"><h2 class="card-title"><i class="fas fa-clock-rotate-left"></i> Hoạt động gần đây</h2><button class="btn btn-secondary" id="refreshMovements" type="button"><i class="fas fa-rotate"></i> Làm mới</button></div>
+                    <div class="table-scroll history-table-scroll"><table class="data-table"><thead><tr><th>Thời điểm</th><th>Sản phẩm</th><th>Loại thao tác</th><th>Số lượng nhập</th><th>Trước khi nhập</th><th>Sau khi nhập</th><th>Tham chiếu</th><th>Người thực hiện</th><th>Ghi chú</th></tr></thead><tbody id="movementRows"><tr><td colspan="9">Đang tải...</td></tr></tbody></table></div>
+                    <div class="card-footer inventory-pagination"><span id="movementCount"></span><div><button class="btn btn-secondary" id="previousPage" type="button">Trước</button><button class="btn btn-secondary" id="nextPage" type="button">Sau</button></div></div>
+                </section>
+            </div>
+        </main>
+    </div>
+    <script>
+        const labels = { opening: 'Nhập ban đầu', sale: 'Xuất bán', cancellation: 'Hoàn kho', adjustment: 'Cập nhật' };
+        let page = 1;
+        let total = 0;
+        const limit = 10;
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+        }
+
+        function dateTime(value) {
+            return value ? new Date(value).toLocaleString('vi-VN') : '—';
+        }
+
+        async function adminLogout() {
+            const confirmed = await adminConfirm({ title: 'Đăng xuất?', message: 'Bạn có chắc muốn đăng xuất?', confirmText: 'Đăng xuất', icon: 'fa-sign-out-alt', tone: 'primary' });
+            if (!confirmed) return;
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            window.location.href = '/login';
+        }
+
+        function setAlert(message, type) {
+            const box = document.getElementById('alertBox');
+            box.innerHTML = '<div class="alert alert-' + type + '">' + escapeHtml(message) + '</div>';
+            setTimeout(() => { box.innerHTML = ''; }, 4000);
+        }
+
+        async function loadMovements() {
+            const response = await fetch('/admin/inventory/movements?page=' + page + '&limit=' + limit, { credentials: 'include' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Không thể tải lịch sử tồn kho.');
+            total = Number(data.total) || 0;
+            const rows = document.getElementById('movementRows');
+            rows.innerHTML = data.movements.length ? data.movements.map(item => {
+                const delta = Number(item.quantity_change);
+                const reference = item.reference_type ? item.reference_type + (item.reference_id ? ' #' + item.reference_id : '') : '—';
+                const actionLabel = item.reference_type === 'product_edit'
+                    ? 'Chỉnh sửa sản phẩm'
+                    : item.movement_type === 'opening' && item.reference_type === 'product'
+                        ? (item.variant_id ? 'Thêm phiên bản' : 'Thêm sản phẩm')
+                        : labels[item.movement_type] || item.movement_type;
+                return '<tr><td>' + escapeHtml(dateTime(item.created_at)) + '</td><td><strong>' + escapeHtml(item.product_name) + '</strong>' + (item.variant_label ? '<br><small>' + escapeHtml(item.variant_label) + '</small>' : '') + '</td><td>' + escapeHtml(actionLabel) + '</td><td class="' + (delta < 0 ? 'inventory-decrease' : 'inventory-increase') + '">' + (delta > 0 ? '+' : '') + delta + '</td><td>' + Number(item.stock_before) + '</td><td>' + Number(item.stock_after) + '</td><td>' + escapeHtml(reference) + '</td><td>' + escapeHtml(item.performed_by_name || 'Hệ thống') + '</td><td>' + escapeHtml(item.note || '—') + '</td></tr>';
+            }).join('') : '<tr><td colspan="9">Chưa có biến động tồn kho.</td></tr>';
+            document.getElementById('movementCount').textContent = 'Trang ' + page + ' · ' + total + ' biến động';
+            document.getElementById('previousPage').disabled = page <= 1;
+            document.getElementById('nextPage').disabled = page * limit >= total;
+        }
+
+        document.getElementById('refreshMovements').addEventListener('click', () => loadMovements().catch(error => setAlert(error.message, 'error')));
+        document.getElementById('previousPage').addEventListener('click', () => { page--; loadMovements().catch(error => setAlert(error.message, 'error')); });
+        document.getElementById('nextPage').addEventListener('click', () => { page++; loadMovements().catch(error => setAlert(error.message, 'error')); });
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+            try {
+                const response = await fetch('/api/auth/me', { credentials: 'include' });
+                const data = await response.json();
+                if (data.user) document.getElementById('adminUser').innerHTML = '<div class="sidebar-avatar">' + escapeHtml(data.user.full_name?.charAt(0) || 'A') + '</div><div class="sidebar-user-info"><div class="sidebar-user-name">' + escapeHtml(data.user.full_name || 'Admin') + '</div><div class="sidebar-user-role">Quản trị viên</div></div>';
+                await loadMovements();
+            } catch (error) { setAlert(error.message || 'Không thể tải dữ liệu quản trị.', 'error'); }
+        });
+    </script>
+    <script src="/js/admin-ui.js?v=20261110-2"></script>
+</body>
+</html>

@@ -235,39 +235,67 @@ router.get('/:id', async (req, res) => {
 
         // Get reviews
         const [reviews] = await pool.query(
-            `SELECT r.id, r.rating, r.comment, r.created_at, u.full_name
+            `SELECT r.id, r.entry_type, r.rating, r.comment, r.ai_reply, r.needs_admin,
+                    r.created_at, r.user_id, u.full_name,
+                    EXISTS(
+                        SELECT 1 FROM order_items verified_item
+                        JOIN orders verified_order ON verified_order.id = verified_item.order_id
+                        WHERE verified_order.user_id = r.user_id
+                          AND verified_order.status = 'delivered'
+                          AND verified_item.product_id = r.product_id
+                    ) AS is_verified_purchase,
+                    EXISTS(
+                        SELECT 1 FROM review_reports own_report
+                        WHERE own_report.review_id = r.id AND own_report.user_id = ?
+                    ) AS reported_by_current_user
              FROM reviews r
              LEFT JOIN users u ON r.user_id = u.id
              WHERE r.product_id = ?
              ORDER BY r.created_at DESC`,
-            [id]
+            [req.session.user_id || 0, id]
         );
         reviews.forEach(review => Object.assign(review, parseReviewComment(review.comment)));
 
         let reviewEligibility = {
+            isDeliveredBuyer: false,
             canReview: false,
-            reason: 'Vui lòng đăng nhập để gửi đánh giá sản phẩm.'
+            canAsk: false,
+            reason: 'Vui lòng đăng nhập để gửi đánh giá sản phẩm.',
+            questionReason: 'Vui lòng đăng nhập để đặt câu hỏi.'
         };
         if (req.session.user_id) {
-            const [ownReviews] = await pool.query(
-                'SELECT id FROM reviews WHERE product_id = ? AND user_id = ? LIMIT 1',
+            const [ownEntries] = await pool.query(
+                'SELECT entry_type FROM reviews WHERE product_id = ? AND user_id = ?',
                 [id, req.session.user_id]
             );
-            if (ownReviews.length > 0) {
-                reviewEligibility = { canReview: false, reason: 'Bạn đã đánh giá sản phẩm này rồi.' };
-            } else {
-                reviewEligibility = { canReview: true, reason: '' };
-            }
+            const hasReview = ownEntries.some(entry => entry.entry_type === 'review');
+            const [deliveredPurchases] = await pool.query(
+                `SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                 WHERE o.user_id = ? AND o.status = 'delivered' AND oi.product_id = ? LIMIT 1`,
+                [req.session.user_id, id]
+            );
+            const canReview = !hasReview && deliveredPurchases.length > 0;
+            reviewEligibility = {
+                isDeliveredBuyer: deliveredPurchases.length > 0,
+                canReview,
+                canAsk: true,
+                reason: hasReview
+                    ? 'Bạn đã đánh giá sản phẩm này rồi.'
+                    : deliveredPurchases.length ? '' : 'Chỉ khách đã nhận sản phẩm này mới được đánh giá.',
+                questionReason: ''
+            };
         }
 
         // Calculate rating stats
         let avgRating = 0;
         const starCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-        reviews.forEach(rv => {
+        const customerReviews = reviews.filter(review => review.entry_type === 'review' && Number(review.rating) >= 1 && Number(review.rating) <= 5);
+        const questionCount = reviews.filter(review => review.entry_type === 'question').length;
+        customerReviews.forEach(rv => {
             avgRating += rv.rating;
             starCounts[rv.rating]++;
         });
-        if (reviews.length > 0) avgRating = (avgRating / reviews.length).toFixed(1);
+        if (customerReviews.length > 0) avgRating = (avgRating / customerReviews.length).toFixed(1);
 
         // Get related products
         let related = [];
@@ -292,7 +320,8 @@ router.get('/:id', async (req, res) => {
             reviewEligibility,
             ratingStats: {
                 avgRating,
-                total: reviews.length,
+                total: customerReviews.length,
+                questionCount,
                 starCounts
             },
             related

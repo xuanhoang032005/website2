@@ -18,13 +18,14 @@ function corsOrigin(origin, callback) {
     callback(error);
 }
 
-function sessionOptions() {
+function sessionOptions(store) {
     if (isProduction && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)) {
         throw new Error('SESSION_SECRET phải có ít nhất 32 ký tự khi chạy production.');
     }
     return {
         secret: process.env.SESSION_SECRET || 'development-only-secret',
         name: 'ats.sid',
+        store,
         resave: false,
         saveUninitialized: false,
         cookie: {

@@ -48,8 +48,6 @@ const changePasswordValidation = validateBody({
     new_password: stringField({ required: true, min: 6, max: 128, trim: false, label: 'Mật khẩu mới' })
 });
 
-// Store OTPs temporarily (in production, use Redis or database)
-const otpStore = new Map(); // { email: { otp, expires, attempts } }
 const passwordResetRequested = {
     success: true,
     message: 'Nếu email tồn tại, bạn sẽ nhận được mã xác nhận!',
@@ -58,6 +56,65 @@ const passwordResetRequested = {
 
 function normalizeEmail(value) {
     return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function hashResetOtp(otp) {
+    const secret = process.env.SESSION_SECRET || 'development-only-secret';
+    return crypto.createHmac('sha256', secret).update(String(otp)).digest('hex');
+}
+
+async function withVerifiedResetOtp(email, otp, onValid) {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const [tokens] = await connection.query(
+            `SELECT rt.id, rt.user_id, rt.token
+             FROM reset_tokens rt JOIN users u ON u.id = rt.user_id
+             WHERE u.email = ? AND rt.expires_at > NOW()
+             ORDER BY rt.id ASC LIMIT 1 FOR UPDATE`,
+            [email]
+        );
+        if (!tokens.length) {
+            await connection.commit();
+            return { status: 'missing' };
+        }
+
+        const token = tokens[0];
+        const attemptToken = hashResetOtp(`attempt:${token.token}`);
+        const [attemptRows] = await connection.query(
+            'SELECT id FROM reset_tokens WHERE user_id = ? AND token = ? AND expires_at > NOW() FOR UPDATE',
+            [token.user_id, attemptToken]
+        );
+        const attempts = attemptRows.length;
+        if (attempts >= 5) {
+            await connection.query('DELETE FROM reset_tokens WHERE user_id = ?', [token.user_id]);
+            await connection.commit();
+            return { status: 'exhausted' };
+        }
+
+        const submittedHash = Buffer.from(hashResetOtp(otp), 'hex');
+        const storedHash = Buffer.from(token.token, 'hex');
+        const valid = storedHash.length === submittedHash.length && crypto.timingSafeEqual(storedHash, submittedHash);
+        if (!valid) {
+            await connection.query(
+                'INSERT INTO reset_tokens (user_id, token, expires_at) SELECT user_id, ?, expires_at FROM reset_tokens WHERE id = ?',
+                [attemptToken, token.id]
+            );
+            const remaining = 4 - attempts;
+            if (remaining <= 0) await connection.query('DELETE FROM reset_tokens WHERE user_id = ?', [token.user_id]);
+            await connection.commit();
+            return { status: remaining <= 0 ? 'exhausted' : 'invalid', attempts_left: Math.max(remaining, 0) };
+        }
+
+        if (onValid) await onValid(connection, token.user_id);
+        await connection.commit();
+        return { status: 'valid' };
+    } catch (error) {
+        await connection.rollback().catch(() => {});
+        throw error;
+    } finally {
+        connection.release();
+    }
 }
 
 function isValidEmail(value) {
@@ -213,7 +270,7 @@ router.get('/profile-summary', async (req, res) => {
             [userId]
         );
         const [[wishlistStats]] = await pool.query('SELECT COUNT(*) AS total_wishlist FROM wishlists WHERE user_id = ?', [userId]);
-        const [[reviewStats]] = await pool.query('SELECT COUNT(*) AS total_reviews FROM reviews WHERE user_id = ?', [userId]);
+        const [[reviewStats]] = await pool.query("SELECT COUNT(*) AS total_reviews FROM reviews WHERE user_id = ? AND entry_type = 'review'", [userId]);
         const [recentOrders] = await pool.query(
             `SELECT o.id, o.payment_code, o.total_price, o.status, o.created_at,
                     (SELECT p.thumbnail FROM order_items oi JOIN products p ON p.id = oi.product_id
@@ -306,20 +363,22 @@ router.post('/forgot-password', passwordResetRateLimit, emailValidation, async (
 
         // Generate 6-digit OTP
         const otp = crypto.randomInt(100000, 1000000).toString();
-        const expires = Date.now() + 5 * 60 * 1000; // 5 minutes
-
-        // Store OTP
-        otpStore.set(email, {
-            otp: otp,
-            expires: expires,
-            attempts: 0,
-            user_id: user.id
-        });
-
-        // Delete old tokens for this user
-        // Send OTP via email
-        queue.enqueue('password_reset_email', { email, otp, expiresIn: 5 });
-
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            await connection.query('DELETE FROM reset_tokens WHERE user_id = ?', [user.id]);
+            await connection.query(
+                'INSERT INTO reset_tokens (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))',
+                [user.id, hashResetOtp(otp)]
+            );
+            await queue.enqueue('password_reset_email', { email, otp, expiresIn: 5 }, { connection });
+            await connection.commit();
+        } catch (error) {
+            await connection.rollback().catch(() => {});
+            throw error;
+        } finally {
+            connection.release();
+        }
         res.json(passwordResetRequested);
     } catch (error) {
         console.error('Forgot password error:', error);
@@ -341,43 +400,20 @@ router.post('/reset-password', passwordResetRateLimit, resetPasswordValidation, 
             return res.status(400).json({ error: 'Mật khẩu phải có từ 6 đến 128 ký tự!' });
         }
 
-        const emailLower = email;
-        const storedOTP = otpStore.get(emailLower);
-
-        // Check if OTP exists
-        if (!storedOTP) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const result = await withVerifiedResetOtp(email, otp, async (connection, userId) => {
+            await connection.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+            await connection.query('DELETE FROM reset_tokens WHERE user_id = ?', [userId]);
+        });
+        if (result.status === 'missing') {
             return res.status(400).json({ error: 'Mã xác nhận đã hết hạn. Vui lòng yêu cầu mã mới!' });
         }
-
-        // Check expiration
-        if (Date.now() > storedOTP.expires) {
-            otpStore.delete(emailLower);
-            return res.status(400).json({ error: 'Mã xác nhận đã hết hạn. Vui lòng yêu cầu mã mới!' });
-        }
-
-        // Check attempts
-        if (storedOTP.attempts >= 5) {
-            otpStore.delete(emailLower);
+        if (result.status === 'exhausted') {
             return res.status(400).json({ error: 'Bạn đã nhập sai quá nhiều lần. Vui lòng yêu cầu mã mới!' });
         }
-
-        // Verify OTP
-        if (storedOTP.otp !== String(otp)) {
-            storedOTP.attempts++;
-            const attemptsLeft = 5 - storedOTP.attempts;
-            return res.status(400).json({ 
-                error: `Mã xác nhận không đúng! Còn ${attemptsLeft} lần thử.` 
-            });
+        if (result.status === 'invalid') {
+            return res.status(400).json({ error: `Mã xác nhận không đúng! Còn ${result.attempts_left} lần thử.` });
         }
-
-        // OTP verified - Hash new password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Update password
-        await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, storedOTP.user_id]);
-
-        // Delete used OTP
-        otpStore.delete(emailLower);
 
         res.json({ success: true, message: 'Đặt lại mật khẩu thành công!' });
     } catch (error) {
@@ -396,24 +432,16 @@ router.post('/verify-otp', passwordResetRateLimit, otpValidation, async (req, re
             return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin!' });
         }
 
-        const emailLower = email;
-        const storedOTP = otpStore.get(emailLower);
-
-        if (!storedOTP) {
+        const result = await withVerifiedResetOtp(email, otp);
+        if (result.status === 'missing') {
             return res.status(400).json({ valid: false, error: 'Mã xác nhận đã hết hạn!' });
         }
-
-        if (Date.now() > storedOTP.expires) {
-            otpStore.delete(emailLower);
-            return res.status(400).json({ valid: false, error: 'Mã xác nhận đã hết hạn!' });
+        if (result.status === 'exhausted') {
+            return res.status(400).json({ valid: false, error: 'Bạn đã nhập sai quá nhiều lần. Vui lòng yêu cầu mã mới!' });
         }
-
-        if (storedOTP.otp !== String(otp)) {
-            storedOTP.attempts++;
-            if (storedOTP.attempts >= 5) otpStore.delete(emailLower);
+        if (result.status === 'invalid') {
             return res.status(400).json({ valid: false, error: 'Mã xác nhận không đúng!' });
         }
-
         res.json({ valid: true, message: 'Mã xác nhận hợp lệ!' });
     } catch (error) {
         console.error('Verify OTP error:', error);

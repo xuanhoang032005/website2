@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20261001-1">
+    <link rel="stylesheet" href="/css/admin.css?v=20261110-2">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -323,11 +323,13 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="toggle">
-                                <input type="checkbox" id="is_featured">
-                                <span class="toggle-slider"></span>
-                                <span class="toggle-label"><i class="fas fa-star"></i> Hiển thị ở mục Sản phẩm nổi bật</span>
-                            </label>
+                            <div class="featured-toggle-control">
+                                <label class="toggle" for="is_featured" aria-label="Hiển thị ở mục Sản phẩm nổi bật">
+                                    <input type="checkbox" id="is_featured">
+                                    <span class="toggle-slider" aria-hidden="true"></span>
+                                </label>
+                                <label class="toggle-label" for="is_featured"><i class="fas fa-star" aria-hidden="true"></i> Hiển thị ở mục Sản phẩm nổi bật</label>
+                            </div>
                         </div>
                     </div>
 
@@ -348,6 +350,7 @@
 
     <script>
         let editingId = null;
+        let loadingProduct = false;
 
         async function adminLogout() {
             showConfirm('Đăng xuất?', 'Bạn có chắc muốn đăng xuất?', async () => {
@@ -361,6 +364,7 @@
             const now = new Date();
             const options = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
             document.getElementById('currentDate').textContent = now.toLocaleDateString('vi-VN', options);
+            document.getElementById('name').addEventListener('input', updateAllVariantSkus);
 
             // Load admin user
             try {
@@ -536,10 +540,12 @@
 
         function openModal(id = null) {
             editingId = id;
+            loadingProduct = Boolean(id);
             const modal = document.getElementById('productModal');
             modal.classList.add('show');
             document.getElementById('modalTitle').innerHTML = id ? '<i class="fas fa-edit"></i> Sửa sản phẩm' : '<i class="fas fa-plus-circle"></i> Thêm sản phẩm mới';
             document.getElementById('productForm').reset();
+            document.getElementById('saveProductButton').disabled = loadingProduct;
             document.getElementById('discount_percent').value = '0%';
             document.getElementById('priceError').style.display = 'none';
             productVariants = [emptyProductVariant(true)];
@@ -558,6 +564,8 @@
             const modal = document.getElementById('productModal');
             modal.classList.remove('show');
             editingId = null;
+            loadingProduct = false;
+            document.getElementById('saveProductButton').disabled = false;
         }
 
         // Helper: an toàn khi set giá trị (tránh lỗi Cannot set properties of null)
@@ -583,11 +591,13 @@
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'include'
                 });
-                const data = await res.json();
+                const contentType = res.headers.get('content-type') || '';
+                const data = contentType.includes('application/json')
+                    ? await res.json()
+                    : { error: `Máy chủ không trả dữ liệu sản phẩm (HTTP ${res.status}).` };
 
-                if (data.error) {
-                    showAlert(data.error, 'error');
-                    return;
+                if (!res.ok || !data.product) {
+                    throw new Error(data.error || 'Không nhận được dữ liệu sản phẩm từ máy chủ.');
                 }
 
                 const p = data.product;
@@ -662,8 +672,12 @@
                 }
                 renderGalleryPreview();
             } catch (e) {
-                showAlert('Lỗi khi tải dữ liệu sản phẩm!', 'error');
+                showAlert(e.message || 'Lỗi khi tải dữ liệu sản phẩm!', 'error');
                 console.error(e);
+            } finally {
+                loadingProduct = false;
+                const saveButton = document.getElementById('saveProductButton');
+                if (saveButton) saveButton.disabled = false;
             }
         }
 
@@ -776,6 +790,88 @@
             return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
+        const variantRamOptions = ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '24GB', '32GB'];
+        const variantStorageOptions = ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'];
+        const variantColors = [
+            { name: 'Đen', hex: '#242428', code: 'BLK' },
+            { name: 'Trắng', hex: '#f1f2f3', code: 'WHT' },
+            { name: 'Bạc', hex: '#c7cbd0', code: 'SLV' },
+            { name: 'Xám', hex: '#85878c', code: 'GRY' },
+            { name: 'Xám titan', hex: '#777a80', code: 'TIG' },
+            { name: 'Titan tự nhiên', hex: '#aaa08f', code: 'NAT' },
+            { name: 'Titan sa mạc', hex: '#b89073', code: 'DST' },
+            { name: 'Titan xanh', hex: '#6f8491', code: 'TIB' },
+            { name: 'Titan đen', hex: '#48494d', code: 'TIBK' },
+            { name: 'Vàng', hex: '#d0ad56', code: 'GLD' },
+            { name: 'Vàng hồng', hex: '#d6a2a0', code: 'RGL' },
+            { name: 'Hồng', hex: '#e8a9bc', code: 'PNK' },
+            { name: 'Tím', hex: '#8979aa', code: 'PUR' },
+            { name: 'Tím lavender', hex: '#b7add5', code: 'LAV' },
+            { name: 'Xanh dương', hex: '#4f6eaa', code: 'BLU' },
+            { name: 'Xanh navy', hex: '#303d68', code: 'NVY' },
+            { name: 'Xanh nhạt', hex: '#9dc8e7', code: 'LBL' },
+            { name: 'Xanh mint', hex: '#a9ccb7', code: 'MNT' },
+            { name: 'Xanh lá', hex: '#63896b', code: 'GRN' },
+            { name: 'Xanh rêu', hex: '#68775b', code: 'OLV' },
+            { name: 'Xanh teal', hex: '#398b89', code: 'TEL' },
+            { name: 'Cam', hex: '#eb8846', code: 'ORG' },
+            { name: 'Cam vũ trụ', hex: '#df703e', code: 'COS' },
+            { name: 'Đỏ', hex: '#d74b4b', code: 'RED' },
+            { name: 'Đỏ san hô', hex: '#ed8072', code: 'COR' },
+            { name: 'Vàng nhạt', hex: '#e3cf83', code: 'YLW' },
+            { name: 'Be', hex: '#d7c7aa', code: 'BGE' },
+            { name: 'Nâu', hex: '#8d6754', code: 'BRN' },
+            { name: 'Than chì', hex: '#4c5055', code: 'CHR' },
+            { name: 'Xanh băng', hex: '#d5e5ee', code: 'ICE' }
+        ];
+
+        function variantSelectOptions(options, selectedValue, placeholder) {
+            const values = [...options];
+            if (selectedValue && !values.includes(selectedValue)) values.push(selectedValue);
+            return `<option value="">${placeholder}</option>${values.map(value => `<option value="${variantAttr(value)}" ${value === selectedValue ? 'selected' : ''}>${variantAttr(value)}</option>`).join('')}`;
+        }
+
+        function skuToken(value) {
+            return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd')
+                .toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        }
+
+        function colorCode(value) {
+            const color = variantColors.find(item => item.name.toLocaleLowerCase('vi-VN') === String(value || '').toLocaleLowerCase('vi-VN'));
+            return color?.code || skuToken(value).slice(0, 8);
+        }
+
+        function generatedVariantSku(variant) {
+            const product = skuToken(document.getElementById('name')?.value).slice(0, 32);
+            const parts = [product, skuToken(variant.ram), skuToken(variant.storage), colorCode(variant.color)].filter(Boolean);
+            return parts.join('-').slice(0, 100).replace(/-+$/g, '');
+        }
+
+        function updateVariantSku(row) {
+            const variant = {
+                ram: row.querySelector('[data-field="ram"]')?.value,
+                storage: row.querySelector('[data-field="storage"]')?.value,
+                color: row.querySelector('[data-field="color"]')?.value
+            };
+            const input = row.querySelector('[data-field="sku"]');
+            if (input) input.value = generatedVariantSku(variant);
+        }
+
+        function updateAllVariantSkus() {
+            document.querySelectorAll('#variantsContainer .variant-row').forEach(updateVariantSku);
+        }
+
+        function renderVariantColorOptions(selectedColor, index) {
+            const colors = [...variantColors];
+            if (selectedColor && !colors.some(color => color.name === selectedColor)) {
+                colors.push({ name: selectedColor, hex: '#64748b', code: skuToken(selectedColor).slice(0, 8), custom: true });
+            }
+            return colors.map(color => {
+                const selected = color.name === selectedColor;
+                return `<button type="button" class="variant-color-choice ${selected ? 'selected' : ''} ${color.custom ? 'custom' : ''}" data-color-value="${variantAttr(color.name)}" title="${variantAttr(color.name)}" aria-label="${variantAttr(color.name)}" aria-pressed="${selected}" style="--variant-color:${color.hex}"><span></span></button>`;
+            }).join('');
+        }
+
         function renderProductVariants() {
             const container = document.getElementById('variantsContainer');
             if (!container) return;
@@ -791,10 +887,10 @@
                         </button>
                     </div>
                     <div class="variant-grid">
-                        <div class="form-group"><label class="form-label">RAM</label><input class="form-control" data-field="ram" value="${variantAttr(variant.ram)}" placeholder="8GB"></div>
-                        <div class="form-group"><label class="form-label">ROM</label><input class="form-control" data-field="storage" value="${variantAttr(variant.storage)}" placeholder="256GB"></div>
-                        <div class="form-group"><label class="form-label">Màu sắc</label><input class="form-control" data-field="color" value="${variantAttr(variant.color)}" placeholder="Titan tự nhiên"></div>
-                        <div class="form-group"><label class="form-label">SKU</label><input class="form-control" data-field="sku" value="${variantAttr(variant.sku)}" placeholder="IP15PM-8-256-TN"></div>
+                        <div class="form-group"><label class="form-label">RAM</label><select class="form-control" data-field="ram">${variantSelectOptions(variantRamOptions, variant.ram, 'Chọn RAM')}</select></div>
+                        <div class="form-group"><label class="form-label">ROM</label><select class="form-control" data-field="storage">${variantSelectOptions(variantStorageOptions, variant.storage, 'Chọn ROM')}</select></div>
+                        <div class="form-group variant-color-field"><label class="form-label">Màu sắc</label><input type="hidden" data-field="color" value="${variantAttr(variant.color)}"><div class="variant-color-palette" role="group" aria-label="Chọn màu sắc">${renderVariantColorOptions(variant.color, index)}</div><span class="variant-color-current">${variant.color ? variantAttr(variant.color) : 'Chưa chọn màu'}</span></div>
+                        <div class="form-group"><label class="form-label">SKU tự động</label><input class="form-control" data-field="sku" value="${variantAttr(variant.sku || generatedVariantSku(variant))}" readonly aria-readonly="true"></div>
                         <div class="form-group"><label class="form-label">Giá niêm yết</label><input class="form-control" data-field="old_price" value="${variant.old_price === '' ? '' : Number(variant.old_price).toLocaleString('vi-VN')}" placeholder="32.990.000" oninput="formatPriceInput(this)"></div>
                         <div class="form-group"><label class="form-label">Giá bán *</label><input class="form-control" data-field="price" value="${variant.price === '' ? '' : Number(variant.price).toLocaleString('vi-VN')}" placeholder="28.990.000" oninput="formatPriceInput(this)"></div>
                         <div class="form-group"><label class="form-label">Tồn kho *</label><input type="number" min="0" class="form-control" data-field="stock" value="${Number(variant.stock) || 0}"></div>
@@ -806,6 +902,28 @@
                 if (updated) productVariants = updated;
                 renderGalleryPreview();
             }));
+            container.querySelectorAll('[data-field="ram"], [data-field="storage"]').forEach(input => input.addEventListener('change', () => {
+                const row = input.closest('.variant-row');
+                updateVariantSku(row);
+                const updated = collectProductVariants(false);
+                if (updated) productVariants = updated;
+            }));
+            container.querySelectorAll('.variant-color-choice').forEach(button => button.addEventListener('click', () => {
+                const row = button.closest('.variant-row');
+                const colorInput = row.querySelector('[data-field="color"]');
+                colorInput.value = button.dataset.colorValue;
+                row.querySelectorAll('.variant-color-choice').forEach(option => {
+                    const active = option === button;
+                    option.classList.toggle('selected', active);
+                    option.setAttribute('aria-pressed', String(active));
+                });
+                row.querySelector('.variant-color-current').textContent = button.dataset.colorValue;
+                updateVariantSku(row);
+                const updated = collectProductVariants(false);
+                if (updated) productVariants = updated;
+                renderGalleryPreview();
+            }));
+            container.querySelectorAll('.variant-row').forEach(updateVariantSku);
             if (typeof galleryImages !== 'undefined') renderGalleryPreview();
         }
 
@@ -892,6 +1010,10 @@
 
         async function saveProduct() {
             if (savingProduct) return;
+            if (loadingProduct) {
+                showAlert('Đang tải dữ liệu sản phẩm, vui lòng đợi.', 'error');
+                return;
+            }
             const variants = collectProductVariants();
             if (!variants || variants.length === 0) return;
             productVariants = variants;
@@ -1071,6 +1193,6 @@
             if (e.target === this) closeModal();
         });
     </script>
-    <script src="/js/admin-ui.js?v=20260914-4"></script>
+    <script src="/js/admin-ui.js?v=20261110-2"></script>
 </body>
 </html>

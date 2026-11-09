@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đổi trả và bảo hành - AnhTraiStore</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/admin.css?v=20261103-1">
+</head>
+<body class="admin-shell">
+    <div class="admin-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-logo"><a href="/admin"><div class="sidebar-logo-icon"><i class="fas fa-store"></i></div><div><div class="sidebar-logo-text">AnhTraiStore</div><div class="sidebar-logo-sub">Admin Panel</div></div></a></div>
+            <nav class="sidebar-nav"><div class="nav-section"><div class="nav-section-title">Tổng quan</div><a href="/admin" class="nav-item"><i class="fas fa-chart-pie"></i> Dashboard</a></div><div class="nav-section"><div class="nav-section-title">Quản lý</div><a href="/admin/products" class="nav-item"><i class="fas fa-box"></i> Sản phẩm</a><a href="/admin/orders" class="nav-item"><i class="fas fa-shopping-bag"></i> Đơn hàng</a><a href="/admin/users" class="nav-item"><i class="fas fa-users"></i> Khách hàng</a><a href="/admin/reviews" class="nav-item"><i class="fas fa-star"></i> Đánh giá</a><a href="/admin/contacts" class="nav-item"><i class="fas fa-envelope"></i> Liên hệ</a></div><div class="nav-section"><div class="nav-section-title">Marketing</div><a href="/admin/banners" class="nav-item"><i class="fas fa-images"></i> Banners</a><a href="/admin/promotions" class="nav-item"><i class="fas fa-bullhorn"></i> Khuyến mãi</a></div><div class="nav-section"><div class="nav-section-title">Hệ thống</div><a href="/" class="nav-item" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Xem cửa hàng</a></div></nav>
+            <div class="sidebar-footer"><div class="sidebar-user" id="adminUser"><div class="sidebar-avatar">A</div><div class="sidebar-user-info"><div class="sidebar-user-name">Admin</div><div class="sidebar-user-role">Quản trị viên</div></div></div><button class="btn-logout" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i> Đăng xuất</button></div>
+        </aside>
+        <main class="main-content">
+            <header class="top-header"><div class="top-header-left"><h1 class="top-header-title">Đổi trả và bảo hành</h1></div><div class="top-header-right"><span class="header-date" id="currentDate"></span></div></header>
+            <div class="page-content"><div id="alertBox"></div>
+                <section class="card"><div class="card-header"><h2 class="card-title"><i class="fas fa-inbox"></i> Yêu cầu hậu mãi</h2><button type="button" id="refreshRequests" class="btn btn-secondary"><i class="fas fa-rotate"></i> Làm mới</button></div>
+                    <div class="service-filters"><button class="filter-btn active" data-status="all">Tất cả</button><button class="filter-btn" data-status="submitted">Mới gửi</button><button class="filter-btn" data-status="reviewing">Đang xem xét</button><button class="filter-btn" data-status="approved">Đã chấp thuận</button><button class="filter-btn" data-status="rejected">Đã từ chối</button><button class="filter-btn" data-status="resolved">Đã hoàn tất</button></div>
+                    <div id="requestsList" class="service-request-list"><div class="empty-state">Đang tải yêu cầu...</div></div>
+                </section>
+            </div>
+        </main>
+    </div>
+    <script>
+        const labels = { submitted: 'Mới gửi', reviewing: 'Đang xem xét', approved: 'Đã chấp thuận', rejected: 'Đã từ chối', resolved: 'Đã hoàn tất' };
+        const transitions = { submitted: ['reviewing'], reviewing: ['approved', 'rejected'], approved: ['resolved'], rejected: [], resolved: [] };
+        let requests = [];
+        let filter = 'all';
+        function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+        function formatTime(value) { return value ? new Date(value).toLocaleString('vi-VN') : '—'; }
+        async function adminLogout() {
+            const confirmed = await adminConfirm({ title: 'Đăng xuất?', message: 'Bạn có chắc muốn đăng xuất?', confirmText: 'Đăng xuất', icon: 'fa-sign-out-alt', tone: 'primary' });
+            if (!confirmed) return;
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            window.location.href = '/login';
+        }
+        function alert(message, type = 'error') {
+            const box = document.getElementById('alertBox');
+            box.innerHTML = '<div class="alert alert-' + type + '">' + escapeHtml(message) + '</div>';
+            setTimeout(() => { box.innerHTML = ''; }, 4000);
+        }
+        function renderRequests() {
+            const visible = requests.filter(item => filter === 'all' || item.status === filter);
+            const list = document.getElementById('requestsList');
+            if (!visible.length) { list.innerHTML = '<div class="empty-state">Không có yêu cầu ở trạng thái này.</div>'; return; }
+            list.innerHTML = visible.map(item => {
+                const variant = [item.ram, item.storage, item.color].filter(Boolean).join(' / ');
+                let images = item.images;
+                if (typeof images === 'string') { try { images = JSON.parse(images); } catch (_) { images = []; } }
+                const imageMarkup = Array.isArray(images) && images.length ? '<div class="service-request-images">' + images.map(url => '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(url) + '" alt="Ảnh minh chứng" loading="lazy"></a>').join('') + '</div>' : '';
+                const choices = transitions[item.status] || [];
+                const controls = choices.length ? '<div class="service-admin-controls"><select id="status-' + item.id + '" class="form-control"><option value="">Cập nhật trạng thái</option>' + choices.map(status => '<option value="' + status + '">' + labels[status] + '</option>').join('') + '</select><input id="note-' + item.id + '" class="form-control" maxlength="1000" placeholder="Ghi chú gửi khách"><button class="btn btn-primary" onclick="updateRequest(' + item.id + ')"><i class="fas fa-check"></i> Lưu</button></div>' : '';
+                return '<article class="service-request-card"><div class="service-request-top"><div><span class="badge badge-secondary">' + (item.request_type === 'return' ? 'Đổi trả' : 'Bảo hành') + '</span> <span class="status-badge ' + escapeHtml(item.status) + '">' + labels[item.status] + '</span></div><time>' + escapeHtml(formatTime(item.created_at)) + '</time></div><h3>' + escapeHtml(item.product_name) + (variant ? ' · ' + escapeHtml(variant) : '') + '</h3><div class="service-request-customer">' + escapeHtml(item.customer_name) + ' · ' + escapeHtml(item.customer_email) + ' · Đơn ' + escapeHtml(item.payment_code || item.order_id) + '</div><p><strong>Lý do:</strong> ' + escapeHtml(item.reason) + '</p>' + (item.description ? '<p>' + escapeHtml(item.description) + '</p>' : '') + imageMarkup + (item.admin_note ? '<div class="service-admin-note"><strong>Ghi chú xử lý:</strong> ' + escapeHtml(item.admin_note) + '</div>' : '') + controls + '</article>';
+            }).join('');
+        }
+        async function loadRequests() {
+            try {
+                const response = await fetch('/api/service-requests/admin/list', { credentials: 'include' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể tải yêu cầu.');
+                requests = data.requests || [];
+                renderRequests();
+            } catch (error) { alert(error.message); }
+        }
+        async function updateRequest(id) {
+            const status = document.getElementById('status-' + id)?.value;
+            if (!status) return alert('Chọn trạng thái mới trước khi lưu.');
+            try {
+                const response = await fetch('/api/service-requests/admin/' + id, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, admin_note: document.getElementById('note-' + id).value }) });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể cập nhật yêu cầu.');
+                await loadRequests();
+                alert('Đã cập nhật yêu cầu.', 'info');
+            } catch (error) { alert(error.message); }
+        }
+        document.getElementById('refreshRequests').addEventListener('click', loadRequests);
+        document.querySelector('.service-filters').addEventListener('click', event => {
+            const button = event.target.closest('[data-status]');
+            if (!button) return;
+            filter = button.dataset.status;
+            document.querySelectorAll('.service-filters .filter-btn').forEach(item => item.classList.toggle('active', item === button));
+            renderRequests();
+        });
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+            try {
+                const response = await fetch('/api/auth/me', { credentials: 'include' });
+                const data = await response.json();
+                if (data.user) document.getElementById('adminUser').innerHTML = '<div class="sidebar-avatar">' + escapeHtml(data.user.full_name?.charAt(0) || 'A') + '</div><div class="sidebar-user-info"><div class="sidebar-user-name">' + escapeHtml(data.user.full_name || 'Admin') + '</div><div class="sidebar-user-role">Quản trị viên</div></div>';
+                await loadRequests();
+            } catch (error) { alert('Không thể tải yêu cầu hậu mãi.'); }
+        });
+    </script>
+    <script src="/js/admin-ui.js?v=20261110-2"></script>
+</body>
+</html>

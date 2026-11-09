@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { getOrderStatusHistory } = require('../services/order-tracking');
 
 async function listByUser(userId, db = pool) {
     const [orders] = await db.query(
@@ -23,7 +24,8 @@ async function findOwnedWithItems(orderId, userId, db = pool) {
          WHERE oi.order_id = ?`,
         [orderId]
     );
-    return { order: orders[0], items };
+    const statusHistory = await getOrderStatusHistory(db, orderId);
+    return { order: orders[0], items, status_history: statusHistory };
 }
 
 module.exports = { listByUser, findOwnedWithItems };

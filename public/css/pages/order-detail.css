@@ -585,9 +585,10 @@ body:has(.page-main) { background: #f7fbff; }
 .timeline-item.done > span { color: #fff; background: #1fb880; border-color: #1fb880; }
 .timeline-item.active > span { color: #fff; background: #1269ed; border-color: #1269ed; }
 .timeline-item > div { display: flex; padding-top: 2px; flex-direction: column; }
-.timeline-item strong { color: #526176; font-size: .68rem; }
+.timeline-item > div { min-width: 0; }
+.timeline-item strong { color: #526176; font-size: .68rem; overflow-wrap: anywhere; }
 .timeline-item.active strong { color: #1269ed; }
-.timeline-item small { margin-top: 3px; color: #8b98a9; font-size: .59rem; }
+.timeline-item small { margin-top: 3px; color: #8b98a9; font-size: .59rem; line-height: 1.45; overflow-wrap: anywhere; }
 .support-box { display: flex; gap: 10px; margin-top: 5px; padding: 12px; color: #1269ed; background: #eef6ff; border-radius: 7px; }
 .support-box > i { font-size: 1.2rem; }
 .support-box div { display: flex; flex-direction: column; }
@@ -595,6 +596,16 @@ body:has(.page-main) { background: #f7fbff; }
 .support-box span,
 .support-box a { margin-top: 3px; font-size: .62rem; }
 .support-box a { color: #1269ed; text-decoration: none; }
+
+.service-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 10px; }
+.service-request-button { min-height: 32px; padding: 6px 10px; font-size: .68rem; }
+.service-request-status { padding: 5px 8px; color: #43546a; background: #f1f5f9; border-radius: 5px; font-size: .66rem; }
+.service-request-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin-top: 9px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px; }
+.service-request-form[hidden] { display: none; }
+.service-request-form label { color: #526176; font-size: .68rem; font-weight: 650; }
+.service-request-form input, .service-request-form textarea { width: 100%; padding: 9px 10px; color: #172033; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; font-size: .72rem; }
+.service-request-form textarea { resize: vertical; }
+.service-request-form .btn { justify-self: start; }
 
 .order-meta-summary { display: grid; grid-template-columns: minmax(0,.8fr) minmax(260px,1.2fr); gap: 20px; }
 .order-meta-summary > div:first-child { display: grid; grid-template-columns: 1fr 1.2fr; align-content: start; gap: 10px 12px; padding: 12px; border: 1px solid #e4eaf0; border-radius: 7px; }

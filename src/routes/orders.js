@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const queue = require('../services/job-queue');
-const { syncProductStock } = require('../core/product-variants');
+const { adjustOrderStock } = require('../services/inventory');
+const { recordOrderStatus } = require('../services/order-tracking');
 const ordersController = require('../controllers/orders-controller');
 
 const ONLINE_PAYMENT_METHODS = ['vnpay', 'momo'];
@@ -264,31 +265,17 @@ async function releaseCoupon(db, order) {
     }
 }
 
-async function decreaseStock(db, items) {
-    for (const item of items) {
-        const [updated] = item.variant_id
-            ? await db.query(
-                'UPDATE product_variants SET stock = stock - ? WHERE id = ? AND product_id = ? AND is_active = 1 AND stock >= ?',
-                [item.quantity, item.variant_id, item.product_id, item.quantity]
-            )
-            : await db.query(
-                'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
-                [item.quantity, item.product_id, item.quantity]
-            );
-        if (updated.affectedRows !== 1) {
-            const error = new Error(`Sản phẩm "${item.name || item.product_id}" không đủ hàng!`);
-            error.status = 400;
-            throw error;
-        }
-        if (item.variant_id) await syncProductStock(db, item.product_id);
-    }
+async function decreaseStock(db, items, orderId, userId) {
+    await adjustOrderStock(db, items, {
+        orderId, userId, movementType: 'sale', note: 'Xuất kho cho đơn hàng'
+    });
 }
 
-function sendConfirmationEmail(orderId, userId) {
-    return {
-        customerJobId: queue.enqueue('order_email', { orderId, userId }),
-        adminJobId: queue.enqueue('admin_order_email', { orderId, userId })
-    };
+async function sendConfirmationEmail(orderId, userId, connection) {
+    const options = connection ? { connection } : {};
+    const customerJobId = await queue.enqueue('order_email', { orderId, userId }, options);
+    const adminJobId = await queue.enqueue('admin_order_email', { orderId, userId }, options);
+    return { customerJobId, adminJobId };
 }
 
 // Create order
@@ -332,6 +319,7 @@ router.post('/', async (req, res) => {
                 notes || '', discount, coupon ? coupon.code : null, itemIds.length > 0 ? itemIds.join(',') : null]
         );
         const orderId = orderResult.insertId;
+        await recordOrderStatus(connection, { orderId, status: 'pending', note: 'Đơn hàng đã được tạo.' });
 
         for (const item of cartItems) {
             await connection.query(
@@ -339,7 +327,7 @@ router.post('/', async (req, res) => {
                 [orderId, item.product_id, item.variant_id || null, item.quantity, item.price]
             );
         }
-        await decreaseStock(connection, cartItems);
+        await decreaseStock(connection, cartItems, orderId, userId);
         await useCoupon(connection, userId, coupon, orderId, discount);
 
         if (itemIds.length > 0) {
@@ -349,11 +337,10 @@ router.post('/', async (req, res) => {
         }
         delete req.session.buyNow;
 
+        const emailJobs = await sendConfirmationEmail(orderId, userId, connection);
         await connection.commit();
         connection.release();
         connection = null;
-
-        sendConfirmationEmail(orderId, userId);
 
         res.json({
             success: true,
@@ -367,7 +354,8 @@ router.post('/', async (req, res) => {
             discount_amount: discount,
             coupon_code: coupon ? coupon.code : null,
             total: finalTotal,
-            status: 'pending'
+            status: 'pending',
+            email_job_ids: [emailJobs.customerJobId, emailJobs.adminJobId]
         });
     } catch (error) {
         if (connection) {
@@ -484,6 +472,10 @@ router.put('/:id/cancel', async (req, res) => {
             'UPDATE orders SET status = ?, cancel_reason = ?, cancelled_at = NOW() WHERE id = ?',
             ['cancelled', reason || '', id]
         );
+        await recordOrderStatus(connection, {
+            orderId: order.id, status: 'cancelled', note: reason || 'Khách hàng đã hủy đơn.',
+            changedBy: req.session.user_id
+        });
 
         // COD giữ hàng ngay khi đặt; đơn online pending chưa trừ kho.
         if (order.payment_method === 'cod') {
@@ -491,15 +483,10 @@ router.put('/:id/cancel', async (req, res) => {
                 'SELECT product_id, variant_id, quantity FROM order_items WHERE order_id = ?',
                 [id]
             );
-            for (const item of orderItems) {
-                if (item.variant_id) {
-                    await connection.query('UPDATE product_variants SET stock = stock + ? WHERE id = ?', [item.quantity, item.variant_id]);
-                    await syncProductStock(connection, item.product_id);
-                } else {
-                    await connection.query('UPDATE products SET stock = stock + ? WHERE id = ?', [item.quantity, item.product_id]);
-                }
-            }
-
+            await adjustOrderStock(connection, orderItems, {
+                orderId: order.id, userId: req.session.user_id,
+                movementType: 'cancellation', note: 'Nhập kho do hủy đơn'
+            });
         }
         await releaseCoupon(connection, order);
 
@@ -557,6 +544,7 @@ router.post('/initiate', async (req, res) => {
                 notes || '', payment_method, discount, coupon ? coupon.code : null, itemIds.length > 0 ? itemIds.join(',') : null]
         );
         const orderId = orderResult.insertId;
+        await recordOrderStatus(connection, { orderId, status: 'pending', note: 'Đơn hàng chờ xác nhận thanh toán.' });
 
         for (const item of cartItems) {
             await connection.query(
@@ -672,7 +660,7 @@ router.post('/:id/complete', async (req, res) => {
              WHERE oi.order_id = ?`,
             [id]
         );
-        await decreaseStock(connection, orderItems);
+        await decreaseStock(connection, orderItems, id, req.session.user_id);
 
         if (order.coupon_code && Number(order.discount_amount) > 0) {
             const [coupons] = await connection.query('SELECT * FROM coupons WHERE code = ?', [order.coupon_code]);
@@ -688,6 +676,10 @@ router.post('/:id/complete', async (req, res) => {
             "UPDATE orders SET status = 'confirmed', paid_at = NOW() WHERE id = ?",
             [id]
         );
+        await recordOrderStatus(connection, {
+            orderId: id, status: 'confirmed', note: 'Thanh toán mô phỏng đã được xác nhận.',
+            changedBy: req.session.user_id
+        });
 
         if (order.cart_item_ids) {
             const idsToDelete = parseItemIds(order.cart_item_ids.split(','));
@@ -699,16 +691,16 @@ router.post('/:id/complete', async (req, res) => {
         }
         delete req.session.buyNow;
 
+        const emailJobs = await sendConfirmationEmail(id, req.session.user_id, connection);
         await connection.commit();
         connection.release();
         connection = null;
-
-        sendConfirmationEmail(id, req.session.user_id);
 
         res.json({
             success: true,
             order_id: id,
             simulated: true,
+            email_job_ids: [emailJobs.customerJobId, emailJobs.adminJobId],
             message: 'Thanh toán mô phỏng thành công! Đơn hàng đã được xác nhận.'
         });
     } catch (error) {

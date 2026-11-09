@@ -15,6 +15,8 @@ const { csrfProtection } = require('./middleware/csrf');
 const { requestId } = require('./middleware/observability');
 const { snapshot } = require('./config/metrics');
 const queue = require('./services/background-jobs');
+const pool = require('./config/database');
+const MySQLSessionStore = require('./services/mysql-session-store');
 
 function createApp() {
     const app = express();
@@ -23,7 +25,7 @@ function createApp() {
     if (isProduction) app.set('trust proxy', 1);
     app.use(securityHeaders);
 
-    const sessionMiddleware = session(sessionOptions());
+    const sessionMiddleware = session(sessionOptions(new MySQLSessionStore(pool)));
     app.use(sessionMiddleware);
     const googleOAuthEnabled = configureGoogleOAuth(passport);
     app.use(passport.initialize());
@@ -55,12 +57,12 @@ function createApp() {
     app.get(['/favicon.ico', '/favicon.svg'], (req, res) => res.sendFile(path.join(publicDir, 'favicon.svg')));
 
     app.use('/api', apiRateLimit);
-    app.get('/metrics', (req, res) => {
+    app.get('/metrics', (req, res, next) => {
         const configuredToken = process.env.METRICS_TOKEN;
         if (configuredToken && req.get('authorization') !== `Bearer ${configuredToken}`) {
             return res.status(401).json({ success: false, code: 'METRICS_AUTH_REQUIRED', error: 'Unauthorized' });
         }
-        res.json({ ...snapshot(), jobs: queue.snapshot() });
+        queue.snapshot().then(jobs => res.json({ ...snapshot(), jobs })).catch(error => next(error));
     });
     registerRoutes(app);
     app.use(createPageRouter(passport, googleOAuthEnabled));
