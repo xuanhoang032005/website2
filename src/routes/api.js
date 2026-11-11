@@ -66,6 +66,12 @@ function normalizeCategoryImage(value) {
     return undefined;
 }
 
+function normalizeCategorySlug(value) {
+    if (typeof value !== 'string') return '';
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd')
+        .toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
+}
+
 // Search suggestions
 router.get('/search', async (req, res) => {
     try {
@@ -455,10 +461,12 @@ router.get('/categories/:id', async (req, res) => {
 router.post('/categories', requireAdmin, async (req, res) => {
     try {
         const { name, slug, image = null, is_active = 1 } = req.body;
+        const normalizedName = typeof name === 'string' ? name.trim() : '';
+        const normalizedSlug = normalizeCategorySlug(slug || normalizedName);
         const active = normalizeActiveFlag(is_active);
         const normalizedImage = normalizeCategoryImage(image);
         
-        if (!name || !slug || active === null) {
+        if (!normalizedName || normalizedName.length > 100 || !normalizedSlug || active === null) {
             return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin!' });
         }
         if (normalizedImage === undefined) {
@@ -466,18 +474,19 @@ router.post('/categories', requireAdmin, async (req, res) => {
         }
         
         // Check duplicate slug
-        const [existing] = await pool.query('SELECT id FROM categories WHERE slug = ?', [slug]);
+        const [existing] = await pool.query('SELECT id FROM categories WHERE slug = ?', [normalizedSlug]);
         if (existing.length > 0) {
-            return res.status(400).json({ error: 'Slug đã tồn tại!' });
+            return res.status(409).json({ error: 'Slug danh mục đã tồn tại. Hãy đổi tên hoặc chỉnh slug.' });
         }
         
         const [result] = await pool.query(
             'INSERT INTO categories (name, slug, image, is_active) VALUES (?, ?, ?, ?)',
-            [name, slug, normalizedImage, active]
+            [normalizedName, normalizedSlug, normalizedImage, active]
         );
         
         res.json({ success: true, id: result.insertId });
     } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Slug danh mục đã tồn tại. Hãy đổi tên hoặc chỉnh slug.' });
         console.error('Create category error:', error);
         res.status(500).json({ error: 'Lỗi khi tạo danh mục!' });
     }
@@ -487,9 +496,11 @@ router.post('/categories', requireAdmin, async (req, res) => {
 router.put('/categories/:id', requireAdmin, async (req, res) => {
     try {
         const { name, slug, image = null, is_active } = req.body;
+        const normalizedName = typeof name === 'string' ? name.trim() : '';
+        const normalizedSlug = normalizeCategorySlug(slug || normalizedName);
         const active = normalizeActiveFlag(is_active);
         const normalizedImage = normalizeCategoryImage(image);
-        if (!name || !slug || active === null) {
+        if (!normalizedName || normalizedName.length > 100 || !normalizedSlug || active === null) {
             return res.status(400).json({ error: 'Thông tin danh mục không hợp lệ!' });
         }
         if (normalizedImage === undefined) {
@@ -497,18 +508,19 @@ router.put('/categories/:id', requireAdmin, async (req, res) => {
         }
         
         // Check duplicate slug (excluding current)
-        const [existing] = await pool.query('SELECT id FROM categories WHERE slug = ? AND id != ?', [slug, req.params.id]);
+        const [existing] = await pool.query('SELECT id FROM categories WHERE slug = ? AND id != ?', [normalizedSlug, req.params.id]);
         if (existing.length > 0) {
-            return res.status(400).json({ error: 'Slug đã tồn tại!' });
+            return res.status(409).json({ error: 'Slug danh mục đã tồn tại. Hãy đổi tên hoặc chỉnh slug.' });
         }
         
         await pool.query(
             'UPDATE categories SET name = ?, slug = ?, image = ?, is_active = ? WHERE id = ?',
-            [name, slug, normalizedImage, active, req.params.id]
+            [normalizedName, normalizedSlug, normalizedImage, active, req.params.id]
         );
         
         res.json({ success: true });
     } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Slug danh mục đã tồn tại. Hãy đổi tên hoặc chỉnh slug.' });
         console.error('Update category error:', error);
         res.status(500).json({ error: 'Lỗi khi cập nhật!' });
     }

@@ -125,7 +125,7 @@
                             <div class="chat-messages" id="chatMessages"></div>
                             <div class="typing-indicator" id="typingIndicator"></div>
                             <div class="chat-input">
-                                <textarea id="messageInput" rows="1" placeholder="Nhập tin nhắn..." onkeydown="handleInputKeydown(event)" oninput="autoResize(this); emitTyping()"></textarea>
+                                <textarea id="messageInput" rows="1" maxlength="5000" placeholder="Nhập tin nhắn..." onkeydown="handleInputKeydown(event)" oninput="autoResize(this); emitTyping()"></textarea>
                                 <button id="sendBtn" onclick="sendMessage()">
                                     <i class="fas fa-paper-plane"></i> Gửi
                                 </button>
@@ -139,6 +139,7 @@
 
     <script>
         let currentConversationId = null;
+        let currentConversationStatus = 'open';
         let conversations = [];
         let typingTimeout = null;
         let socket = null;
@@ -296,12 +297,21 @@
 
                     const statusBadge = document.getElementById('chatStatusBadge');
                     const toggleBtn = document.getElementById('toggleStatusBtn');
+                    currentConversationStatus = c.status;
+                    const messageInput = document.getElementById('messageInput');
+                    const sendBtn = document.getElementById('sendBtn');
                     statusBadge.textContent = c.status === 'open' ? 'Đang mở' : 'Đã đóng';
                     statusBadge.className = `badge-pill ${c.status}`;
                     if (c.status === 'open') {
+                        messageInput.disabled = false;
+                        messageInput.placeholder = 'Nhập tin nhắn...';
+                        sendBtn.disabled = false;
                         toggleBtn.innerHTML = '<i class="fas fa-lock"></i> Đóng';
                         toggleBtn.onclick = () => closeConversation();
                     } else {
+                        messageInput.disabled = true;
+                        messageInput.placeholder = 'Hội thoại đã đóng. Hãy mở lại để gửi tin nhắn.';
+                        sendBtn.disabled = true;
                         toggleBtn.innerHTML = '<i class="fas fa-unlock"></i> Mở lại';
                         toggleBtn.onclick = () => reopenConversation();
                     }
@@ -333,6 +343,14 @@
             const input = document.getElementById('messageInput');
             const content = input.value.trim();
             if (!content || !currentConversationId) return;
+            if (currentConversationStatus !== 'open') {
+                showToast('Hội thoại đã đóng. Hãy mở lại trước khi gửi tin nhắn.', 'error');
+                return;
+            }
+            if (content.length > 5000) {
+                showToast('Tin nhắn không được vượt quá 5000 ký tự!', 'error');
+                return;
+            }
 
             const btn = document.getElementById('sendBtn');
             btn.disabled = true;
@@ -345,7 +363,7 @@
                     body: JSON.stringify({ content })
                 });
                 const data = await res.json();
-                if (data.success) {
+                if (res.ok && data.success) {
                     appendMessage(data.message);
                     scrollToBottom();
                     input.value = '';
@@ -354,6 +372,7 @@
                     loadConversations();
                 } else {
                     showToast(data.error || 'Lỗi gửi tin nhắn!', 'error');
+                    if (res.status === 400 && /đã đóng/i.test(data.error || '')) openConversation(currentConversationId);
                 }
             } catch (e) {
                 showToast('Lỗi kết nối!', 'error');
@@ -424,23 +443,27 @@
             });
             if (!confirmed) return;
             try {
-                await fetch(`/api/messages/admin/${currentConversationId}/close`, {
+                const response = await fetch(`/api/messages/admin/${currentConversationId}/close`, {
                     method: 'PUT', credentials: 'include'
                 });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể đóng hội thoại.');
                 openConversation(currentConversationId);
                 loadConversations();
-            } catch (e) { showToast('Lỗi!', 'error'); }
+            } catch (e) { showToast(e.message || 'Lỗi!', 'error'); }
         }
 
         async function reopenConversation() {
             if (!currentConversationId) return;
             try {
-                await fetch(`/api/messages/admin/${currentConversationId}/reopen`, {
+                const response = await fetch(`/api/messages/admin/${currentConversationId}/reopen`, {
                     method: 'PUT', credentials: 'include'
                 });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể mở lại hội thoại.');
                 openConversation(currentConversationId);
                 loadConversations();
-            } catch (e) { showToast('Lỗi!', 'error'); }
+            } catch (e) { showToast(e.message || 'Lỗi!', 'error'); }
         }
 
         function toggleConversationStatus() {

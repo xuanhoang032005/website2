@@ -88,6 +88,7 @@
                             <thead>
                                 <tr>
                                     <th>Mã đơn</th>
+                                    <th>Vận đơn demo</th>
                                     <th>Khách hàng</th>
                                     <th>Sản phẩm</th>
                                     <th>Tổng tiền</th>
@@ -98,7 +99,7 @@
                                 </tr>
                             </thead>
                             <tbody id="ordersBody">
-                                <tr><td colspan="7" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
+                                <tr><td colspan="9" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -193,7 +194,7 @@
 
                 const tbody = document.getElementById('ordersBody');
                 if (orders.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><i class="fas fa-inbox"></i><h3>Không có đơn hàng nào</h3></div></td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="fas fa-inbox"></i><h3>Không có đơn hàng nào</h3></div></td></tr>`;
                     return;
                 }
 
@@ -204,7 +205,8 @@
                         ? (o.items.length > 70 ? o.items.substring(0, 70) + '…' : o.items)
                         : '-';
                     html += `<tr>
-                        <td><span class="order-code">${o.payment_code || o.id}</span></td>
+                        <td><span class="order-code">${escapeHtml(o.payment_code || o.id)}</span></td>
+                        <td><strong>${escapeHtml(o.tracking_carrier || '—')}</strong><br><small>${escapeHtml(o.tracking_number || 'Chưa có mã')}</small></td>
                         <td>
                             <strong>${escapeHtml(o.customer_name || 'Khách')}</strong><br>
                             <span style="color: var(--gray-500); font-size: 0.8rem;">${escapeHtml(o.shipping_phone || '')}</span>
@@ -221,7 +223,7 @@
                 });
                 tbody.innerHTML = html;
             } catch (e) {
-                document.getElementById('ordersBody').innerHTML = `<tr><td colspan="8"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Lỗi tải dữ liệu</h3></div></td></tr>`;
+                document.getElementById('ordersBody').innerHTML = `<tr><td colspan="9"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Lỗi tải dữ liệu</h3></div></td></tr>`;
             }
         }
 
@@ -260,6 +262,18 @@
                 statusHtml += `<option value="${s}" ${order.status === s ? 'selected' : ''}>${statusLabels[s]}</option>`;
             });
             statusHtml += '</select>';
+            const carriers = [
+                'AnhTrai Express (Mô phỏng)',
+                'Giao Hàng Nhanh (Mô phỏng)',
+                'Giao Hàng Tiết Kiệm (Mô phỏng)',
+                'Viettel Post (Mô phỏng)',
+                'VNPost (Mô phỏng)',
+                'Khác (Mô phỏng)'
+            ];
+            if (order.tracking_carrier && !carriers.includes(order.tracking_carrier)) carriers.unshift(order.tracking_carrier);
+            const carrierOptions = '<option value="">Chọn đơn vị vận chuyển</option>' + carriers.map(carrier =>
+                `<option value="${escapeHtml(carrier)}" ${order.tracking_carrier === carrier ? 'selected' : ''}>${escapeHtml(carrier)}</option>`
+            ).join('');
 
             const updateButton = document.getElementById('updateStatusBtn');
                 updateButton.disabled = false;
@@ -290,7 +304,7 @@
                     </div>
                     <div>
                         <h4 style="margin-bottom: 12px; color: var(--gray-500); font-size: 0.8rem; text-transform: uppercase;">Thông tin đơn hàng</h4>
-                        <p><strong>Mã đơn:</strong> <span class="order-code">${order.payment_code || order.id}</span></p>
+                        <p><strong>Mã đơn hàng:</strong> <span class="order-code">${escapeHtml(order.payment_code || order.id)}</span></p>
                         <p><strong>Ngày đặt:</strong> ${new Date(order.created_at).toLocaleDateString('vi-VN')}</p>
                         <p><strong>Tổng tiền:</strong> <span style="color: var(--primary); font-weight: 700;">${formatPrice(order.total_price)}đ</span></p>
                         <p><strong>Thanh toán:</strong> ${getPaymentBadge(order.payment_method)}</p>
@@ -308,9 +322,10 @@
                 <div style="margin-top: 20px;">
                     <h4 style="margin-bottom: 12px; color: var(--gray-500); font-size: 0.8rem; text-transform: uppercase;">Trạng thái và vận chuyển</h4>
                     ${statusHtml}
+                    <p style="margin:10px 0 0;color:var(--gray-500);font-size:.8rem;"><i class="fas fa-circle-info"></i> Thông tin vận chuyển được tạo tự động để minh họa; không kết nối hãng vận chuyển thật.</p>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
-                        <label>Đơn vị vận chuyển<input class="form-control" id="trackingCarrier" maxlength="100" value="${escapeHtml(order.tracking_carrier || '')}" placeholder="Ví dụ: Giao Hàng Nhanh"></label>
-                        <label>Mã vận đơn<input class="form-control" id="trackingNumber" maxlength="100" value="${escapeHtml(order.tracking_number || '')}" placeholder="Nhập mã vận đơn"></label>
+                        <label>Đơn vị vận chuyển (demo)<select class="form-control" id="trackingCarrier">${carrierOptions}</select></label>
+                        <label>Mã vận đơn (quản trị viên nhập)<input class="form-control" id="trackingNumber" maxlength="100" value="${escapeHtml(order.tracking_number || '')}" placeholder="Nhập mã vận đơn demo"></label>
                     </div>
                     <label style="display:block;margin-top:12px;">Ghi chú cho khách<textarea class="form-control" id="orderStatusNote" maxlength="500" rows="2" placeholder="Ghi chú sẽ xuất hiện trong lịch sử đơn hàng"></textarea></label>
                 </div>

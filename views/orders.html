@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/orders.css?v=1">
+    <link rel="stylesheet" href="/css/pages/orders.css?v=20261110-1">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -52,6 +52,13 @@
 
     <!-- Main Content -->
     <div class="page-main">
+        <section class="aftersales-history" aria-labelledby="aftersalesHeading">
+            <div class="aftersales-history-heading">
+                <div><h2 id="aftersalesHeading"><i class="bi bi-headset"></i> Lịch sử hậu mãi</h2><p>Theo dõi yêu cầu đổi trả và bảo hành đã gửi.</p></div>
+                <a href="/policy#aftersales">Xem chính sách hậu mãi <i class="bi bi-arrow-right"></i></a>
+            </div>
+            <div id="serviceRequestsHistory" aria-live="polite"><p class="history-loading">Đang tải yêu cầu...</p></div>
+        </section>
         <!-- Filter Tabs -->
         <div class="filter-tabs" id="filterTabs">
             <button class="filter-tab active" data-status="all">
@@ -124,6 +131,37 @@
     <script>
         let allOrders = [];
         let currentFilter = 'all';
+        const serviceRequestStatuses = { submitted: 'Mới gửi', reviewing: 'Đang xem xét', approved: 'Đã chấp thuận', rejected: 'Đã từ chối', resolved: 'Đã hoàn tất' };
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+        }
+
+        async function loadServiceRequestHistory() {
+            const container = document.getElementById('serviceRequestsHistory');
+            try {
+                const response = await fetch('/api/service-requests/mine', { credentials: 'include' });
+                if (response.status === 401) {
+                    container.innerHTML = '<p class="history-empty">Đăng nhập để xem lịch sử yêu cầu hậu mãi.</p>';
+                    return;
+                }
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể tải lịch sử hậu mãi.');
+                const requests = data.requests || [];
+                if (!requests.length) {
+                    container.innerHTML = '<p class="history-empty">Chưa có yêu cầu nào. Sau khi đơn được giao, bạn có thể gửi yêu cầu tại trang chi tiết đơn hàng.</p>';
+                    return;
+                }
+                container.innerHTML = '<div class="aftersales-history-list">' + requests.map(item => {
+                    const type = item.request_type === 'return' ? 'Đổi trả' : 'Bảo hành';
+                    const status = serviceRequestStatuses[item.status] || item.status;
+                    const orderCode = item.payment_code || item.order_id;
+                    return '<article class="aftersales-history-item"><div class="aftersales-history-main"><strong>' + escapeHtml(type) + ' · ' + escapeHtml(item.product_name || 'Sản phẩm') + '</strong><span>Đơn #' + escapeHtml(orderCode) + ' · Gửi ' + escapeHtml(formatDate(item.created_at)) + '</span><small>Lý do: ' + escapeHtml(item.reason) + '</small>' + (item.admin_note ? '<small class="admin-reply">Phản hồi: ' + escapeHtml(item.admin_note) + '</small>' : '') + '</div><div class="aftersales-history-state"><span class="request-status ' + escapeHtml(item.status) + '">' + escapeHtml(status) + '</span><a href="/order/' + Number(item.order_id) + '">Chi tiết đơn</a></div></article>';
+                }).join('') + '</div>';
+            } catch (error) {
+                container.innerHTML = '<p class="history-empty">' + escapeHtml(error.message || 'Không thể tải lịch sử hậu mãi.') + '</p>';
+            }
+        }
 
         function formatPrice(price) {
             if (!price) return '0';
@@ -378,7 +416,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await initApp();
-            loadOrders();
+            await Promise.all([loadOrders(), loadServiceRequestHistory()]);
         });
     </script>
     <script src="/socket.io/socket.io.js"></script>

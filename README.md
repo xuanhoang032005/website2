@@ -92,7 +92,7 @@ npm run migrate
 
 Lệnh `npm run migrate` chỉ chạy các khối nâng cấp được đánh dấu trong SQL tổng. Các khối này bổ sung cấu trúc và ràng buộc mà không chạy lại dữ liệu mẫu. Runner kiểm tra checksum thống nhất giữa Windows/Linux. Database mới có sẵn dấu migration tương ứng; khi khởi động server tự áp dụng migration còn thiếu trước khi mở cổng, sau đó ghi sổ tồn kho ban đầu nếu cần.
 
-Migration theo dõi đơn hàng thêm mã vận chuyển và bảng lịch sử trạng thái. Hãng vận chuyển và mã vận đơn do quản trị viên nhập thủ công; hệ thống chưa đồng bộ trạng thái trực tiếp với hãng giao hàng.
+Migration theo dõi đơn hàng thêm mã vận chuyển và bảng lịch sử trạng thái. Khi tạo đơn, hệ thống tự sinh đơn vị vận chuyển và mã vận đơn mô phỏng để hiển thị trong admin và chi tiết đơn hàng; các mã này không kết nối hoặc tra cứu được với hãng giao hàng thật.
 
 Import toàn bộ file SQL chỉ dành cho database cài mới vì có các lệnh `TRUNCATE` để tạo lại dữ liệu demo. Dùng `npm run migrate` khi cần nâng cấp database đang có dữ liệu.
 

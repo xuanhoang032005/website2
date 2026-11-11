@@ -221,10 +221,12 @@ body:has(.content-wrap .policy-card) { background: #f6faff; }
 }
 #warranty { order: 1; }
 #return { order: 2; }
-#shipping { order: 3; }
-#payment { order: 4; }
-#security { order: 5; }
-#terms { order: 6; }
+#aftersales { order: 3; }
+#coupons { order: 4; }
+#shipping { order: 5; }
+#payment { order: 6; }
+#security { order: 7; }
+#terms { order: 8; }
 .policy-card:hover { border-color: #c8d6e6; box-shadow: 0 5px 16px rgba(25,63,104,.06); }
 .policy-card h2 { margin-bottom: 8px; font-size: .9rem; }
 .policy-card h2 i { width: 31px; height: 31px; color: #1269ed; background: #eaf3ff; border-radius: 7px; font-size: .9rem; }

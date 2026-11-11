@@ -98,6 +98,26 @@
             padding: 32px 24px 60px;
         }
 
+        .aftersales-history { margin: 0 0 24px; padding: 22px; background: #fff; border: 1px solid var(--slate-200); border-radius: var(--radius-xl); }
+        .aftersales-history-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
+        .aftersales-history-heading h2 { margin: 0 0 4px; color: var(--dark); font-size: 1.05rem; }
+        .aftersales-history-heading h2 i { color: var(--primary); margin-right: 7px; }
+        .aftersales-history-heading p, .history-loading, .history-empty { margin: 0; color: var(--slate-500); font-size: .85rem; }
+        .aftersales-history-heading > a { color: var(--primary); font-weight: 700; font-size: .82rem; }
+        .aftersales-history-list { display: grid; gap: 10px; }
+        .aftersales-history-item { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 13px 0; border-top: 1px solid var(--slate-100); }
+        .aftersales-history-main { display: grid; gap: 4px; min-width: 0; }
+        .aftersales-history-main strong { color: var(--dark); }
+        .aftersales-history-main span, .aftersales-history-main small { color: var(--slate-500); font-size: .8rem; }
+        .aftersales-history-main .admin-reply { color: var(--slate-700); }
+        .aftersales-history-state { display: grid; justify-items: end; gap: 7px; white-space: nowrap; }
+        .aftersales-history-state a { color: var(--primary); font-size: .8rem; font-weight: 700; }
+        .request-status { padding: 4px 9px; border-radius: 999px; background: var(--slate-100); color: var(--slate-700); font-size: .75rem; font-weight: 700; }
+        .request-status.approved, .request-status.resolved { background: #dcfce7; color: #166534; }
+        .request-status.rejected { background: #fee2e2; color: #991b1b; }
+        .request-status.reviewing { background: #fef3c7; color: #92400e; }
+        @media (max-width: 560px) { .aftersales-history { padding: 16px; } .aftersales-history-heading, .aftersales-history-item { align-items: flex-start; flex-direction: column; } .aftersales-history-state { display: flex; align-items: center; } }
+
         /* ===== FILTER TABS ===== */
         .filter-tabs {
             display: flex;

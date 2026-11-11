@@ -118,10 +118,11 @@ router.get('/mine', async (req, res) => {
         const [requests] = await pool.query(
             `SELECT sr.id, sr.order_id, sr.order_item_id, sr.request_type, sr.reason,
                     sr.description, sr.status, sr.admin_note, sr.resolved_at,
-                    sr.created_at, sr.updated_at, p.name AS product_name,
+                    sr.created_at, sr.updated_at, o.payment_code, p.name AS product_name,
                     v.ram, v.storage, v.color,
                     NULL AS images
              FROM service_requests sr
+             JOIN orders o ON o.id = sr.order_id
              JOIN order_items oi ON oi.id = sr.order_item_id
              JOIN products p ON p.id = oi.product_id
              LEFT JOIN product_variants v ON v.id = oi.variant_id

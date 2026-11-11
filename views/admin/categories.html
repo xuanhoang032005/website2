@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20261001-1">
+    <link rel="stylesheet" href="/css/admin.css?v=20261110-1">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -106,7 +106,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Slug</label>
-                        <input type="text" class="form-control" id="categorySlug" placeholder="auto-generated-from-name">
+                        <input type="text" class="form-control" id="categorySlug" maxlength="100" placeholder="auto-generated-from-name">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Ảnh danh mục</label>
@@ -123,7 +123,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal()">Hủy bỏ</button>
-                <button class="btn btn-primary" onclick="saveCategory()"><i class="fas fa-save"></i> Lưu</button>
+                <button type="submit" form="categoryForm" class="btn btn-primary" id="saveCategoryButton"><i class="fas fa-save"></i> Lưu</button>
             </div>
         </div>
     </div>
@@ -131,12 +131,9 @@
     <script>
         let editingId = null;
         let categoriesCache = [];
-        let categoryPreviewObjectUrl = null;
-
-        function releaseCategoryPreview() {
-            if (!categoryPreviewObjectUrl) return;
-            URL.revokeObjectURL(categoryPreviewObjectUrl);
-            categoryPreviewObjectUrl = null;
+        function slugifyCategory(value) {
+            return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd')
+                .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
         }
 
         function setCategoryImage(image, persistValue = true) {
@@ -150,7 +147,7 @@
                 placeholder.hidden = false;
                 return;
             }
-            preview.src = /^(?:https?:|data:|blob:)/i.test(image) ? image : (image.startsWith('/') ? image : '/' + image);
+            preview.src = /^(?:https?:|data:)/i.test(image) ? image : (image.startsWith('/') ? image : '/' + image);
             picker.classList.add('has-image');
             placeholder.hidden = true;
         }
@@ -181,7 +178,11 @@
             loadCategories();
 
             document.getElementById('categoryName').addEventListener('input', function() {
-                document.getElementById('categorySlug').value = this.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                document.getElementById('categorySlug').value = slugifyCategory(this.value);
+            });
+            document.getElementById('categoryForm').addEventListener('submit', function(event) {
+                event.preventDefault();
+                saveCategory();
             });
         });
 
@@ -225,7 +226,6 @@
         }
 
         function openModal() {
-            releaseCategoryPreview();
             editingId = null;
             document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus-circle"></i> Thêm danh mục';
             document.getElementById('categoryForm').reset();
@@ -235,7 +235,6 @@
         }
 
         function closeModal() {
-            releaseCategoryPreview();
             document.getElementById('categoryModal').classList.remove('show');
             document.getElementById('categoryImageFile').value = '';
             editingId = null;
@@ -244,7 +243,6 @@
         function editCategory(id) {
             const category = categoriesCache.find(item => Number(item.id) === Number(id));
             if (!category) return;
-            releaseCategoryPreview();
             editingId = id;
             document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Sửa danh mục';
             document.getElementById('categoryId').value = id;
@@ -257,7 +255,7 @@
 
         async function saveCategory() {
             const name = document.getElementById('categoryName').value.trim();
-            const slug = document.getElementById('categorySlug').value.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const slug = slugifyCategory(document.getElementById('categorySlug').value.trim() || name);
             const currentCategory = categoriesCache.find(item => Number(item.id) === Number(editingId));
             const is_active = currentCategory ? (Number(currentCategory.is_active) === 0 ? 0 : 1) : 1;
 
@@ -267,6 +265,8 @@
             }
 
             try {
+                const saveButton = document.getElementById('saveCategoryButton');
+                saveButton.disabled = true;
                 const imageFile = document.getElementById('categoryImageFile').files[0];
                 if (imageFile && !document.getElementById('categoryImage').value) {
                     const formData = new FormData();
@@ -299,6 +299,8 @@
                 }
             } catch (e) {
                 showAlert(e.message || 'Lỗi khi lưu!', 'error');
+            } finally {
+                document.getElementById('saveCategoryButton').disabled = false;
             }
         }
 
@@ -316,9 +318,14 @@
                 return;
             }
             document.getElementById('categoryImage').value = '';
-            releaseCategoryPreview();
-            categoryPreviewObjectUrl = URL.createObjectURL(file);
-            setCategoryImage(categoryPreviewObjectUrl, false);
+            const reader = new FileReader();
+            reader.onload = () => {
+                if (document.getElementById('categoryImageFile').files[0] === file && document.getElementById('categoryModal').classList.contains('show')) {
+                    setCategoryImage(String(reader.result || ''), false);
+                }
+            };
+            reader.onerror = () => showAlert('Không thể xem trước ảnh này.', 'error');
+            reader.readAsDataURL(file);
         });
 
         const categoryImagePicker = document.getElementById('categoryImagePicker');

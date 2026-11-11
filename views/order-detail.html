@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/order-detail.css?v=20261104-1">
+    <link rel="stylesheet" href="/css/pages/order-detail.css?v=20261110-1">
     <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
 </head>
 <body>
@@ -63,7 +63,7 @@
                 </div>
                 <div class="page-count-badge">
                     <i class="bi bi-hash"></i>
-                    Mã đơn: <span id="headerOrderCode">---</span>
+                    Mã đơn hàng: <span id="headerOrderCode">---</span>
                 </div>
             </div>
         </div>
@@ -328,9 +328,7 @@
                 ? statusHistory.map((entry, index) => `<div class="timeline-item ${index === statusHistory.length - 1 ? 'active' : 'done'}"><span><i class="bi ${statusIcons[entry.status] || 'bi-circle'}"></i></span><div><strong>${escapeHtml(statusLabels[entry.status] || entry.status)}</strong><small>${formatDate(entry.created_at)}${entry.changed_by_name ? ' · ' + escapeHtml(entry.changed_by_name) : ''}</small>${entry.note ? `<small>${escapeHtml(entry.note)}</small>` : ''}</div></div>`).join('')
                 : `<div class="timeline-item done"><span><i class="bi bi-cart-check"></i></span><div><strong>Đơn hàng đã được đặt</strong><small>${formatDate(order.created_at)}</small></div></div><div class="timeline-item active"><span><i class="bi ${statusIcons[order.status] || 'bi-circle'}"></i></span><div><strong>${escapeHtml(statusLabels[order.status] || order.status)}</strong><small>Đơn được tạo trước khi bật lịch sử theo dõi.</small></div></div>`;
             const verticalSteps = historyRows;
-            const trackingHtml = order.tracking_number || order.tracking_carrier
-                ? `<div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-upc-scan"></i></div><h3>Thông tin vận đơn</h3></div><div class="card-body detail-list">${order.tracking_carrier ? `<div><span>Đơn vị vận chuyển</span><strong>${escapeHtml(order.tracking_carrier)}</strong></div>` : ''}${order.tracking_number ? `<div><span>Mã vận đơn</span><strong>${escapeHtml(order.tracking_number)}</strong></div>` : ''}</div></div>`
-                : '';
+            const trackingHtml = `<div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-upc-scan"></i></div><h3>Thông tin vận đơn (mô phỏng)</h3></div><div class="card-body detail-list"><div><span>Đơn vị vận chuyển</span><strong>${escapeHtml(order.tracking_carrier || 'Chưa được tạo')}</strong></div><div><span>Mã vận đơn</span><strong>${escapeHtml(order.tracking_number || 'Chưa được tạo')}</strong></div><small style="color:var(--slate-500);line-height:1.5">Mã đơn hàng ${escapeHtml(order.payment_code || order.id)} là mã nhận diện đơn. Mã vận đơn phía trên chỉ dùng minh họa, không tra cứu được tại hãng vận chuyển.</small></div></div>`;
 
             const html = `
                 <div class="order-detail-grid">
@@ -338,7 +336,7 @@
                         <div class="status-card">
                             <div class="status-top">
                                 <div class="status-icon ${order.status}"><i class="bi ${config.icon}"></i></div>
-                                <div class="status-text"><h2>Đơn hàng #${escapeHtml(order.payment_code || order.id)}</h2><p>Đặt hàng thành công vào ${formatDate(order.created_at)}</p></div>
+                                <div class="status-text"><h2>Đơn hàng #${escapeHtml(order.payment_code || order.id)}</h2><p>Mã đơn hàng · Đặt ngày ${formatDate(order.created_at)}</p></div>
                             </div>
                             <div class="delivery-highlight"><i class="bi ${config.icon}"></i><div><strong>${config.text}</strong><span>${config.desc} · Dự kiến ${estimateText}</span></div></div>
                             ${progressHtml}
