@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS categories (
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     image VARCHAR(255),
+    technical_specs_template JSON NULL,
     is_active TINYINT(1) DEFAULT 1
 );
 
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS products (
     gpu VARCHAR(150),
     screen_size VARCHAR(20),
     screen_resolution VARCHAR(50),
+    technical_specs JSON NULL,
     thumbnail VARCHAR(255),
     is_featured TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -409,6 +411,16 @@ CREATE TABLE IF NOT EXISTS promotions (
     is_active TINYINT(1) DEFAULT 1,
     link_url VARCHAR(255) DEFAULT NULL,
     banner_type ENUM('main','side') DEFAULT 'main'
+);
+
+CREATE TABLE IF NOT EXISTS home_sale_products (
+    campaign_key ENUM('flashsale','hotsale') NOT NULL,
+    position TINYINT UNSIGNED NOT NULL,
+    product_id INT NOT NULL,
+    sale_discount_percent DECIMAL(5,2) NOT NULL DEFAULT 10,
+    PRIMARY KEY (campaign_key, position),
+    UNIQUE KEY uq_home_sale_campaign_product (campaign_key, product_id),
+    CONSTRAINT fk_home_sale_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
 -- 
@@ -1037,6 +1049,83 @@ PREPARE stmt FROM @ddl;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 -- END MULTIPLE PRODUCT QUESTIONS UPGRADE
+
+-- BEGIN CATEGORY TECHNICAL SPECS UPGRADE
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'technical_specs'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE products ADD COLUMN technical_specs JSON NULL AFTER screen_resolution',
+    'SELECT ''products.technical_specs already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- END CATEGORY TECHNICAL SPECS UPGRADE
+
+-- BEGIN CATEGORY TECHNICAL SPECS TEMPLATE UPGRADE
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'categories' AND COLUMN_NAME = 'technical_specs_template'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE categories ADD COLUMN technical_specs_template JSON NULL AFTER image',
+    'SELECT ''categories.technical_specs_template already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- END CATEGORY TECHNICAL SPECS TEMPLATE UPGRADE
+
+-- BEGIN CATEGORY TECHNICAL SPECS TEMPLATE DEFAULTS UPGRADE
+UPDATE categories
+SET technical_specs_template = CASE slug
+    WHEN 'dien-thoai' THEN JSON_ARRAY('Màn hình', 'Công nghệ màn hình', 'Độ phân giải màn hình', 'Tần số quét', 'Camera sau', 'Camera trước', 'Chipset', 'Hệ điều hành', 'Dung lượng pin', 'Công nghệ sạc', 'SIM', 'Kháng nước, bụi')
+    WHEN 'tai-nghe' THEN JSON_ARRAY('Kiểu tai nghe', 'Kiểu kết nối', 'Bluetooth', 'Driver', 'Dải tần đáp ứng', 'Trở kháng', 'Độ nhạy', 'Chống ồn', 'Micro', 'Thời lượng pin', 'Cổng sạc', 'Khối lượng')
+    WHEN 'sac' THEN JSON_ARRAY('Loại bộ sạc', 'Tổng công suất đầu ra', 'Công suất tối đa mỗi cổng', 'Chuẩn sạc nhanh', 'Số lượng và loại cổng', 'Điện áp / dòng điện đầu ra', 'Điện áp đầu vào', 'Chiều dài cáp', 'Thiết bị tương thích', 'Bảo vệ an toàn')
+    WHEN 'op-lung' THEN JSON_ARRAY('Dòng máy tương thích', 'Chất liệu', 'Kiểu thiết kế', 'Màu sắc', 'Tương thích sạc không dây', 'Tương thích MagSafe', 'Vị trí bảo vệ', 'Phụ kiện đi kèm')
+    WHEN 'phu-kien' THEN JSON_ARRAY('Loại phụ kiện', 'Thiết bị tương thích', 'Chuẩn kết nối', 'Cổng kết nối', 'Chất liệu', 'Kích thước', 'Khối lượng', 'Tính năng chính', 'Phụ kiện đi kèm', 'Bảo hành')
+    WHEN 'may-tinh-bang' THEN JSON_ARRAY('Màn hình', 'Công nghệ màn hình', 'Độ phân giải', 'Tần số quét', 'Chipset', 'Camera sau', 'Camera trước', 'Hệ điều hành', 'Kết nối mạng', 'Dung lượng pin', 'Công nghệ sạc', 'Hỗ trợ bút cảm ứng')
+    WHEN 'may-tinh-ban' THEN JSON_ARRAY('Loại máy', 'Bộ vi xử lý', 'Bo mạch chủ', 'Card đồ họa', 'Nguồn', 'Tản nhiệt', 'Kết nối không dây', 'Cổng kết nối', 'Hệ điều hành', 'Kích thước', 'Phụ kiện đi kèm')
+    WHEN 'may-tinh-xach-tay' THEN JSON_ARRAY('Màn hình', 'Độ phân giải', 'Tần số quét', 'Bộ vi xử lý', 'Card đồ họa', 'Cổng kết nối', 'Kết nối không dây', 'Webcam', 'Âm thanh', 'Hệ điều hành', 'Dung lượng pin', 'Khối lượng')
+    WHEN 'dong-ho' THEN JSON_ARRAY('Loại đồng hồ', 'Kích thước mặt', 'Chất liệu mặt kính', 'Chất liệu vỏ', 'Chất liệu dây', 'Độ rộng dây', 'Bộ máy', 'Chức năng', 'Kết nối', 'Theo dõi sức khỏe', 'Kháng nước', 'Thời lượng pin')
+    ELSE technical_specs_template
+END
+WHERE technical_specs_template IS NULL;
+-- END CATEGORY TECHNICAL SPECS TEMPLATE DEFAULTS UPGRADE
+
+-- BEGIN HOME SALE PRODUCTS UPGRADE
+CREATE TABLE IF NOT EXISTS home_sale_products (
+    campaign_key ENUM('flashsale','hotsale') NOT NULL,
+    position TINYINT UNSIGNED NOT NULL,
+    product_id INT NOT NULL,
+    PRIMARY KEY (campaign_key, position),
+    UNIQUE KEY uq_home_sale_campaign_product (campaign_key, product_id),
+    CONSTRAINT fk_home_sale_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+-- END HOME SALE PRODUCTS UPGRADE
+
+-- BEGIN HOME SALE SCHEDULE AND DISCOUNTS UPGRADE
+CREATE TABLE IF NOT EXISTS home_sale_campaigns (
+    campaign_key ENUM('flashsale','hotsale') NOT NULL PRIMARY KEY,
+    event_date DATE NULL,
+    is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+SET @column_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'home_sale_products' AND COLUMN_NAME = 'sale_discount_percent'
+);
+SET @ddl = IF(@column_exists = 0,
+    'ALTER TABLE home_sale_products ADD COLUMN sale_discount_percent DECIMAL(5,2) NOT NULL DEFAULT 10 AFTER product_id',
+    'SELECT ''home_sale_products.sale_discount_percent already exists'' AS message'
+);
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+-- END HOME SALE SCHEDULE AND DISCOUNTS UPGRADE
 
 -- 
 -- DỮ LIỆU MẪU - BRANDS

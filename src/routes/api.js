@@ -72,6 +72,21 @@ function normalizeCategorySlug(value) {
         .toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
 }
 
+function normalizeTechnicalSpecsTemplate(value) {
+    if (value === undefined || value === null || value === '') return null;
+    let fields = value;
+    if (typeof fields === 'string') {
+        try { fields = JSON.parse(fields); } catch (error) { return undefined; }
+    }
+    if (!Array.isArray(fields) || fields.length > 60) return undefined;
+    const labels = fields.map(field => typeof field === 'string' ? field : field?.label)
+        .map(label => typeof label === 'string' ? label.trim() : '')
+        .filter(Boolean);
+    if (labels.some(label => label.length > 100)) return undefined;
+    const unique = [...new Map(labels.map(label => [label.toLocaleLowerCase('vi'), label])).values()];
+    return unique.length ? JSON.stringify(unique.map(label => ({ label }))) : null;
+}
+
 // Search suggestions
 router.get('/search', async (req, res) => {
     try {
@@ -424,6 +439,7 @@ router.get('/categories', async (req, res) => {
                 c.name,
                 c.slug,
                 c.image,
+                c.technical_specs_template,
                 c.is_active,
                 COALESCE(product_totals.product_count, 0) AS product_count
             FROM categories c
@@ -442,11 +458,41 @@ router.get('/categories', async (req, res) => {
     }
 });
 
+router.get('/categories/menu', async (req, res) => {
+    try {
+        const [categories] = await pool.query(
+            'SELECT id, name, slug FROM categories WHERE is_active = 1 ORDER BY name, id'
+        );
+        const [brandRows] = await pool.query(`
+            SELECT p.category_id, b.id, b.name, b.slug, COUNT(DISTINCT p.id) AS product_count
+            FROM products p
+            JOIN categories c ON c.id = p.category_id AND c.is_active = 1
+            JOIN brands b ON b.id = p.brand_id AND b.is_active = 1
+            WHERE p.stock >= 0
+            GROUP BY p.category_id, b.id, b.name, b.slug
+            ORDER BY b.name, b.id
+        `);
+        const brandsByCategory = new Map();
+        for (const brand of brandRows) {
+            const group = brandsByCategory.get(Number(brand.category_id)) || [];
+            group.push({ id: brand.id, name: brand.name, slug: brand.slug, product_count: Number(brand.product_count) });
+            brandsByCategory.set(Number(brand.category_id), group);
+        }
+        res.json({ categories: categories.map(category => ({
+            ...category,
+            brands: brandsByCategory.get(Number(category.id)) || []
+        })) });
+    } catch (error) {
+        console.error('Get category menu error:', error);
+        res.status(500).json({ error: 'Không thể tải menu danh mục!' });
+    }
+});
+
 // Get single category
 router.get('/categories/:id', async (req, res) => {
     try {
         const visibility = req.session?.role === 'admin' ? '' : ' AND is_active = 1';
-        const [categories] = await pool.query(`SELECT id, name, slug, image, is_active FROM categories WHERE id = ?${visibility}`, [req.params.id]);
+        const [categories] = await pool.query(`SELECT id, name, slug, image, is_active, technical_specs_template FROM categories WHERE id = ?${visibility}`, [req.params.id]);
         if (categories.length === 0) {
             return res.status(404).json({ error: 'Không tìm thấy danh mục!' });
         }
@@ -460,13 +506,14 @@ router.get('/categories/:id', async (req, res) => {
 // Create category
 router.post('/categories', requireAdmin, async (req, res) => {
     try {
-        const { name, slug, image = null, is_active = 1 } = req.body;
+        const { name, slug, image = null, is_active = 1, technical_specs_template } = req.body;
         const normalizedName = typeof name === 'string' ? name.trim() : '';
         const normalizedSlug = normalizeCategorySlug(slug || normalizedName);
         const active = normalizeActiveFlag(is_active);
         const normalizedImage = normalizeCategoryImage(image);
+        const normalizedTemplate = normalizeTechnicalSpecsTemplate(technical_specs_template);
         
-        if (!normalizedName || normalizedName.length > 100 || !normalizedSlug || active === null) {
+        if (!normalizedName || normalizedName.length > 100 || !normalizedSlug || active === null || normalizedTemplate === undefined) {
             return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin!' });
         }
         if (normalizedImage === undefined) {
@@ -480,8 +527,8 @@ router.post('/categories', requireAdmin, async (req, res) => {
         }
         
         const [result] = await pool.query(
-            'INSERT INTO categories (name, slug, image, is_active) VALUES (?, ?, ?, ?)',
-            [normalizedName, normalizedSlug, normalizedImage, active]
+            'INSERT INTO categories (name, slug, image, is_active, technical_specs_template) VALUES (?, ?, ?, ?, ?) ',
+            [normalizedName, normalizedSlug, normalizedImage, active, normalizedTemplate]
         );
         
         res.json({ success: true, id: result.insertId });
@@ -495,12 +542,13 @@ router.post('/categories', requireAdmin, async (req, res) => {
 // Update category
 router.put('/categories/:id', requireAdmin, async (req, res) => {
     try {
-        const { name, slug, image = null, is_active } = req.body;
+        const { name, slug, image = null, is_active, technical_specs_template } = req.body;
         const normalizedName = typeof name === 'string' ? name.trim() : '';
         const normalizedSlug = normalizeCategorySlug(slug || normalizedName);
         const active = normalizeActiveFlag(is_active);
         const normalizedImage = normalizeCategoryImage(image);
-        if (!normalizedName || normalizedName.length > 100 || !normalizedSlug || active === null) {
+        const normalizedTemplate = normalizeTechnicalSpecsTemplate(technical_specs_template);
+        if (!normalizedName || normalizedName.length > 100 || !normalizedSlug || active === null || normalizedTemplate === undefined) {
             return res.status(400).json({ error: 'Thông tin danh mục không hợp lệ!' });
         }
         if (normalizedImage === undefined) {
@@ -514,8 +562,8 @@ router.put('/categories/:id', requireAdmin, async (req, res) => {
         }
         
         await pool.query(
-            'UPDATE categories SET name = ?, slug = ?, image = ?, is_active = ? WHERE id = ?',
-            [normalizedName, normalizedSlug, normalizedImage, active, req.params.id]
+            'UPDATE categories SET name = ?, slug = ?, image = ?, is_active = ?, technical_specs_template = ? WHERE id = ?',
+            [normalizedName, normalizedSlug, normalizedImage, active, normalizedTemplate, req.params.id]
         );
         
         res.json({ success: true });

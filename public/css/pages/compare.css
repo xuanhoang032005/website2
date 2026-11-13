@@ -556,8 +556,10 @@ body:has(.compare-page) { background: #f6faff; }
 .compare-title p { margin-top: 5px; color: #78869a; font-size: .72rem; }
 .compare-count-badge,
 .compare-actions .btn-primary-outline { display: none !important; }
-.compare-actions .btn-outline-danger { min-height: 33px; padding: 6px 11px; color: #1269ed; background: #fff; border: 1px solid #1269ed; border-radius: 5px; font-size: .68rem; }
+.compare-actions .btn-outline-danger { min-height: 33px; padding: 6px 11px; color: #1269ed !important; background: #fff; border: 1px solid #1269ed; border-radius: 5px; font-size: .68rem; }
+.compare-actions .btn-outline-danger i { color: #1269ed !important; }
 .compare-actions .btn-outline-danger:hover { color: #fff; background: #1269ed; border-color: #1269ed; }
+.compare-actions .btn-outline-danger:hover i { color: #fff !important; }
 .compare-table-wrap { overflow-x: auto; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .compare-table { min-width: 840px; table-layout: fixed; background: #fff; border: 1px solid #dce5ef; border-collapse: separate; border-spacing: 0; border-radius: 8px; overflow: hidden; }
 .compare-table th,

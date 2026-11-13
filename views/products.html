@@ -11,9 +11,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/filter.css?v=1">
-    <link rel="stylesheet" href="/css/pages/products.css?v=1">
-    <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
+    <link rel="stylesheet" href="/css/filter.css?v=2">
+    <link rel="stylesheet" href="/css/pages/products.css?v=3">
+    <link rel="stylesheet" href="/css/storefront-theme.css?v=16">
 </head>
 <body>
     <!-- Navbar -->
@@ -29,7 +29,6 @@
                 <li><a href="/products" class="nav-link active"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a></li>
                 <li><a href="/promotions" class="nav-link"><i class="bi bi-tag"></i> Khuyến mãi</a></li>
                 <li><a href="/policy" class="nav-link"><i class="bi bi-file-text"></i> Chính sách</a></li>
-                <li><a href="/contact" class="nav-link"><i class="bi bi-headset"></i> Liên hệ</a></li>
             </ul>
             <a href="/wishlist" class="wishlist-link"><i class="bi bi-heart"></i><span class="wishlist-badge" id="wishlistBadge">0</span></a> <a href="/compare" class="compare-link"><i class="bi bi-bar-chart"></i><span class="compare-badge" id="compareBadge">0</span></a> <a href="/cart" class="cart-link">
                 <i class="bi bi-bag"></i>
@@ -55,7 +54,6 @@
             <a href="/products" class="mobile-nav-item active"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a>
             <a href="/promotions" class="mobile-nav-item"><i class="bi bi-tag"></i> Khuyến mãi</a>
             <a href="/policy" class="mobile-nav-item"><i class="bi bi-file-text"></i> Chính sách</a>
-            <a href="/contact" class="mobile-nav-item"><i class="bi bi-headset"></i> Liên hệ</a>
             <div class="mobile-nav-divider"></div>
             <a href="/cart" class="mobile-nav-item"><i class="bi bi-bag"></i> Giỏ hàng</a>
             <div id="mobileUserArea"></div>
@@ -73,11 +71,12 @@
 
     <!-- Main Content -->
     <div class="products-page">
-        <!-- Sidebar -->
-        <aside class="filter-sidebar" id="filterSidebar">
-            <button class="mobile-filter-btn" onclick="toggleMobileFilter()">
-                <i class="bi bi-x-lg"></i> Đóng bộ lọc
-            </button>
+        <div class="filter-overlay" id="filterOverlay" onclick="closeFilterPanel()" hidden></div>
+        <aside class="filter-sidebar" id="filterSidebar" aria-label="Bộ lọc sản phẩm" aria-hidden="true" inert>
+            <div class="filter-panel-heading">
+                <h2 id="filterPanelTitle">Lọc sản phẩm</h2>
+                <button type="button" class="filter-panel-close" aria-label="Đóng bộ lọc" title="Đóng bộ lọc" onclick="closeFilterPanel()"><i class="bi bi-x-lg"></i></button>
+            </div>
 
             <form id="filterForm">
                 <input type="hidden" name="q" id="searchQuery" value="">
@@ -140,6 +139,7 @@
 
                 <p id="filterError" role="alert" style="color:var(--danger);font-size:0.875rem" hidden></p>
                 <div class="filter-actions">
+                    <button type="submit" class="btn-filter-apply"><i class="bi bi-check2"></i> Áp dụng bộ lọc</button>
                     <a href="/products" class="btn-filter-clear">
                         <i class="bi bi-x-circle"></i> Xóa bộ lọc
                     </a>
@@ -149,9 +149,6 @@
 
         <!-- Products Main -->
         <div class="products-main">
-            <button type="button" class="mobile-filter-btn" id="openFilterButton" aria-controls="filterSidebar" aria-expanded="false" onclick="toggleMobileFilter()">
-                <i class="bi bi-sliders"></i> Mở bộ lọc
-            </button>
             <div class="products-toolbar">
                 <div class="products-count">Tìm thấy <strong id="totalProducts">0</strong> sản phẩm</div>
                 <div class="active-filters" id="activeFilters"></div>
@@ -163,6 +160,9 @@
                         <option value="price_desc">Giá cao - thấp</option>
                         <option value="discount">Khuyến mãi nhiều</option>
                     </select>
+                    <button type="button" class="filter-toolbar-button" id="openFilterButton" aria-label="Mở bộ lọc" title="Bộ lọc" aria-controls="filterSidebar" aria-expanded="false" onclick="openFilterPanel()">
+                        <i class="bi bi-funnel"></i>
+                    </button>
                 </div>
             </div>
 
@@ -239,7 +239,7 @@
         </div>
     </footer>
 
-    <script src="/js/app.js?v=20260930-2"></script>
+    <script src="/js/app.js?v=20261112-menu7"></script>
     <script>
         let currentPage = 1;
         let currentFilters = {};
@@ -319,11 +319,21 @@
 
         function renderFilters(filters) {
             const catContainer = document.getElementById('categoryFilters');
-            let catHtml = '<label class="filter-check"><input type="radio" name="category" value="" ' + (!currentFilters.category ? 'checked' : '') + ' onchange="autoApplyFilter()"> <span>Tất cả</span></label>';
+            let catHtml = '<label class="filter-check"><input type="radio" name="category" value="" ' + (!currentFilters.category ? 'checked' : '') + ' onchange="changeCategoryFilter()"> <span>Tất cả</span></label>';
             filters.categories.forEach(cat => {
-                catHtml += '<label class="filter-check"><input type="radio" name="category" value="' + escapeHtml(cat.slug) + '" ' + (currentFilters.category === cat.slug || currentFilters.category === String(cat.id) ? 'checked' : '') + ' onchange="autoApplyFilter()"> <span>' + escapeHtml(cat.name) + '</span></label>';
+                catHtml += '<label class="filter-check"><input type="radio" name="category" value="' + escapeHtml(cat.slug) + '" ' + (currentFilters.category === cat.slug || currentFilters.category === String(cat.id) ? 'checked' : '') + ' onchange="changeCategoryFilter()"> <span>' + escapeHtml(cat.name) + '</span></label>';
             });
             catContainer.innerHTML = catHtml;
+            const selectedCategory = filters.categories.find(cat => currentFilters.category === cat.slug || currentFilters.category === String(cat.id));
+            document.getElementById('filterPanelTitle').textContent = selectedCategory
+                ? 'Lọc ' + selectedCategory.name
+                : 'Lọc sản phẩm';
+            const memoryCategories = ['dien-thoai', 'may-tinh-bang', 'may-tinh-ban', 'may-tinh-xach-tay'];
+            const showMemoryFilters = !selectedCategory || memoryCategories.includes(selectedCategory.slug);
+            const storageTitle = selectedCategory && ['may-tinh-ban', 'may-tinh-xach-tay'].includes(selectedCategory.slug)
+                ? 'Ổ cứng'
+                : 'Bộ nhớ trong';
+            document.querySelector('#storageFilter .filter-header-title').innerHTML = '<i class="bi bi-device-hdd"></i> ' + storageTitle;
 
             const brandContainer = document.getElementById('brandFilters');
             let brandHtml = '';
@@ -332,26 +342,32 @@
                 const brandId = brand.id || brand;
                 const selected = currentFilters.brand || [];
                 const checked = selected.includes(String(brandId)) || selected.includes(brand.slug) ? 'checked' : '';
-                brandHtml += '<label class="filter-check"><input type="checkbox" name="brand" value="' + escapeHtml(brandId) + '" ' + checked + ' onchange="autoApplyFilter()"> <span>' + escapeHtml(brandName) + '</span></label>';
+                brandHtml += '<label class="filter-check"><input type="checkbox" name="brand" value="' + escapeHtml(brandId) + '" ' + checked + '> <span>' + escapeHtml(brandName) + '</span></label>';
             });
             brandContainer.innerHTML = brandHtml || '<div class="filter-empty">Không có dữ liệu</div>';
 
-            if (filters.rams && filters.rams.length > 0) {
+            const ramFilter = document.getElementById('ramFilter');
+            const storageFilter = document.getElementById('storageFilter');
+            ramFilter.style.display = 'none';
+            storageFilter.style.display = 'none';
+            document.getElementById('ramFilters').replaceChildren();
+            document.getElementById('storageFilters').replaceChildren();
+            if (showMemoryFilters && filters.rams && filters.rams.length > 0) {
                 document.getElementById('ramFilter').style.display = 'block';
                 let ramHtml = '';
                 filters.rams.forEach(ram => {
                     const checked = Array.isArray(currentFilters.ram) ? currentFilters.ram.includes(ram) : currentFilters.ram === ram;
-                    ramHtml += '<label class="filter-check"><input type="checkbox" name="ram" value="' + escapeHtml(ram) + '" ' + (checked ? 'checked' : '') + ' onchange="autoApplyFilter()"> <span>RAM ' + escapeHtml(ram) + '</span></label>';
+                    ramHtml += '<label class="filter-check"><input type="checkbox" name="ram" value="' + escapeHtml(ram) + '" ' + (checked ? 'checked' : '') + '> <span>RAM ' + escapeHtml(ram) + '</span></label>';
                 });
                 document.getElementById('ramFilters').innerHTML = ramHtml;
             }
 
-            if (filters.storages && filters.storages.length > 0) {
+            if (showMemoryFilters && filters.storages && filters.storages.length > 0) {
                 document.getElementById('storageFilter').style.display = 'block';
                 let storageHtml = '';
                 filters.storages.forEach(storage => {
                     const checked = Array.isArray(currentFilters.storage) ? currentFilters.storage.includes(storage) : currentFilters.storage === storage;
-                    storageHtml += '<label class="filter-check"><input type="checkbox" name="storage" value="' + escapeHtml(storage) + '" ' + (checked ? 'checked' : '') + ' onchange="autoApplyFilter()"> <span>' + escapeHtml(storage) + '</span></label>';
+                    storageHtml += '<label class="filter-check"><input type="checkbox" name="storage" value="' + escapeHtml(storage) + '" ' + (checked ? 'checked' : '') + '> <span>' + escapeHtml(storage) + '</span></label>';
                 });
                 document.getElementById('storageFilters').innerHTML = storageHtml;
             }
@@ -378,9 +394,9 @@
                 const stockBadge = p.stock <= 0 ? '<span class="p-badge" style="background:#64748B;left:auto;right:10px;">Hết hàng</span>' : '';
                 const img = p.thumbnail ? '<img src="' + getThumbUrl(p.thumbnail) + '" alt="' + p.name + '" onerror="this.onerror=null;this.src=&quot;/images/no-image.svg&quot;">' : '<i class="bi bi-phone" style="font-size:3rem;color:var(--slate-300)"></i>';
                 const oldPrice = p.old_price ? '<span class="p-old-price">' + formatPrice(p.old_price) + 'đ</span>' : '';
-                const btnCart = p.stock > 0 
-                    ? '<button class="btn-cart" onclick="addToCart(' + p.id + ')"><i class="bi bi-plus-lg"></i> Thêm vào giỏ</button>'
-                    : '<button class="btn-cart" disabled style="background:var(--slate-300);color:var(--slate-500);cursor:not-allowed"><i class="bi bi-x"></i> Hết hàng</button>';
+                const btnCart = p.stock > 0
+                    ? '<button class="btn-cart" type="button" aria-label="Thêm ' + escapeHtml(p.name) + ' vào giỏ" title="Thêm vào giỏ" onclick="addToCart(' + p.id + ')"><i class="bi bi-cart-plus-fill"></i></button>'
+                    : '<button class="btn-cart btn-cart-disabled" type="button" aria-label="Hết hàng" title="Hết hàng" disabled><i class="bi bi-cart-x-fill"></i></button>';
 
                 html += '<div class="p-card">' + badge + stockBadge +
                     '<a href="/product/' + p.id + '"><div class="p-img">' + img + '</div></a>' +
@@ -389,11 +405,10 @@
                         '<a href="/product/' + p.id + '" style="text-decoration:none">' +
                             '<div class="p-name">' + p.name + '</div>' +
                         '</a>' +
-                        '<div class="p-price-wrap">' +
+                        '<div class="p-purchase-row"><div class="p-price-wrap">' +
                             '<span class="p-price">' + formatPrice(p.price) + 'đ</span>' +
                             oldPrice +
-                        '</div>' +
-                        btnCart +
+                        '</div>' + btnCart + '</div>' +
                     '</div>' +
                 '</div>';
             });
@@ -456,7 +471,6 @@
         function setPrice(min, max) {
             document.getElementById('priceMin').value = min ? formatNumber(min) : '';
             document.getElementById('priceMax').value = max ? formatNumber(max) : '';
-            applyFilters();
         }
 
         function renderActiveFilters() {
@@ -510,6 +524,9 @@
                     }
                 });
             }
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape') closeFilterPanel();
+            });
         }
 
         function applySearchFilter(inputId) {
@@ -519,6 +536,23 @@
 
         function autoApplyFilter() {
             applyFilters();
+        }
+
+        async function changeCategoryFilter() {
+            currentFilters.category = document.querySelector('#categoryFilters input[name="category"]:checked')?.value || '';
+            for (const key of multiFilterKeys) delete currentFilters[key];
+            try {
+                const params = new URLSearchParams();
+                if (currentFilters.category) params.set('category', currentFilters.category);
+                params.set('limit', '1');
+                const response = await fetch('/api/products?' + params.toString());
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Không thể tải bộ lọc danh mục.');
+                filterOptions = data.filters;
+                renderFilters(data.filters);
+            } catch (error) {
+                showFilterError(error.message);
+            }
         }
 
         function applyFilters() {
@@ -559,9 +593,27 @@
             error.hidden = false;
         }
 
-        function toggleMobileFilter() {
-            const open = document.getElementById('filterSidebar').classList.toggle('open');
-            document.getElementById('openFilterButton').setAttribute('aria-expanded', String(open));
+        function openFilterPanel() {
+            const panel = document.getElementById('filterSidebar');
+            panel.classList.add('open');
+            panel.inert = false;
+            panel.setAttribute('aria-hidden', 'false');
+            document.getElementById('filterOverlay').hidden = false;
+            document.getElementById('openFilterButton').setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+            panel.querySelector('.filter-panel-close').focus();
+        }
+
+        function closeFilterPanel() {
+            const panel = document.getElementById('filterSidebar');
+            if (!panel.classList.contains('open')) return;
+            panel.classList.remove('open');
+            panel.inert = true;
+            panel.setAttribute('aria-hidden', 'true');
+            document.getElementById('filterOverlay').hidden = true;
+            document.getElementById('openFilterButton').setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+            document.getElementById('openFilterButton').focus();
         }
 
         function toggleFilterCard(headerEl) {

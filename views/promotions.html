@@ -12,8 +12,8 @@
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
     <link rel="stylesheet" href="/css/filter.css?v=1">
-    <link rel="stylesheet" href="/css/pages/promotions.css?v=1">
-    <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
+    <link rel="stylesheet" href="/css/pages/promotions.css?v=3">
+    <link rel="stylesheet" href="/css/storefront-theme.css?v=16">
 </head>
 <body>
     <!-- Navbar -->
@@ -29,7 +29,6 @@
                 <li><a href="/products" class="nav-link"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a></li>
                 <li><a href="/promotions" class="nav-link active"><i class="bi bi-tag"></i> Khuyến mãi</a></li>
                 <li><a href="/policy" class="nav-link"><i class="bi bi-file-text"></i> Chính sách</a></li>
-                <li><a href="/contact" class="nav-link"><i class="bi bi-headset"></i> Liên hệ</a></li>
             </ul>
             <a href="/wishlist" class="wishlist-link"><i class="bi bi-heart"></i><span class="wishlist-badge" id="wishlistBadge">0</span></a> <a href="/compare" class="compare-link"><i class="bi bi-bar-chart"></i><span class="compare-badge" id="compareBadge">0</span></a> <a href="/cart" class="cart-link">
                 <i class="bi bi-bag"></i>
@@ -56,7 +55,6 @@
             <a href="/products" class="mobile-nav-item"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a>
             <a href="/promotions" class="mobile-nav-item active"><i class="bi bi-tag"></i> Khuyến mãi</a>
             <a href="/policy" class="mobile-nav-item"><i class="bi bi-file-text"></i> Chính sách</a>
-            <a href="/contact" class="mobile-nav-item"><i class="bi bi-headset"></i> Liên hệ</a>
             <div class="mobile-nav-divider"></div>
             <a href="/cart" class="mobile-nav-item"><i class="bi bi-bag"></i> Giỏ hàng</a>
             <div id="mobileUserArea"></div>
@@ -74,14 +72,23 @@
 
     <!-- Main Page -->
     <div class="promotions-page">
+        <div class="filter-overlay" id="filterOverlay" onclick="closeFilterPanel()" hidden></div>
         <!-- Sidebar Filter -->
-        <aside class="filter-sidebar" id="filterSidebar">
+        <aside class="filter-sidebar" id="filterSidebar" aria-label="Bộ lọc khuyến mãi" aria-hidden="true" inert>
             <div>
-                <button class="mobile-filter-btn" onclick="toggleMobileFilter()">
-                    <i class="bi bi-x-lg"></i> Đóng bộ lọc
-                </button>
+                <div class="filter-panel-heading">
+                    <h2>Lọc khuyến mãi</h2>
+                    <button type="button" class="filter-panel-close" aria-label="Đóng bộ lọc" title="Đóng bộ lọc" onclick="closeFilterPanel()"><i class="bi bi-x-lg"></i></button>
+                </div>
 
                 <form id="filterForm">
+                    <div class="filter-card" data-filter="category">
+                        <div class="filter-header" onclick="toggleFilterCard(this)">
+                            <span class="filter-header-title"><i class="bi bi-grid-3x3-gap"></i> Danh mục</span>
+                            <button type="button" class="filter-toggle"><i class="bi bi-chevron-down"></i></button>
+                        </div>
+                        <div class="filter-body" id="categoryFilters"><div class="filter-empty">Đang tải...</div></div>
+                    </div>
                     <!-- Mức giảm giá -->
                     <div class="filter-card" data-filter="discount">
                         <div class="filter-header" onclick="toggleFilterCard(this)">
@@ -140,9 +147,9 @@
                         <button type="submit" class="btn-filter-apply">
                             <i class="bi bi-check-lg"></i> Áp dụng bộ lọc
                         </button>
-                        <a href="/promotions" class="btn-filter-clear">
+                            <button type="button" class="btn-filter-clear" onclick="clearPromotionFilters()">
                             <i class="bi bi-x-circle"></i> Xóa bộ lọc
-                        </a>
+                            </button>
                     </div>
                 </form>
             </div>
@@ -150,9 +157,6 @@
 
         <!-- Main -->
         <div class="promotions-main">
-            <button type="button" class="mobile-filter-btn" id="openFilterButton" aria-controls="filterSidebar" aria-expanded="false" onclick="toggleMobileFilter()">
-                <i class="bi bi-sliders"></i> Mở bộ lọc
-            </button>
             <div class="promotions-toolbar">
                 <div class="products-count">
                     Tìm thấy <strong id="totalProducts">0</strong> sản phẩm khuyến mãi
@@ -167,10 +171,12 @@
                         <option value="price_desc">Giá cao - thấp</option>
                         <option value="newest">Mới nhất</option>
                     </select>
+                    <button type="button" class="filter-toolbar-button" id="openFilterButton" aria-label="Mở bộ lọc" title="Bộ lọc" aria-controls="filterSidebar" aria-expanded="false" onclick="openFilterPanel()"><i class="bi bi-funnel"></i></button>
                 </div>
             </div>
 
             <div class="products-grid-4" id="promoGrid"></div>
+            <div class="pagination-wrap" id="promoPagination"></div>
         </div>
     </div>
 
@@ -241,14 +247,17 @@
         </div>
     </footer>
 
-    <script src="/js/app.js?v=20260930-2"></script>
+    <script src="/js/app.js?v=20261112-menu7"></script>
     <script>
         // ============================
         // STATE
         // ============================
         let currentFilters = {};
         let allBrands = [];
+        let allCategories = [];
         let allProducts = []; // cache
+        let currentPage = 1;
+        const pageSize = 20;
 
         // ============================
         // INIT
@@ -271,6 +280,8 @@
                 const values = params.getAll(key).map(v => v.trim()).filter(v => v && v !== 'undefined' && v !== 'null');
                 if (values.length) currentFilters[key] = key === 'brand' ? [...new Set(values.map(v => v.toLowerCase()))] : values[0];
             }
+            currentFilters.category = params.get('category') || '';
+            currentPage = Math.max(1, Number.parseInt(params.get('page'), 10) || 1);
             syncFormFromFilters();
         }
 
@@ -299,12 +310,24 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Không thể tải hãng');
                 allBrands = (data.filters && data.filters.brands) ? data.filters.brands : [];
+                allCategories = (data.filters && data.filters.categories) ? data.filters.categories : [];
+                renderCategoryFilters();
                 renderBrandFilters();
             } catch (e) {
                 console.error('loadBrands error:', e);
                 document.getElementById('brandFilters').innerHTML =
                     '<p style="color:var(--slate-400);font-size:0.85rem;margin:0">Không thể tải hãng</p>';
             }
+        }
+
+        function renderCategoryFilters() {
+            const container = document.getElementById('categoryFilters');
+            let html = '<label class="filter-check"><input type="radio" name="category" value="" ' + (!currentFilters.category ? 'checked' : '') + '> <span>Tất cả danh mục</span></label>';
+            allCategories.forEach(category => {
+                const checked = currentFilters.category === category.slug || currentFilters.category === String(category.id) ? 'checked' : '';
+                html += '<label class="filter-check"><input type="radio" name="category" value="' + escapeHtml(category.slug) + '" ' + checked + '> <span>' + escapeHtml(category.name) + '</span></label>';
+            });
+            container.innerHTML = html;
         }
 
         function renderBrandFilters() {
@@ -342,7 +365,13 @@
                     page++;
                 } while (page <= totalPages);
                 allProducts = products.filter(p => p.discount_percent > 0);
-                applyFiltersAndRender();
+                const promoBrandIds = new Set(allProducts.map(product => String(product.brand_id)).filter(Boolean));
+                const promoCategoryIds = new Set(allProducts.map(product => String(product.category_id)).filter(Boolean));
+                allBrands = allBrands.filter(brand => promoBrandIds.has(String(brand.id)));
+                allCategories = allCategories.filter(category => promoCategoryIds.has(String(category.id)) || currentFilters.category === category.slug || currentFilters.category === String(category.id));
+                renderCategoryFilters();
+                renderBrandFilters();
+                applyFiltersAndRender(false);
             } catch (err) {
                 console.error('Error loading promotions:', err);
                 document.getElementById('promoGrid').innerHTML =
@@ -350,13 +379,19 @@
             }
         }
 
-        function applyFiltersAndRender() {
+        function applyFiltersAndRender(resetPage = true) {
             if (!validatePriceRange(currentFilters.price_min || '', currentFilters.price_max || '')) return;
+            if (resetPage) currentPage = 1;
             // 1. Lọc theo discount
             const minDiscount = parseInt(currentFilters.discount) || 0;
             let filtered = allProducts.filter(p => (p.discount_percent || 0) >= minDiscount);
 
             // 2. Lọc theo brand
+            if (currentFilters.category) {
+                const category = allCategories.find(item => item.slug === currentFilters.category || String(item.id) === currentFilters.category);
+                if (category) filtered = filtered.filter(product => String(product.category_id) === String(category.id));
+            }
+
             if (currentFilters.brand && currentFilters.brand.length > 0) {
                 const selected = currentFilters.brand;
                 const brandIds = allBrands.filter(b => selected.includes(String(b.id)) || selected.includes(b.slug)).map(b => String(b.id));
@@ -405,9 +440,35 @@
                 }
             });
 
-            renderProducts(filtered);
+            const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+            currentPage = Math.min(currentPage, totalPages);
+            renderProducts(filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize));
+            renderPromotionPagination(filtered.length, totalPages);
             document.getElementById('totalProducts').textContent = filtered.length.toLocaleString('vi-VN');
             renderActiveFilters();
+        }
+
+        function renderPromotionPagination(total, totalPages) {
+            const container = document.getElementById('promoPagination');
+            if (totalPages <= 1) {
+                container.replaceChildren();
+                return;
+            }
+            let html = `<button type="button" ${currentPage <= 1 ? 'disabled' : ''} aria-label="Trang trước" onclick="goPromotionPage(${currentPage - 1})"><i class="bi bi-chevron-left"></i></button>`;
+            const start = Math.max(1, currentPage - 2);
+            const end = Math.min(totalPages, currentPage + 2);
+            if (start > 1) html += `<button type="button" onclick="goPromotionPage(1)">1</button>${start > 2 ? '<span>...</span>' : ''}`;
+            for (let page = start; page <= end; page++) html += `<button type="button" class="${page === currentPage ? 'active' : ''}" aria-current="${page === currentPage ? 'page' : 'false'}" onclick="goPromotionPage(${page})">${page}</button>`;
+            if (end < totalPages) html += `${end < totalPages - 1 ? '<span>...</span>' : ''}<button type="button" onclick="goPromotionPage(${totalPages})">${totalPages}</button>`;
+            html += `<button type="button" ${currentPage >= totalPages ? 'disabled' : ''} aria-label="Trang sau" onclick="goPromotionPage(${currentPage + 1})"><i class="bi bi-chevron-right"></i></button>`;
+            container.innerHTML = html;
+        }
+
+        function goPromotionPage(page) {
+            currentPage = page;
+            applyFiltersAndRender(false);
+            buildUrlFromFilters();
+            document.querySelector('.promotions-toolbar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // ============================
@@ -451,8 +512,8 @@
                 ? '<span class="p-old-price">' + formatPriceVND(oldPrice) + 'đ</span>'
                 : '';
             const btnCart = stock > 0
-                ? '<button class="btn-cart" onclick="addToCart(' + p.id + ')"><i class="bi bi-plus-lg"></i> Thêm vào giỏ</button>'
-                : '<button class="btn-cart" disabled style="background:var(--slate-300);color:var(--slate-500);cursor:not-allowed"><i class="bi bi-x"></i> Hết hàng</button>';
+                ? '<button class="btn-cart" type="button" aria-label="Thêm ' + escapeHtml(p.name) + ' vào giỏ" title="Thêm vào giỏ" onclick="addToCart(' + p.id + ')"><i class="bi bi-cart-plus-fill"></i></button>'
+                : '<button class="btn-cart btn-cart-disabled" type="button" aria-label="Hết hàng" title="Hết hàng" disabled><i class="bi bi-cart-x-fill"></i></button>';
 
             return (
                 '<div class="p-card">' + badge + stockBadge +
@@ -462,11 +523,10 @@
                     '<a href="/product/' + p.id + '" style="text-decoration:none;color:inherit">' +
                         '<div class="p-name">' + escapeHtml(p.name) + '</div>' +
                     '</a>' +
-                    '<div class="p-price-wrap">' +
+                    '<div class="p-purchase-row"><div class="p-price-wrap">' +
                         '<span class="p-price">' + formatPriceVND(price) + 'đ</span>' +
                         oldPriceHtml +
-                    '</div>' +
-                    btnCart +
+                    '</div>' + btnCart + '</div>' +
                 '</div>' +
                 '</div>'
             );
@@ -479,9 +539,17 @@
             const container = document.getElementById('activeFilters');
             const tags = [];
 
+            if (currentFilters.category) {
+                const category = allCategories.find(x => x.slug === currentFilters.category || String(x.id) === currentFilters.category);
+                tags.push({ key: 'category', label: 'Danh mục: ' + (category ? category.name : currentFilters.category) });
+            }
             for (const value of (currentFilters.brand || [])) {
                 const b = allBrands.find(x => String(x.id) === value || x.slug === value);
                 tags.push({ key: 'brand', value, label: 'Hãng: ' + (b ? b.name : value) });
+            }
+            if (currentFilters.category) {
+                const category = allCategories.find(item => item.slug === currentFilters.category || String(item.id) === currentFilters.category);
+                tags.push({ key: 'category', label: 'Danh mục: ' + (category ? category.name : currentFilters.category) });
             }
             if (currentFilters.price_min || currentFilters.price_max) {
                 const min = currentFilters.price_min ? formatPriceVND(currentFilters.price_min) + 'đ' : '0';
@@ -544,24 +612,13 @@
                 buildUrlFromFilters();
             });
 
-            // Radio discount change - tự apply
-            document.querySelectorAll('input[name="discount"]').forEach(r => {
-                r.addEventListener('change', function() {
-                    applyFiltersFromForm();
-                    buildUrlFromFilters();
-                });
-            });
-
-            // Checkbox brand change - tự apply
-            document.querySelectorAll('input[name="brand"]').forEach(cb => {
-                cb.addEventListener('change', function() {
-                    applyFiltersFromForm();
-                    buildUrlFromFilters();
-                });
-            });
             window.addEventListener('popstate', () => {
                 parseURLParams();
-                applyFiltersAndRender();
+                syncFormFromFilters();
+                applyFiltersAndRender(false);
+            });
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape') closeFilterPanel();
             });
         }
 
@@ -573,6 +630,7 @@
             const formData = new FormData(form);
 
             currentFilters.discount = formData.get('discount') || '0';
+            currentFilters.category = formData.get('category') || '';
 
             const brands = formData.getAll('brand');
             currentFilters.brand = brands;
@@ -581,11 +639,15 @@
             currentFilters.price_max = max;
 
             applyFiltersAndRender();
+            closeFilterPanel();
         }
 
         function syncFormFromFilters() {
             document.querySelectorAll('input[name="discount"]').forEach(r => {
                 r.checked = r.value === (currentFilters.discount || '0');
+            });
+            document.querySelectorAll('input[name="category"]').forEach(r => {
+                r.checked = r.value === (currentFilters.category || '');
             });
             document.querySelectorAll('input[name="brand"]').forEach(cb => {
                 const selected = currentFilters.brand || [];
@@ -605,6 +667,7 @@
                     if (value !== '' && value !== null && value !== undefined) params.append(k, value);
                 }
             });
+            if (currentPage > 1) params.set('page', String(currentPage));
             const qs = params.toString();
             const newUrl = '/promotions' + (qs ? '?' + qs : '');
             window.history.replaceState({}, '', newUrl);
@@ -613,8 +676,6 @@
         function setPrice(min, max) {
             document.getElementById('priceMin').value = min ? formatNumber(min) : '';
             document.getElementById('priceMax').value = max ? formatNumber(max) : '';
-            applyFiltersFromForm();
-            buildUrlFromFilters();
         }
 
         function validatePriceRange(min, max) {
@@ -630,9 +691,35 @@
             return !message;
         }
 
-        function toggleMobileFilter() {
-            const open = document.getElementById('filterSidebar').classList.toggle('open');
-            document.getElementById('openFilterButton').setAttribute('aria-expanded', String(open));
+        function openFilterPanel() {
+            const panel = document.getElementById('filterSidebar');
+            panel.classList.add('open');
+            panel.inert = false;
+            panel.setAttribute('aria-hidden', 'false');
+            document.getElementById('filterOverlay').hidden = false;
+            document.getElementById('openFilterButton').setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+            panel.querySelector('.filter-panel-close').focus();
+        }
+
+        function closeFilterPanel() {
+            const panel = document.getElementById('filterSidebar');
+            if (!panel.classList.contains('open')) return;
+            panel.classList.remove('open');
+            panel.inert = true;
+            panel.setAttribute('aria-hidden', 'true');
+            document.getElementById('filterOverlay').hidden = true;
+            document.getElementById('openFilterButton').setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+            document.getElementById('openFilterButton').focus();
+        }
+
+        function clearPromotionFilters() {
+            currentFilters = { sort: document.getElementById('sortSelect').value || 'discount_desc' };
+            currentPage = 1;
+            syncFormFromFilters();
+            applyFiltersAndRender();
+            buildUrlFromFilters();
         }
 
         function toggleFilterCard(headerEl) {

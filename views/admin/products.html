@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/css/admin.css?v=20261110-2">
+    <link rel="stylesheet" href="/css/admin.css?v=20261111-1">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -192,7 +192,10 @@
 
                     <!-- Section: Thông số kỹ thuật -->
                     <div class="product-form-section">
-                        <div class="section-title"><i class="fas fa-microchip"></i> Thông số kỹ thuật <span style="font-weight: 400; font-size: 0.85rem; color: var(--gray-500);">— Chỉ áp dụng cho điện thoại / máy tính bảng</span></div>
+                        <div class="variant-section-header"><div class="section-title"><i class="fas fa-microchip"></i> Thông số kỹ thuật</div><button type="button" class="btn btn-secondary btn-sm" onclick="addTechnicalSpecRow()"><i class="fas fa-plus"></i> Thêm thông số</button></div>
+                        <p id="technicalSpecsCategoryHint" class="variant-help">Chọn danh mục để gợi ý các thông số phù hợp. Bạn có thể thêm hoặc đổi tên thông số.</p>
+                        <div id="technicalSpecsFields" class="form-row"></div>
+                        <div hidden aria-hidden="true">
 
                         <div class="form-row">
                             <div class="form-group">
@@ -254,6 +257,7 @@
                                     <option value="2TB">2 TB</option>
                                 </select>
                             </div>
+                        </div>
                         </div>
                     </div>
 
@@ -351,6 +355,7 @@
     <script>
         let editingId = null;
         let loadingProduct = false;
+        let productCategories = [];
 
         async function adminLogout() {
             showConfirm('Đăng xuất?', 'Bạn có chắc muốn đăng xuất?', async () => {
@@ -440,9 +445,19 @@
                 const data = await res.json();
                 if (data.categories) {
                     const select = document.getElementById('category_id');
+                    productCategories = data.categories;
                     data.categories.forEach(c => {
-                        select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                        select.innerHTML += `<option value="${c.id}">${escapeHtml(c.name)}</option>`;
                     });
+                    select.addEventListener('change', () => {
+                        const current = new Map(collectTechnicalSpecs().map(spec => [spec.label.toLocaleLowerCase('vi'), spec.value]));
+                        const next = defaultTechnicalSpecs(select.value).map(spec => ({
+                            ...spec,
+                            value: current.get(spec.label.toLocaleLowerCase('vi')) || ''
+                        }));
+                        renderTechnicalSpecs(next);
+                    });
+                    renderTechnicalSpecs(defaultTechnicalSpecs(select.value));
                 }
             } catch (e) {}
         }
@@ -457,6 +472,73 @@
 
         function getRawNumber(formattedValue) {
             return parseInt(formattedValue.replace(/\./g, '')) || 0;
+        }
+
+        function categorySpecTemplate(categoryId) {
+            const category = productCategories.find(item => Number(item.id) === Number(categoryId));
+            let configured = category?.technical_specs_template;
+            if (typeof configured === 'string') {
+                try { configured = JSON.parse(configured); } catch (error) { configured = []; }
+            }
+            if (Array.isArray(configured) && configured.length) {
+                const labels = configured.map(spec => typeof spec === 'string' ? spec : spec?.label)
+                    .filter(label => typeof label === 'string' && label.trim()).map(label => label.trim());
+                if (labels.length) return labels;
+            }
+            const templates = {
+                'dien-thoai': ['Màn hình', 'Công nghệ màn hình', 'Độ phân giải màn hình', 'Tần số quét', 'Camera sau', 'Camera trước', 'Chipset', 'Hệ điều hành', 'Dung lượng pin', 'Công nghệ sạc', 'SIM', 'Kháng nước, bụi'],
+                'tai-nghe': ['Kiểu tai nghe', 'Kiểu kết nối', 'Bluetooth', 'Driver', 'Dải tần đáp ứng', 'Trở kháng', 'Độ nhạy', 'Chống ồn', 'Micro', 'Thời lượng pin', 'Cổng sạc', 'Khối lượng'],
+                'sac': ['Loại bộ sạc', 'Tổng công suất đầu ra', 'Công suất tối đa mỗi cổng', 'Chuẩn sạc nhanh', 'Số lượng và loại cổng', 'Điện áp / dòng điện đầu ra', 'Điện áp đầu vào', 'Chiều dài cáp', 'Thiết bị tương thích', 'Bảo vệ an toàn'],
+                'op-lung': ['Dòng máy tương thích', 'Chất liệu', 'Kiểu thiết kế', 'Màu sắc', 'Tương thích sạc không dây', 'Tương thích MagSafe', 'Vị trí bảo vệ', 'Phụ kiện đi kèm'],
+                'phu-kien': ['Loại phụ kiện', 'Thiết bị tương thích', 'Chuẩn kết nối', 'Cổng kết nối', 'Chất liệu', 'Kích thước', 'Khối lượng', 'Tính năng chính', 'Phụ kiện đi kèm', 'Bảo hành'],
+                'may-tinh-bang': ['Màn hình', 'Công nghệ màn hình', 'Độ phân giải', 'Tần số quét', 'Chipset', 'Camera sau', 'Camera trước', 'Hệ điều hành', 'Kết nối mạng', 'Dung lượng pin', 'Công nghệ sạc', 'Hỗ trợ bút cảm ứng'],
+                'may-tinh-ban': ['Loại máy', 'Bộ vi xử lý', 'Bo mạch chủ', 'Card đồ họa', 'Nguồn', 'Tản nhiệt', 'Kết nối không dây', 'Cổng kết nối', 'Hệ điều hành', 'Kích thước', 'Phụ kiện đi kèm'],
+                'may-tinh-xach-tay': ['Màn hình', 'Độ phân giải', 'Tần số quét', 'Bộ vi xử lý', 'Card đồ họa', 'Cổng kết nối', 'Kết nối không dây', 'Webcam', 'Âm thanh', 'Hệ điều hành', 'Dung lượng pin', 'Khối lượng'],
+                'dong-ho': ['Loại đồng hồ', 'Kích thước mặt', 'Chất liệu mặt kính', 'Chất liệu vỏ', 'Chất liệu dây', 'Độ rộng dây', 'Bộ máy', 'Chức năng', 'Kết nối', 'Theo dõi sức khỏe', 'Kháng nước', 'Thời lượng pin']
+            };
+            const slug = String(category?.slug || '').toLowerCase();
+            return templates[slug] || ['Loại sản phẩm', 'Thiết bị tương thích', 'Chuẩn kết nối', 'Cổng kết nối', 'Chất liệu', 'Kích thước', 'Khối lượng', 'Tính năng chính', 'Bảo hành'];
+        }
+
+        function defaultTechnicalSpecs(categoryId) {
+            return categorySpecTemplate(categoryId).map(label => ({ label, value: '' }));
+        }
+
+        function renderTechnicalSpecs(specs) {
+            const fields = document.getElementById('technicalSpecsFields');
+            if (!fields) return;
+            const rows = Array.isArray(specs) ? specs : defaultTechnicalSpecs(document.getElementById('category_id')?.value);
+            const category = productCategories.find(item => Number(item.id) === Number(document.getElementById('category_id')?.value));
+            document.getElementById('technicalSpecsCategoryHint').textContent = category
+                ? `Thông số gợi ý cho danh mục ${category.name}. Có thể sửa tên, bỏ trống hoặc thêm trường riêng.`
+                : 'Chọn danh mục để gợi ý các thông số phù hợp. Bạn có thể thêm hoặc đổi tên thông số.';
+            fields.innerHTML = rows.map(spec => `<div class="form-group technical-spec-row"><label class="form-label">Tên thông số</label><input class="form-control" data-spec-label value="${escapeHtml(spec.label || '')}" maxlength="100" placeholder="VD: Dung lượng pin"><label class="form-label">Giá trị</label><div class="technical-spec-value"><input class="form-control" data-spec-value value="${escapeHtml(spec.value || '')}" maxlength="1000" placeholder="Nhập thông số"><button type="button" class="btn btn-sm btn-danger" onclick="removeTechnicalSpecRow(this)" title="Xóa thông số"><i class="fas fa-trash"></i></button></div></div>`).join('');
+        }
+
+        function collectTechnicalSpecs() {
+            return [...document.querySelectorAll('#technicalSpecsFields .technical-spec-row')].map(row => ({
+                label: row.querySelector('[data-spec-label]').value.trim(),
+                value: row.querySelector('[data-spec-value]').value.trim()
+            })).filter(spec => spec.label && spec.value);
+        }
+
+        function addTechnicalSpecRow() {
+            const current = [...document.querySelectorAll('#technicalSpecsFields .technical-spec-row')].map(row => ({
+                label: row.querySelector('[data-spec-label]').value,
+                value: row.querySelector('[data-spec-value]').value
+            }));
+            renderTechnicalSpecs([...current, { label: '', value: '' }]);
+            const inputs = document.querySelectorAll('#technicalSpecsFields [data-spec-label]');
+            inputs[inputs.length - 1]?.focus();
+        }
+
+        function removeTechnicalSpecRow(button) {
+            const removed = button.closest('.technical-spec-row');
+            const rows = [...document.querySelectorAll('#technicalSpecsFields .technical-spec-row')].filter(row => row !== removed).map(row => ({
+                label: row.querySelector('[data-spec-label]').value,
+                value: row.querySelector('[data-spec-value]').value
+            }));
+            renderTechnicalSpecs(rows);
         }
 
         function escapeHtml(value) {
@@ -545,6 +627,7 @@
             modal.classList.add('show');
             document.getElementById('modalTitle').innerHTML = id ? '<i class="fas fa-edit"></i> Sửa sản phẩm' : '<i class="fas fa-plus-circle"></i> Thêm sản phẩm mới';
             document.getElementById('productForm').reset();
+            renderTechnicalSpecs(defaultTechnicalSpecs(''));
             document.getElementById('saveProductButton').disabled = loadingProduct;
             document.getElementById('discount_percent').value = '0%';
             document.getElementById('priceError').style.display = 'none';
@@ -620,6 +703,31 @@
                 safeSetValue('screen_resolution', p.screen_resolution && p.screen_resolution !== 'null' ? p.screen_resolution : '');
                 safeSetValue('ram', p.ram && p.ram !== 'null' ? p.ram : '');
                 safeSetValue('storage', p.storage && p.storage !== 'null' ? p.storage : '');
+
+                let savedSpecs = p.technical_specs;
+                if (typeof savedSpecs === 'string') {
+                    try { savedSpecs = JSON.parse(savedSpecs); } catch (error) { savedSpecs = []; }
+                }
+                if (!Array.isArray(savedSpecs)) savedSpecs = [];
+                if (!savedSpecs.length) {
+                    const legacySpecs = [
+                        ['Hệ điều hành', p.os], ['Chipset', p.chipset], ['CPU', p.cpu], ['GPU', p.gpu],
+                        ['Kích thước màn hình', p.screen_size], ['Độ phân giải màn hình', p.screen_resolution],
+                        ['RAM', p.ram], ['Bộ nhớ trong', p.storage]
+                    ];
+                    savedSpecs = legacySpecs.filter(([, value]) => value && value !== 'null').map(([label, value]) => ({ label, value: String(value) }));
+                }
+                const specByLabel = new Map(savedSpecs.map(spec => [String(spec.label || '').toLocaleLowerCase('vi'), String(spec.value || '')]));
+                const mergedSpecs = defaultTechnicalSpecs(p.category_id).map(spec => ({
+                    ...spec,
+                    value: specByLabel.get(spec.label.toLocaleLowerCase('vi')) || ''
+                }));
+                savedSpecs.forEach(spec => {
+                    if (spec?.label && !mergedSpecs.some(item => item.label.toLocaleLowerCase('vi') === String(spec.label).toLocaleLowerCase('vi'))) {
+                        mergedSpecs.push({ label: String(spec.label), value: String(spec.value || '') });
+                    }
+                });
+                renderTechnicalSpecs(mergedSpecs);
 
                 productVariants = Array.isArray(data.variants) && data.variants.length
                     ? data.variants.map(variant => ({
@@ -1055,6 +1163,20 @@
             formData.append('is_featured', document.getElementById('is_featured').checked);
 
             // Thông số kỹ thuật
+            const technicalSpecs = collectTechnicalSpecs();
+            formData.append('technical_specs', JSON.stringify(technicalSpecs));
+            const legacySpecFields = {
+                'hệ điều hành': 'os', chipset: 'chipset', cpu: 'cpu', gpu: 'gpu',
+                'kích thước màn hình': 'screen_size', 'độ phân giải màn hình': 'screen_resolution'
+            };
+            Object.entries(legacySpecFields).forEach(([label, id]) => {
+                const spec = technicalSpecs.find(item => item.label.toLocaleLowerCase('vi') === label);
+                document.getElementById(id).value = spec?.value || '';
+            });
+            const ramSpec = technicalSpecs.find(item => item.label.toLocaleLowerCase('vi') === 'ram');
+            const storageSpec = technicalSpecs.find(item => ['bộ nhớ trong', 'ổ cứng'].includes(item.label.toLocaleLowerCase('vi')));
+            if (ramSpec && [...document.getElementById('ram').options].some(option => option.value === ramSpec.value)) document.getElementById('ram').value = ramSpec.value;
+            if (storageSpec && [...document.getElementById('storage').options].some(option => option.value === storageSpec.value)) document.getElementById('storage').value = storageSpec.value;
             formData.append('os', document.getElementById('os').value.trim() || null);
             formData.append('chipset', document.getElementById('chipset').value.trim() || null);
             formData.append('cpu', document.getElementById('cpu').value.trim() || null);

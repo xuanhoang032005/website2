@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
     <link rel="stylesheet" href="/css/pages/order-detail.css?v=20261110-1">
-    <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
+    <link rel="stylesheet" href="/css/storefront-theme.css?v=16">
 </head>
 <body>
     <!-- Navbar -->
@@ -20,7 +20,7 @@
         <div class="navbar-inner">
             <a href="/" class="navbar-brand">AnhTrai<span>Store</span></a>
             <div class="search-wrap"><button class="search-btn"><i class="bi bi-search"></i></button><input type="text" placeholder="Bạn muốn tìm gì hôm nay?" id="searchInput" autocomplete="off"><div id="searchSuggest" class="search-suggest"></div></div>
-            <ul class="nav-links"><li><a href="/products" class="nav-link"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a></li><li><a href="/promotions" class="nav-link"><i class="bi bi-tag"></i> Khuyến mãi</a></li><li><a href="/policy" class="nav-link"><i class="bi bi-file-text"></i> Chính sách</a></li><li><a href="/contact" class="nav-link"><i class="bi bi-headset"></i> Liên hệ</a></li></ul>
+            <ul class="nav-links"><li><a href="/products" class="nav-link"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a></li><li><a href="/promotions" class="nav-link"><i class="bi bi-tag"></i> Khuyến mãi</a></li><li><a href="/policy" class="nav-link"><i class="bi bi-file-text"></i> Chính sách</a></li></ul>
             <a href="/wishlist" class="wishlist-link" title="Yêu thích"><i class="bi bi-heart"></i><span class="wishlist-badge" id="wishlistBadge">0</span></a><a href="/compare" class="compare-link" title="So sánh"><i class="bi bi-bar-chart"></i><span class="compare-badge" id="compareBadge">0</span></a><a href="/cart" class="cart-link"><i class="bi bi-bag"></i><span>Giỏ hàng</span><span class="cart-badge" id="cartBadge">0</span></a><div id="userArea"></div>
             <button class="hamburger-nav" onclick="openMobileMenu()"><i class="bi bi-list"></i></button>
         </div>
@@ -38,7 +38,6 @@
             <a href="/products" class="mobile-nav-item"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a>
             <a href="/promotions" class="mobile-nav-item"><i class="bi bi-tag"></i> Khuyến mãi</a>
             <a href="/policy" class="mobile-nav-item"><i class="bi bi-file-text"></i> Chính sách</a>
-            <a href="/contact" class="mobile-nav-item"><i class="bi bi-headset"></i> Liên hệ</a>
             <div class="mobile-nav-divider"></div>
             <a href="/wishlist" class="mobile-nav-item"><i class="bi bi-heart"></i> Yêu thích</a>
             <a href="/compare" class="mobile-nav-item"><i class="bi bi-bar-chart"></i> So sánh</a>
@@ -116,7 +115,7 @@
     </footer>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/js/app.js?v=20260930-2"></script>
+    <script src="/js/app.js?v=20261112-menu7"></script>
     <script>
         function formatPrice(price) {
             if (!price) return '0';
@@ -328,7 +327,10 @@
                 ? statusHistory.map((entry, index) => `<div class="timeline-item ${index === statusHistory.length - 1 ? 'active' : 'done'}"><span><i class="bi ${statusIcons[entry.status] || 'bi-circle'}"></i></span><div><strong>${escapeHtml(statusLabels[entry.status] || entry.status)}</strong><small>${formatDate(entry.created_at)}${entry.changed_by_name ? ' · ' + escapeHtml(entry.changed_by_name) : ''}</small>${entry.note ? `<small>${escapeHtml(entry.note)}</small>` : ''}</div></div>`).join('')
                 : `<div class="timeline-item done"><span><i class="bi bi-cart-check"></i></span><div><strong>Đơn hàng đã được đặt</strong><small>${formatDate(order.created_at)}</small></div></div><div class="timeline-item active"><span><i class="bi ${statusIcons[order.status] || 'bi-circle'}"></i></span><div><strong>${escapeHtml(statusLabels[order.status] || order.status)}</strong><small>Đơn được tạo trước khi bật lịch sử theo dõi.</small></div></div>`;
             const verticalSteps = historyRows;
-            const trackingHtml = `<div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-upc-scan"></i></div><h3>Thông tin vận đơn (mô phỏng)</h3></div><div class="card-body detail-list"><div><span>Đơn vị vận chuyển</span><strong>${escapeHtml(order.tracking_carrier || 'Chưa được tạo')}</strong></div><div><span>Mã vận đơn</span><strong>${escapeHtml(order.tracking_number || 'Chưa được tạo')}</strong></div><small style="color:var(--slate-500);line-height:1.5">Mã đơn hàng ${escapeHtml(order.payment_code || order.id)} là mã nhận diện đơn. Mã vận đơn phía trên chỉ dùng minh họa, không tra cứu được tại hãng vận chuyển.</small></div></div>`;
+            const hasRealTracking = order.tracking_carrier && order.tracking_number && !/mô phỏng/i.test(order.tracking_carrier) && !/^DEMO-/i.test(order.tracking_number);
+            const trackingHtml = hasRealTracking
+                ? `<div class="card compact-card"><div class="card-header"><div class="card-header-icon"><i class="bi bi-upc-scan"></i></div><h3>Thông tin vận đơn</h3></div><div class="card-body detail-list"><div><span>Đơn vị vận chuyển</span><strong>${escapeHtml(order.tracking_carrier)}</strong></div><div><span>Mã vận đơn</span><strong>${escapeHtml(order.tracking_number)}</strong></div></div></div>`
+                : '';
 
             const html = `
                 <div class="order-detail-grid">

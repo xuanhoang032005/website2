@@ -9,11 +9,6 @@ const ordersController = require('../controllers/orders-controller');
 const ONLINE_PAYMENT_METHODS = ['vnpay', 'momo'];
 const VIP_MIN_DELIVERED_SPEND = 30000000;
 const SHIPPING_METHODS = new Set(['standard', 'express']);
-const DEMO_TRACKING_CARRIER = 'AnhTrai Express (Mô phỏng)';
-
-function createDemoTrackingNumber(paymentCode) {
-    return `DEMO-${paymentCode}`;
-}
 
 function normalizeLocation(value) {
     return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -318,9 +313,9 @@ router.post('/', async (req, res) => {
         await connection.beginTransaction();
 
         const [orderResult] = await connection.query(
-            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_method, tracking_carrier, tracking_number, delivery_min_days, delivery_max_days, estimated_delivery_from, estimated_delivery_to, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cod', 'pending', ?, ?, ?)`,
-            [userId, paymentCode, finalTotal, shippingFee, shippingMethod, DEMO_TRACKING_CARRIER, createDemoTrackingNumber(paymentCode), delivery.minDays, delivery.maxDays, delivery.from, delivery.to, shipping_name, shipping_phone, shipping_address,
+            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_method, delivery_min_days, delivery_max_days, estimated_delivery_from, estimated_delivery_to, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cod', 'pending', ?, ?, ?)`,
+            [userId, paymentCode, finalTotal, shippingFee, shippingMethod, delivery.minDays, delivery.maxDays, delivery.from, delivery.to, shipping_name, shipping_phone, shipping_address,
                 notes || '', discount, coupon ? coupon.code : null, itemIds.length > 0 ? itemIds.join(',') : null]
         );
         const orderId = orderResult.insertId;
@@ -351,8 +346,6 @@ router.post('/', async (req, res) => {
             success: true,
             order_id: orderId,
             payment_code: paymentCode,
-            tracking_carrier: DEMO_TRACKING_CARRIER,
-            tracking_number: createDemoTrackingNumber(paymentCode),
             subtotal,
             shipping_fee: shippingFee,
             shipping_method: shippingMethod,
@@ -545,9 +538,9 @@ router.post('/initiate', async (req, res) => {
         await connection.beginTransaction();
 
         const [orderResult] = await connection.query(
-            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_method, tracking_carrier, tracking_number, delivery_min_days, delivery_max_days, estimated_delivery_from, estimated_delivery_to, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-            [userId, paymentCode, finalTotal, shippingFee, shippingMethod, DEMO_TRACKING_CARRIER, createDemoTrackingNumber(paymentCode), delivery.minDays, delivery.maxDays, delivery.from, delivery.to, shipping_name, shipping_phone, shipping_address,
+            `INSERT INTO orders (user_id, payment_code, total_price, shipping_fee, shipping_method, delivery_min_days, delivery_max_days, estimated_delivery_from, estimated_delivery_to, shipping_name, shipping_phone, shipping_address, notes, payment_method, status, discount_amount, coupon_code, cart_item_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+            [userId, paymentCode, finalTotal, shippingFee, shippingMethod, delivery.minDays, delivery.maxDays, delivery.from, delivery.to, shipping_name, shipping_phone, shipping_address,
                 notes || '', payment_method, discount, coupon ? coupon.code : null, itemIds.length > 0 ? itemIds.join(',') : null]
         );
         const orderId = orderResult.insertId;
@@ -569,8 +562,6 @@ router.post('/initiate', async (req, res) => {
             success: true,
             order_id: orderId,
             payment_code: paymentCode,
-            tracking_carrier: DEMO_TRACKING_CARRIER,
-            tracking_number: createDemoTrackingNumber(paymentCode),
             subtotal,
             shipping_fee: shippingFee,
             shipping_method: shippingMethod,

@@ -5,10 +5,19 @@ const queue = require('../services/job-queue');
 
 const router = express.Router();
 const MAX_SESSION_HISTORY_MESSAGES = 100;
-const aiRateLimit = createRateLimiter({
+const chatRateLimit = createRateLimiter({
+    namespace: 'ai-chat-session',
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 30,
+    keyGenerator: req => req.sessionID || req.ip || req.socket?.remoteAddress || 'unknown',
     message: 'Bạn đã gửi quá nhiều câu hỏi. Vui lòng thử lại sau!'
+});
+const compareRateLimit = createRateLimiter({
+    namespace: 'ai-compare-session',
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyGenerator: req => req.sessionID || req.ip || req.socket?.remoteAddress || 'unknown',
+    message: 'Bạn đã yêu cầu AI so sánh quá nhiều lần. Vui lòng thử lại sau!'
 });
 
 function sessionHistory(session) {
@@ -55,7 +64,7 @@ router.get('/ai/jobs/:id', async (req, res) => {
     }
 });
 
-router.post('/ai/compare', aiRateLimit, async (req, res) => {
+router.post('/ai/compare', compareRateLimit, async (req, res) => {
     try {
         const result = await compareProductsWithAI({ productIds: req.body?.product_ids });
         return res.json({ success: true, conclusion: result.conclusion });
@@ -68,7 +77,7 @@ router.post('/ai/compare', aiRateLimit, async (req, res) => {
     }
 });
 
-router.post('/ai', aiRateLimit, async (req, res) => {
+router.post('/ai', chatRateLimit, async (req, res) => {
     const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
     if (!message) return res.status(400).json({ success: false, error: 'Vui lòng nhập câu hỏi!' });
     if (message.length > 1000) {

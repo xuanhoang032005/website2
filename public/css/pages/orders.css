@@ -212,7 +212,7 @@
             align-items: center;
             gap: 6px;
             padding: 6px 14px;
-            border-radius: var(--radius-full);
+            border-radius: 8px;
             font-size: 0.75rem;
             font-weight: 700;
         }

@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
         const {
             q, category, brand, price_min, price_max,
             ram, storage, sort = 'newest', featured,
-            page = 1, limit = 12
+            page = 1, limit = 20
         } = req.query;
 
         const search = filterValues(q)[0];
@@ -52,7 +52,7 @@ router.get('/', async (req, res) => {
         if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) {
             return res.status(400).json({ error: 'Giá từ không được lớn hơn giá đến!' });
         }
-        const pageSize = positiveInteger(limit, 12, 200);
+        const pageSize = positiveInteger(limit, 20, 200);
 
         let where = ['1=1'];
         let params = [];
@@ -151,25 +151,48 @@ router.get('/', async (req, res) => {
              LIMIT ? OFFSET ?`,
             [...params, pageSize, offset]
         );
-
         // Get filters data
+        const categoryClause = catValue
+            ? (/^[1-9]\d*$/.test(catValue) ? 'p.category_id = ?' : 'c.slug = ?')
+            : '';
+        const categoryParams = catValue
+            ? [(/^[1-9]\d*$/.test(catValue) ? Number(catValue) : catValue)]
+            : [];
         const [brands] = await pool.query(
-            'SELECT id, name, slug FROM brands WHERE is_active = 1 ORDER BY name'
+            `SELECT DISTINCT b.id, b.name, b.slug
+             FROM brands b
+             JOIN products p ON p.brand_id = b.id
+             JOIN categories c ON c.id = p.category_id AND c.is_active = 1
+             WHERE b.is_active = 1${categoryClause ? ` AND ${categoryClause}` : ''}
+             ORDER BY b.name`,
+            categoryParams
         );
         const [categories] = await pool.query('SELECT id, name, slug FROM categories WHERE is_active = 1 ORDER BY name');
         const [rams] = await pool.query(
-            `SELECT DISTINCT ram FROM (
-                SELECT ram FROM products WHERE ram IS NOT NULL AND ram != ''
+            `SELECT DISTINCT values_ram.ram FROM (
+                SELECT p.ram, p.category_id FROM products p WHERE p.ram IS NOT NULL AND p.ram != ''
                 UNION ALL
-                SELECT ram FROM product_variants WHERE is_active = 1 AND ram IS NOT NULL AND ram != ''
-             ) values_ram ORDER BY ram`
+                SELECT pv.ram, p.category_id FROM product_variants pv
+                JOIN products p ON p.id = pv.product_id
+                WHERE pv.is_active = 1 AND pv.ram IS NOT NULL AND pv.ram != ''
+             ) values_ram
+             JOIN categories c ON c.id = values_ram.category_id AND c.is_active = 1
+             WHERE 1=1${categoryClause ? ` AND ${categoryClause.replace(/p\.category_id/g, 'values_ram.category_id')}` : ''}
+             ORDER BY values_ram.ram`,
+            categoryParams
         );
         const [storages] = await pool.query(
-            `SELECT DISTINCT storage FROM (
-                SELECT storage FROM products WHERE storage IS NOT NULL AND storage != ''
+            `SELECT DISTINCT values_storage.storage FROM (
+                SELECT p.storage, p.category_id FROM products p WHERE p.storage IS NOT NULL AND p.storage != ''
                 UNION ALL
-                SELECT storage FROM product_variants WHERE is_active = 1 AND storage IS NOT NULL AND storage != ''
-             ) values_storage ORDER BY storage`
+                SELECT pv.storage, p.category_id FROM product_variants pv
+                JOIN products p ON p.id = pv.product_id
+                WHERE pv.is_active = 1 AND pv.storage IS NOT NULL AND pv.storage != ''
+             ) values_storage
+             JOIN categories c ON c.id = values_storage.category_id AND c.is_active = 1
+             WHERE 1=1${categoryClause ? ` AND ${categoryClause.replace(/p\.category_id/g, 'values_storage.category_id')}` : ''}
+             ORDER BY values_storage.storage`,
+            categoryParams
         );
 
         res.json({
@@ -232,7 +255,6 @@ router.get('/:id', async (req, res) => {
             // Table product_variants doesn't exist - use empty array
             variants = [];
         }
-
         // Get reviews
         const [reviews] = await pool.query(
             `SELECT r.id, r.entry_type, r.rating, r.comment, r.ai_reply, r.needs_admin,
@@ -373,6 +395,18 @@ router.get('/home/featured', async (req, res) => {
         );
 
         const [categories] = await pool.query('SELECT id, name, slug, image FROM categories WHERE is_active = 1 ORDER BY id');
+        const categoriesWithFeaturedProducts = await Promise.all(categories.map(async category => {
+            const [featuredProducts] = await pool.query(
+                `SELECT p.id, p.name, p.price, p.thumbnail, b.name AS brand_name
+                 FROM products p
+                 LEFT JOIN brands b ON b.id = p.brand_id
+                 WHERE p.category_id = ?
+                 ORDER BY p.created_at DESC, p.id DESC
+                 LIMIT 5`,
+                [category.id]
+            );
+            return { ...category, featured_products: featuredProducts };
+        }));
 
         const [promotions] = await pool.query(
             `SELECT * FROM promotions
@@ -382,7 +416,7 @@ router.get('/home/featured', async (req, res) => {
              LIMIT 3`
         );
 
-        res.json({ products, newProducts, promoProducts, categories, promotions });
+        res.json({ products, newProducts, promoProducts, categories: categoriesWithFeaturedProducts, promotions });
     } catch (error) {
         console.error('Get featured error:', error);
         res.status(500).json({ error: 'Đã xảy ra lỗi!' });

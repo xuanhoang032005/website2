@@ -285,7 +285,9 @@
                     method,
                     headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'include',
-                    body: JSON.stringify({ name, slug, image: document.getElementById('categoryImage').value || null, is_active })
+                    body: JSON.stringify({
+                        name, slug, image: document.getElementById('categoryImage').value || null, is_active
+                    })
                 });
 
                 const data = await res.json();

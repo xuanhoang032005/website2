@@ -14,6 +14,11 @@ const durableRuntimeUpgradeName = 'durable_runtime';
 const utf8mb4UpgradeName = 'utf8mb4_charset';
 const productQuestionsUpgradeName = 'product_questions_ai';
 const multipleProductQuestionsUpgradeName = 'multiple_product_questions';
+const categoryTechnicalSpecsUpgradeName = 'category_technical_specs';
+const categoryTechnicalSpecsTemplateUpgradeName = 'category_technical_specs_template';
+const categoryTechnicalSpecsTemplateDefaultsUpgradeName = 'category_technical_specs_template_defaults';
+const homeSaleProductsUpgradeName = 'home_sale_products';
+const homeSaleScheduleUpgradeName = 'home_sale_schedule_discounts';
 const previousUpgradeChecksum = 'cf6ef5d2550189962f8756a5b8c42e75da301fd7150c5f7aa678dbbf21007226';
 const previousDurableRuntimeChecksum = '691eddbb02df811ec016edd3c88617c53db857a9b4e9dc00fd9e6061d9955d7d';
 const lockName = 'anhtraistore_schema_migrations';
@@ -85,6 +90,36 @@ async function loadSchemaUpgrades() {
     if (/\b(?:TRUNCATE\s+TABLE|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO)\b/i.test(multipleQuestionsSql)) {
         throw new Error('Khối nâng cấp nhiều câu hỏi chứa lệnh thay đổi dữ liệu.');
     }
+    const technicalSpecsBlock = schema.match(/^-- BEGIN CATEGORY TECHNICAL SPECS UPGRADE\n([\s\S]*?)^-- END CATEGORY TECHNICAL SPECS UPGRADE$/m);
+    if (!technicalSpecsBlock || !technicalSpecsBlock[1].trim()) throw new Error('Không tìm thấy nâng cấp thông số kỹ thuật theo danh mục.');
+    const technicalSpecsSql = technicalSpecsBlock[1].trim() + '\n';
+    if (/\b(?:TRUNCATE\s+TABLE|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO)\b/i.test(technicalSpecsSql)) {
+        throw new Error('Nâng cấp thông số kỹ thuật chứa lệnh thay đổi dữ liệu.');
+    }
+    const technicalSpecsTemplateBlock = schema.match(/^-- BEGIN CATEGORY TECHNICAL SPECS TEMPLATE UPGRADE\n([\s\S]*?)^-- END CATEGORY TECHNICAL SPECS TEMPLATE UPGRADE$/m);
+    if (!technicalSpecsTemplateBlock || !technicalSpecsTemplateBlock[1].trim()) throw new Error('Không tìm thấy nâng cấp mẫu thông số kỹ thuật theo danh mục.');
+    const technicalSpecsTemplateSql = technicalSpecsTemplateBlock[1].trim() + '\n';
+    if (/\b(?:TRUNCATE\s+TABLE|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO)\b/i.test(technicalSpecsTemplateSql)) {
+        throw new Error('Nâng cấp mẫu thông số kỹ thuật chứa lệnh thay đổi dữ liệu.');
+    }
+    const technicalSpecsTemplateDefaultsBlock = schema.match(/^-- BEGIN CATEGORY TECHNICAL SPECS TEMPLATE DEFAULTS UPGRADE\n([\s\S]*?)^-- END CATEGORY TECHNICAL SPECS TEMPLATE DEFAULTS UPGRADE$/m);
+    if (!technicalSpecsTemplateDefaultsBlock || !technicalSpecsTemplateDefaultsBlock[1].trim()) throw new Error('Không tìm thấy nâng cấp dữ liệu mẫu thông số kỹ thuật.');
+    const technicalSpecsTemplateDefaultsSql = technicalSpecsTemplateDefaultsBlock[1].trim() + '\n';
+    if (/\b(?:TRUNCATE\s+TABLE|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO)\b/i.test(technicalSpecsTemplateDefaultsSql)) {
+        throw new Error('Nâng cấp dữ liệu mẫu thông số kỹ thuật chứa lệnh thay đổi không được phép.');
+    }
+    const homeSaleProductsBlock = schema.match(/^-- BEGIN HOME SALE PRODUCTS UPGRADE\n([\s\S]*?)^-- END HOME SALE PRODUCTS UPGRADE$/m);
+    if (!homeSaleProductsBlock || !homeSaleProductsBlock[1].trim()) throw new Error('Không tìm thấy nâng cấp sản phẩm chương trình ưu đãi trang chủ.');
+    const homeSaleProductsSql = homeSaleProductsBlock[1].trim() + '\n';
+    if (/\b(?:TRUNCATE\s+TABLE|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO)\b/i.test(homeSaleProductsSql)) {
+        throw new Error('Nâng cấp sản phẩm chương trình ưu đãi chứa lệnh thay đổi dữ liệu không được phép.');
+    }
+    const homeSaleScheduleBlock = schema.match(/^-- BEGIN HOME SALE SCHEDULE AND DISCOUNTS UPGRADE\n([\s\S]*?)^-- END HOME SALE SCHEDULE AND DISCOUNTS UPGRADE$/m);
+    if (!homeSaleScheduleBlock || !homeSaleScheduleBlock[1].trim()) throw new Error('Không tìm thấy nâng cấp lịch ưu đãi và mức giảm.');
+    const homeSaleScheduleSql = homeSaleScheduleBlock[1].trim() + '\n';
+    if (/\b(?:TRUNCATE\s+TABLE|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO)\b/i.test(homeSaleScheduleSql)) {
+        throw new Error('Nâng cấp lịch ưu đãi chứa lệnh thay đổi dữ liệu không được phép.');
+    }
     return [
         upgrade,
         { name: workflowUpgradeName, sql, checksum: checksum(sql) },
@@ -92,7 +127,12 @@ async function loadSchemaUpgrades() {
         { name: durableRuntimeUpgradeName, sql: runtimeSql, checksum: checksum(runtimeSql) },
         { name: utf8mb4UpgradeName, sql: charsetSql, checksum: checksum(charsetSql) },
         { name: productQuestionsUpgradeName, sql: questionsSql, checksum: checksum(questionsSql) },
-        { name: multipleProductQuestionsUpgradeName, sql: multipleQuestionsSql, checksum: checksum(multipleQuestionsSql) }
+        { name: multipleProductQuestionsUpgradeName, sql: multipleQuestionsSql, checksum: checksum(multipleQuestionsSql) },
+        { name: categoryTechnicalSpecsUpgradeName, sql: technicalSpecsSql, checksum: checksum(technicalSpecsSql) },
+        { name: categoryTechnicalSpecsTemplateUpgradeName, sql: technicalSpecsTemplateSql, checksum: checksum(technicalSpecsTemplateSql) },
+        { name: categoryTechnicalSpecsTemplateDefaultsUpgradeName, sql: technicalSpecsTemplateDefaultsSql, checksum: checksum(technicalSpecsTemplateDefaultsSql) },
+        { name: homeSaleProductsUpgradeName, sql: homeSaleProductsSql, checksum: checksum(homeSaleProductsSql) },
+        { name: homeSaleScheduleUpgradeName, sql: homeSaleScheduleSql, checksum: checksum(homeSaleScheduleSql) }
     ];
 }
 

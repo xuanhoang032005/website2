@@ -88,7 +88,7 @@
                             <thead>
                                 <tr>
                                     <th>Mã đơn</th>
-                                    <th>Vận đơn demo</th>
+                                    <th>Vận đơn</th>
                                     <th>Khách hàng</th>
                                     <th>Sản phẩm</th>
                                     <th>Tổng tiền</th>
@@ -206,7 +206,7 @@
                         : '-';
                     html += `<tr>
                         <td><span class="order-code">${escapeHtml(o.payment_code || o.id)}</span></td>
-                        <td><strong>${escapeHtml(o.tracking_carrier || '—')}</strong><br><small>${escapeHtml(o.tracking_number || 'Chưa có mã')}</small></td>
+                        <td><strong>${escapeHtml(o.tracking_carrier && !/mô phỏng/i.test(o.tracking_carrier) ? o.tracking_carrier : '—')}</strong><br><small>${escapeHtml(o.tracking_number && !/^DEMO-/i.test(o.tracking_number) ? o.tracking_number : 'Chưa có mã')}</small></td>
                         <td>
                             <strong>${escapeHtml(o.customer_name || 'Khách')}</strong><br>
                             <span style="color: var(--gray-500); font-size: 0.8rem;">${escapeHtml(o.shipping_phone || '')}</span>
@@ -262,19 +262,6 @@
                 statusHtml += `<option value="${s}" ${order.status === s ? 'selected' : ''}>${statusLabels[s]}</option>`;
             });
             statusHtml += '</select>';
-            const carriers = [
-                'AnhTrai Express (Mô phỏng)',
-                'Giao Hàng Nhanh (Mô phỏng)',
-                'Giao Hàng Tiết Kiệm (Mô phỏng)',
-                'Viettel Post (Mô phỏng)',
-                'VNPost (Mô phỏng)',
-                'Khác (Mô phỏng)'
-            ];
-            if (order.tracking_carrier && !carriers.includes(order.tracking_carrier)) carriers.unshift(order.tracking_carrier);
-            const carrierOptions = '<option value="">Chọn đơn vị vận chuyển</option>' + carriers.map(carrier =>
-                `<option value="${escapeHtml(carrier)}" ${order.tracking_carrier === carrier ? 'selected' : ''}>${escapeHtml(carrier)}</option>`
-            ).join('');
-
             const updateButton = document.getElementById('updateStatusBtn');
                 updateButton.disabled = false;
                 updateButton.style.display = '';
@@ -322,16 +309,21 @@
                 <div style="margin-top: 20px;">
                     <h4 style="margin-bottom: 12px; color: var(--gray-500); font-size: 0.8rem; text-transform: uppercase;">Trạng thái và vận chuyển</h4>
                     ${statusHtml}
-                    <p style="margin:10px 0 0;color:var(--gray-500);font-size:.8rem;"><i class="fas fa-circle-info"></i> Thông tin vận chuyển được tạo tự động để minh họa; không kết nối hãng vận chuyển thật.</p>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
-                        <label>Đơn vị vận chuyển (demo)<select class="form-control" id="trackingCarrier">${carrierOptions}</select></label>
-                        <label>Mã vận đơn (quản trị viên nhập)<input class="form-control" id="trackingNumber" maxlength="100" value="${escapeHtml(order.tracking_number || '')}" placeholder="Nhập mã vận đơn demo"></label>
+                        <label>Đơn vị vận chuyển<select class="form-control" id="trackingCarrier"><option value="">-- Chọn đơn vị --</option><option value="GHN">GHN</option><option value="GHTK">GHTK</option><option value="Viettel Post">Viettel Post</option><option value="J&amp;T Express">J&amp;T Express</option><option value="Ninja Van">Ninja Van</option><option value="Vietnam Post">Vietnam Post</option><option value="Ahamove">Ahamove</option></select></label>
+                        <label>Mã vận đơn<input class="form-control" id="trackingNumber" maxlength="100" value="${escapeHtml(order.tracking_number && !/^DEMO-/i.test(order.tracking_number) ? order.tracking_number : '')}" placeholder="Nhập mã do đơn vị vận chuyển cung cấp"></label>
                     </div>
                     <label style="display:block;margin-top:12px;">Ghi chú cho khách<textarea class="form-control" id="orderStatusNote" maxlength="500" rows="2" placeholder="Ghi chú sẽ xuất hiện trong lịch sử đơn hàng"></textarea></label>
                 </div>
             `;
             
             document.getElementById('orderModal').classList.add('show');
+            const carrierSelect = document.getElementById('trackingCarrier');
+            const savedCarrier = order.tracking_carrier && !/mô phỏng/i.test(order.tracking_carrier) ? order.tracking_carrier : '';
+            if (savedCarrier && !Array.from(carrierSelect.options).some(option => option.value === savedCarrier)) {
+                carrierSelect.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(savedCarrier)}">${escapeHtml(savedCarrier)}</option>`);
+            }
+            carrierSelect.value = savedCarrier;
         }
 
         function closeOrderModal() {

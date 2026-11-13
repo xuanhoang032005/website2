@@ -31,7 +31,6 @@
                 <li><a href="/products" class="nav-link"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a></li>
                 <li><a href="/promotions" class="nav-link"><i class="bi bi-tag"></i> Khuyến mãi</a></li>
                 <li><a href="/policy" class="nav-link"><i class="bi bi-file-text"></i> Chính sách</a></li>
-                <li><a href="/contact" class="nav-link"><i class="bi bi-headset"></i> Liên hệ</a></li>
             </ul>
             <a href="/wishlist" class="wishlist-link"><i class="bi bi-heart"></i><span class="wishlist-badge" id="wishlistBadge">0</span></a>
             <a href="/compare" class="compare-link"><i class="bi bi-bar-chart"></i><span class="compare-badge" id="compareBadge">0</span></a>
@@ -60,7 +59,6 @@
             <a href="/products" class="mobile-nav-item"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a>
             <a href="/promotions" class="mobile-nav-item"><i class="bi bi-tag"></i> Khuyến mãi</a>
             <a href="/policy" class="mobile-nav-item"><i class="bi bi-file-text"></i> Chính sách</a>
-            <a href="/contact" class="mobile-nav-item"><i class="bi bi-headset"></i> Liên hệ</a>
             <div class="mobile-nav-divider"></div>
             <a href="/cart" class="mobile-nav-item"><i class="bi bi-bag"></i> Giỏ hàng</a>
             <div id="mobileUserArea"></div>
@@ -304,28 +302,27 @@
             const productName = escapeHtml(p.name || 'Sản phẩm');
             const brandName = escapeHtml(p.brand_name || '');
             const inStock = Number(p.stock) > 0;
-            const badge = p.discount_percent > 0 ? '<span class="product-badge">-' + Math.round(p.discount_percent) + '%</span>' : '';
-            const stockBadge = !inStock ? '<span class="product-badge product-stock-badge">Hết hàng</span>' : '';
+            const badge = p.discount_percent > 0 ? '<span class="p-badge home-discount-badge">-' + Math.round(p.discount_percent) + '%</span>' : '';
+            const stockBadge = !inStock ? '<span class="p-badge home-stock-badge">Hết hàng</span>' : '';
             const cardImage = p.display_thumbnail || p.thumbnail;
             const img = cardImage ? '<img src="' + escapeHtml(getThumbUrl(cardImage)) + '" alt="' + productName + '" loading="lazy" onerror="this.onerror=null;this.src=&quot;/images/no-image.svg&quot;">' : '<i class="bi bi-phone" style="font-size: 4rem; color: var(--slate-300);"></i>';
-            const oldPrice = p.old_price ? '<span class="product-old-price">' + formatPrice(p.old_price) + 'đ</span>' : '';
+            const oldPrice = p.old_price ? '<span class="p-old-price">' + formatPrice(p.old_price) + 'đ</span>' : '';
             const cartButton = inStock
-                ? '<button class="btn-add-cart" onclick="addToCart(' + productId + ')"><i class="bi bi-bag-plus"></i> Thêm vào giỏ</button>'
-                : '<button class="btn-add-cart btn-out-of-stock" disabled><i class="bi bi-x"></i> Hết hàng</button>';
+                ? '<button class="btn-cart" type="button" aria-label="Thêm vào giỏ" title="Thêm vào giỏ" onclick="addToCart(' + productId + ')"><i class="bi bi-cart-plus-fill" aria-hidden="true"></i></button>'
+                : '<button class="btn-cart btn-cart-disabled" type="button" aria-label="Hết hàng" title="Hết hàng" disabled><i class="bi bi-cart-x-fill"></i></button>';
             
-            return '<div class="product-card">' +
+            return '<div class="p-card">' +
                 badge + stockBadge +
-                '<a href="/product/' + productId + '"><div class="product-img-wrap">' + img + '</div></a>' +
-                '<div class="product-body">' +
-                    '<div class="product-brand">' + brandName + '</div>' +
+                '<a href="/product/' + productId + '"><div class="p-img">' + img + '</div></a>' +
+                '<div class="p-body">' +
+                    '<div class="p-brand">' + brandName + '</div>' +
                     '<a href="/product/' + productId + '" style="text-decoration: none">' +
-                        '<div class="product-name">' + productName + '</div>' +
+                        '<div class="p-name">' + productName + '</div>' +
                     '</a>' +
-                    '<div class="product-price-wrap">' +
-                        '<span class="product-price">' + formatPrice(p.price) + 'đ</span>' +
+                    '<div class="p-purchase-row"><div class="p-price-wrap">' +
+                        '<span class="p-price">' + formatPrice(p.price) + 'đ</span>' +
                         oldPrice +
-                    '</div>' +
-                    cartButton +
+                    '</div>' + cartButton + '</div>' +
                 '</div>' +
             '</div>';
         }

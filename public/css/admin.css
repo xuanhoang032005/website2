@@ -94,7 +94,7 @@ textarea.form-control { resize: vertical; }
 .alert-error { color: #1676D2; background: #fef2f2; border: 1px solid #C7D2FE; }
 .alert-info { color: #1676D2; background: #EDF6FF; border: 1px solid #EDF6FF; }
 .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.filter-btn { padding: 9px 15px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; font-weight: 650; cursor: pointer; }
+.filter-btn { padding: 9px 15px; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 650; cursor: pointer; }
 .filter-btn:hover, .filter-btn.active { color: #fff; background: #1676D2; border-color: #1676D2; }
 .search-box { position: relative; flex: 1 1 260px; }
 .search-box input { width: 100%; padding: 10px 13px 10px 38px; }
@@ -461,7 +461,7 @@ body.admin-shell .sidebar-footer { display: flex; align-items: center; gap: 8px;
 body.admin-shell .sidebar-user { gap: 8px; margin: 0; padding: 0; background: transparent; border: 0; }
 body.admin-shell .sidebar-avatar { width: 36px; height: 36px; color: #fff; background: #90C3F0; border-radius: 12px; }
 body.admin-shell .sidebar-user-name { max-width: 88px; color: #fff; font-size: 12px; }
-body.admin-shell .sidebar-user-role { color: #64748b; font-size: 10px; }
+body.admin-shell .sidebar-user-role { display:inline-flex; max-width:100%; margin-top:3px; padding:3px 7px; overflow:hidden; color:#d8ebff; background:rgba(69,151,231,.16); border:1px solid rgba(144,195,240,.22); border-radius:6px; font-size:9px; line-height:1.1; text-overflow:ellipsis; white-space:nowrap; }
 body.admin-shell .btn-logout { width: 38px; height: 38px; padding: 0; color: #64748b; background: rgba(229,72,77,.12); border: 1px solid rgba(229,72,77,.18); border-radius: 12px; font-size: 0; }
 body.admin-shell .btn-logout i { font-size: 13px; }
 body.admin-shell .btn-logout:hover { color: #fff; background: #1676D2; }
@@ -1284,7 +1284,7 @@ body.admin-shell .sidebar-footer {
 body.admin-shell .sidebar-user { margin-bottom: 8px; padding: 0 4px; gap: 8px; }
 body.admin-shell .sidebar-avatar { width: 30px; height: 30px; color: #fff; background: #bd752d; border-radius: 50%; font-size: 11px; }
 body.admin-shell .sidebar-user-name { color: var(--admin-ink); font-size: 11px; }
-body.admin-shell .sidebar-user-role { color: #96999e; font-size: 9px; }
+body.admin-shell .sidebar-user-role { display:inline-flex; max-width:100%; margin-top:3px; padding:3px 7px; overflow:hidden; color:#d8ebff; background:rgba(69,151,231,.16); border:1px solid rgba(144,195,240,.22); border-radius:6px; font-size:9px; line-height:1.1; text-overflow:ellipsis; white-space:nowrap; }
 body.admin-shell .btn-logout {
     width: 100%;
     height: 32px;
@@ -1701,3 +1701,9 @@ body.admin-shell .confirm-btn.confirm.danger { color: #fff; background: #b42318;
     body.admin-shell .nav-item,
     body.admin-shell .sidebar-nav .nav-item { padding-inline: 8px; font-size: 11px; }
 }
+
+body.admin-shell .technical-spec-row { min-width: 0; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+body.admin-shell .technical-spec-row .form-label { margin: 0 0 5px; }
+body.admin-shell .technical-spec-row .form-label:not(:first-child) { margin-top: 9px; }
+body.admin-shell .technical-spec-value { display: flex; align-items: center; gap: 8px; }
+body.admin-shell .technical-spec-value .btn { flex: 0 0 36px; width: 36px; height: 36px; padding: 0; }

@@ -11,8 +11,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css?v=7">
     <link id="uc-chatbox-css" rel="stylesheet" href="/css/chatbox.css?v=5">
-    <link rel="stylesheet" href="/css/pages/product-detail.css?v=20261110-5">
-    <link rel="stylesheet" href="/css/storefront-theme.css?v=10">
+    <link rel="stylesheet" href="/css/pages/product-detail.css?v=20261111-1">
+    <link rel="stylesheet" href="/css/storefront-theme.css?v=16">
 </head>
 <body class="product-reference-page">
     <!-- Navbar -->
@@ -28,7 +28,6 @@
                 <li><a href="/products" class="nav-link"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a></li>
                 <li><a href="/promotions" class="nav-link"><i class="bi bi-tag"></i> Khuyến mãi</a></li>
                 <li><a href="/policy" class="nav-link"><i class="bi bi-file-text"></i> Chính sách</a></li>
-                <li><a href="/contact" class="nav-link"><i class="bi bi-headset"></i> Liên hệ</a></li>
             </ul>
             <a href="/wishlist" class="wishlist-link"><i class="bi bi-heart"></i><span class="wishlist-badge" id="wishlistBadge" style="display:none">0</span></a> <a href="/compare" class="compare-link"><i class="bi bi-bar-chart"></i><span class="compare-badge" id="compareBadge">0</span></a> <a href="/cart" class="cart-link">
                 <i class="bi bi-bag"></i> Giỏ hàng
@@ -53,7 +52,6 @@
             <a href="/products" class="mobile-nav-item"><i class="bi bi-grid-3x3-gap"></i> Sản phẩm</a>
             <a href="/promotions" class="mobile-nav-item"><i class="bi bi-tag"></i> Khuyến mãi</a>
             <a href="/policy" class="mobile-nav-item"><i class="bi bi-file-text"></i> Chính sách</a>
-            <a href="/contact" class="mobile-nav-item"><i class="bi bi-headset"></i> Liên hệ</a>
             <div class="mobile-nav-divider"></div>
             <a href="/cart" class="mobile-nav-item"><i class="bi bi-bag"></i> Giỏ hàng</a>
             <div id="mobileUserArea"></div>
@@ -244,7 +242,7 @@
     </footer>
 
     <script src="/js/vietnam-address.js"></script>
-    <script src="/js/app.js?v=20260930-2"></script>
+    <script src="/js/app.js?v=20261112-menu7"></script>
     <script>
         let productData = null;
         let isPageLoaded = false;
@@ -455,17 +453,30 @@
             // Specs table (lọc bỏ null/empty)
             const hasVal = v => v && v !== 'null' && v !== 'undefined' && String(v).trim() !== '';
             let specsTable = '<h3>Thông số kỹ thuật</h3><table class="specs-table">';
-            if (hasVal(product.brand_name)) specsTable += '<tr><td>Hãng</td><td>' + product.brand_name + '</td></tr>';
-            if (hasVal(product.cat_name)) specsTable += '<tr><td>Danh mục</td><td>' + product.cat_name + '</td></tr>';
-            if (hasVal(product.os)) specsTable += '<tr><td>Hệ điều hành</td><td>' + product.os + '</td></tr>';
-            if (hasVal(product.chipset)) specsTable += '<tr><td>Chipset</td><td>' + product.chipset + '</td></tr>';
-            if (hasVal(product.cpu)) specsTable += '<tr><td>CPU</td><td>' + product.cpu + '</td></tr>';
-            if (hasVal(product.gpu)) specsTable += '<tr><td>GPU</td><td>' + product.gpu + '</td></tr>';
-            if (hasVal(product.screen_size)) specsTable += '<tr><td>Màn hình</td><td>' + product.screen_size + '</td></tr>';
-            if (hasVal(product.screen_resolution)) specsTable += '<tr><td>Độ phân giải</td><td>' + product.screen_resolution + '</td></tr>';
-            if (hasVal(product.ram)) specsTable += '<tr><td>RAM</td><td>' + product.ram + '</td></tr>';
-            if (hasVal(product.storage)) specsTable += '<tr><td>Bộ nhớ trong</td><td>' + product.storage + '</td></tr>';
-            if (product.stock !== undefined && product.stock !== null) specsTable += '<tr><td>Tồn kho</td><td>' + product.stock + ' chiếc</td></tr>';
+            if (hasVal(product.brand_name)) specsTable += '<tr><td>Hãng</td><td>' + escapeHtml(product.brand_name) + '</td></tr>';
+            if (hasVal(product.cat_name)) specsTable += '<tr><td>Danh mục</td><td>' + escapeHtml(product.cat_name) + '</td></tr>';
+            let technicalSpecs = product.technical_specs;
+            if (typeof technicalSpecs === 'string') {
+                try { technicalSpecs = JSON.parse(technicalSpecs); } catch (error) { technicalSpecs = []; }
+            }
+            if (!Array.isArray(technicalSpecs)) technicalSpecs = [];
+            const displayedSpecLabels = new Set();
+            technicalSpecs.forEach(spec => {
+                if (!spec || !hasVal(spec.label) || !hasVal(spec.value)) return;
+                const label = String(spec.label).trim();
+                displayedSpecLabels.add(label.toLocaleLowerCase('vi'));
+                specsTable += '<tr><td>' + escapeHtml(label) + '</td><td>' + escapeHtml(spec.value) + '</td></tr>';
+            });
+            const legacySpecs = [
+                ['Hệ điều hành', product.os], ['Chipset', product.chipset], ['CPU', product.cpu], ['GPU', product.gpu],
+                ['Màn hình', product.screen_size], ['Độ phân giải', product.screen_resolution], ['RAM', product.ram], ['Bộ nhớ trong', product.storage]
+            ];
+            legacySpecs.forEach(([label, value]) => {
+                if (hasVal(value) && !displayedSpecLabels.has(label.toLocaleLowerCase('vi'))) {
+                    specsTable += '<tr><td>' + label + '</td><td>' + escapeHtml(value) + '</td></tr>';
+                }
+            });
+            if (product.stock !== undefined && product.stock !== null) specsTable += '<tr><td>Tồn kho</td><td>' + escapeHtml(product.stock) + ' chiếc</td></tr>';
             specsTable += '</table>';
             document.getElementById('tab-specs').innerHTML = specsTable;
 

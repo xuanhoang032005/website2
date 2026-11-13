@@ -29,13 +29,160 @@ function showLoginPrompt(message, redirect = window.location.pathname + window.l
     });
 }
 
+function getCategoryPriceRanges(category) {
+    const slug = String(category?.slug || '').toLowerCase();
+    if (['dien-thoai', 'may-tinh-bang'].includes(slug)) return [
+        { label: 'Dưới 5 triệu', max: 4999999 },
+        { label: '5 - 10 triệu', min: 5000000, max: 9999999 },
+        { label: '10 - 20 triệu', min: 10000000, max: 19999999 },
+        { label: '20 - 40 triệu', min: 20000000, max: 39999999 },
+        { label: 'Trên 40 triệu', min: 40000000 }
+    ];
+    if (['may-tinh-xach-tay', 'may-tinh-ban'].includes(slug)) return [
+        { label: 'Dưới 10 triệu', max: 9999999 },
+        { label: '10 - 20 triệu', min: 10000000, max: 19999999 },
+        { label: '20 - 35 triệu', min: 20000000, max: 34999999 },
+        { label: '35 - 50 triệu', min: 35000000, max: 49999999 },
+        { label: 'Trên 50 triệu', min: 50000000 }
+    ];
+    if (slug === 'dong-ho') return [
+        { label: 'Dưới 1 triệu', max: 999999 },
+        { label: '1 - 5 triệu', min: 1000000, max: 4999999 },
+        { label: '5 - 20 triệu', min: 5000000, max: 19999999 },
+        { label: '20 - 50 triệu', min: 20000000, max: 49999999 },
+        { label: 'Trên 50 triệu', min: 50000000 }
+    ];
+    if (['tai-nghe', 'sac', 'op-lung', 'phu-kien'].includes(slug)) return [
+        { label: 'Dưới 200 nghìn', max: 199999 },
+        { label: '200 - 500 nghìn', min: 200000, max: 499999 },
+        { label: '500 nghìn - 1 triệu', min: 500000, max: 999999 },
+        { label: '1 - 3 triệu', min: 1000000, max: 2999999 },
+        { label: 'Trên 3 triệu', min: 3000000 }
+    ];
+    return [
+        { label: 'Dưới 500 nghìn', max: 499999 },
+        { label: '500 nghìn - 2 triệu', min: 500000, max: 1999999 },
+        { label: '2 - 10 triệu', min: 2000000, max: 9999999 },
+        { label: '10 - 30 triệu', min: 10000000, max: 29999999 },
+        { label: 'Trên 30 triệu', min: 30000000 }
+    ];
+}
+
+function categoryPriceLink(category, range) {
+    const params = new URLSearchParams({ category: category.slug });
+    if (range.min !== undefined) params.set('price_min', String(range.min));
+    if (range.max !== undefined) params.set('price_max', String(range.max));
+    return `/products?${params.toString()}`;
+}
+
 // Initialize app
 async function initApp() {
+    await loadCategoryMenu();
     await loadUserInfo();
     await loadCartBadge();
     await loadWishlistBadge();
     updateCompareBadge();
     setupSearch();
+}
+
+async function loadCategoryMenu() {
+    const desktopNav = document.querySelector('.nav-links');
+    const mobileNav = document.querySelector('.mobile-nav');
+    if (!desktopNav && !mobileNav) return;
+    try {
+        let response = await fetch('/api/categories/menu', { cache: 'no-store' });
+        let categories = [];
+        if (response.ok) {
+            const data = await response.json();
+            categories = Array.isArray(data.categories) ? data.categories : [];
+        } else {
+            const categoryResponse = await fetch('/api/categories', { cache: 'no-store' });
+            if (!categoryResponse.ok) return;
+            const categoryData = await categoryResponse.json();
+            categories = await Promise.all((categoryData.categories || []).map(async category => {
+                const productsResponse = await fetch(`/api/products?category=${encodeURIComponent(category.slug)}&limit=200`, { cache: 'no-store' });
+                if (!productsResponse.ok) return { ...category, brands: [] };
+                const productsData = await productsResponse.json();
+                const brands = new Map();
+                for (const product of productsData.products || []) {
+                    if (!product.brand_id || !product.brand_name) continue;
+                    const brand = brands.get(Number(product.brand_id)) || {
+                        id: Number(product.brand_id), name: product.brand_name, product_count: 0
+                    };
+                    brand.product_count++;
+                    brands.set(brand.id, brand);
+                }
+                return { ...category, brands: [...brands.values()].sort((a, b) => a.name.localeCompare(b.name, 'vi')) };
+            }));
+        }
+        if (desktopNav && !desktopNav.querySelector('.category-menu-item')) {
+            const categoryItems = categories.map((category, index) => `
+                <button type="button" class="category-menu-category${index === 0 ? ' active' : ''}" data-category-menu-index="${index}" aria-controls="category-menu-panel-${index}" aria-selected="${index === 0}">${escapeHtml(category.name)}<i class="bi bi-chevron-right"></i></button>`).join('');
+            const categoryPanels = categories.map((category, index) => `
+                <section class="category-menu-group" id="category-menu-panel-${index}" data-category-menu-panel="${index}"${index === 0 ? '' : ' hidden'}>
+                    <a class="category-menu-heading" href="/products?category=${encodeURIComponent(category.slug)}">Tất cả ${escapeHtml(category.name)}<i class="bi bi-arrow-up-right"></i></a>
+                    <div class="category-menu-columns">
+                        <div class="category-menu-column">
+                            <h3>Hãng</h3>
+                            <div class="category-menu-brands">${category.brands.length
+                                ? category.brands.map(brand => `<a class="category-menu-brand" href="/products?category=${encodeURIComponent(category.slug)}&brand=${encodeURIComponent(brand.id)}">${escapeHtml(brand.name)}</a>`).join('')
+                                : '<span class="category-menu-empty">Chưa có hãng</span>'}</div>
+                        </div>
+                        <div class="category-menu-column">
+                            <h3>Mức giá</h3>
+                            <div class="category-menu-prices">${getCategoryPriceRanges(category).map(range => `<a href="${categoryPriceLink(category, range)}">${escapeHtml(range.label)}</a>`).join('')}</div>
+                        </div>
+                    </div>
+                </section>`).join('');
+            const menuItem = document.createElement('li');
+            menuItem.className = 'category-menu-item';
+            menuItem.innerHTML = `<a class="nav-link category-menu-trigger" href="/products" aria-haspopup="true" aria-expanded="false"><i class="bi bi-grid"></i> Danh mục</a><div class="category-menu-panel" role="group"><div class="category-menu-categories">${categoryItems}</div><div class="category-menu-details">${categoryPanels}</div></div>`;
+            desktopNav.prepend(menuItem);
+            const trigger = menuItem.querySelector('.category-menu-trigger');
+            const categoryButtons = [...menuItem.querySelectorAll('[data-category-menu-index]')];
+            const activateCategory = index => {
+                categoryButtons.forEach(button => {
+                    const active = button.dataset.categoryMenuIndex === String(index);
+                    button.classList.toggle('active', active);
+                    button.setAttribute('aria-selected', String(active));
+                });
+                menuItem.querySelectorAll('[data-category-menu-panel]').forEach(panel => {
+                    panel.hidden = panel.dataset.categoryMenuPanel !== String(index);
+                });
+            };
+            categoryButtons.forEach(button => {
+                button.addEventListener('mouseenter', () => activateCategory(button.dataset.categoryMenuIndex));
+                button.addEventListener('focus', () => activateCategory(button.dataset.categoryMenuIndex));
+            });
+            menuItem.addEventListener('mouseenter', () => trigger.setAttribute('aria-expanded', 'true'));
+            menuItem.addEventListener('mouseleave', () => trigger.setAttribute('aria-expanded', 'false'));
+            menuItem.addEventListener('focusin', () => trigger.setAttribute('aria-expanded', 'true'));
+            menuItem.addEventListener('focusout', event => {
+                if (!menuItem.contains(event.relatedTarget)) trigger.setAttribute('aria-expanded', 'false');
+            });
+        }
+        if (mobileNav && !mobileNav.querySelector('.mobile-category-menu')) {
+            const mobileGroups = categories.map(category => `
+                <details class="mobile-category-group">
+                    <summary>${escapeHtml(category.name)}<i class="bi bi-chevron-down"></i></summary>
+                    <div class="mobile-category-links">
+                        <a href="/products?category=${encodeURIComponent(category.slug)}">Tất cả ${escapeHtml(category.name)}</a>
+                        <span class="mobile-category-section-title">Hãng</span>
+                        ${category.brands.map(brand => `<a class="mobile-category-brand" href="/products?category=${encodeURIComponent(category.slug)}&brand=${encodeURIComponent(brand.id)}">${escapeHtml(brand.name)}</a>`).join('')}
+                        <span class="mobile-category-section-title">Mức giá</span>
+                        ${getCategoryPriceRanges(category).map(range => `<a class="mobile-category-price" href="${categoryPriceLink(category, range)}">${escapeHtml(range.label)}</a>`).join('')}
+                    </div>
+                </details>`).join('');
+            const mobileItem = document.createElement('div');
+            mobileItem.className = 'mobile-category-menu';
+            mobileItem.innerHTML = `<details class="mobile-category-root"><summary><i class="bi bi-grid"></i> Danh mục<i class="bi bi-chevron-down"></i></summary><div class="mobile-category-list">${mobileGroups}</div></details>`;
+            const mobilePromotions = mobileNav.querySelector('a[href="/promotions"]');
+            if (mobilePromotions) mobilePromotions.insertAdjacentElement('beforebegin', mobileItem);
+            else mobileNav.prepend(mobileItem);
+        }
+    } catch (error) {
+        console.error('Error loading category menu:', error);
+    }
 }
 
 // Load user info
@@ -77,6 +224,7 @@ async function loadUserInfo() {
                         <div class="user-dropdown-divider"></div>
                         ${adminLink}
                         <a href="/orders" class="user-dropdown-item"><i class="bi bi-bag-check"></i> Đơn hàng của tôi</a>
+                        <a href="/contact" class="user-dropdown-item"><i class="bi bi-headset"></i> Liên hệ</a>
                         <a href="/profile" class="user-dropdown-item"><i class="bi bi-gear"></i> Cài đặt tài khoản</a>
                         <div class="user-dropdown-divider"></div>
                         <a href="javascript:void(0)" class="user-dropdown-item user-dropdown-logout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Đăng xuất</a>
@@ -98,6 +246,7 @@ async function loadUserInfo() {
                 ${data.user.role === 'admin' ? '<a href="/admin" class="mobile-nav-item"><i class="bi bi-speedometer2"></i> Trang quản trị</a>' : ''}
                 <a href="/orders" class="mobile-nav-item"><i class="bi bi-bag-check"></i> Đơn hàng của tôi</a>
                 ${document.querySelector('#mobileMenu a[href="/wishlist"]') ? '' : '<a href="/wishlist" class="mobile-nav-item"><i class="bi bi-heart"></i> Yêu thích</a>'}
+                <a href="/contact" class="mobile-nav-item"><i class="bi bi-headset"></i> Liên hệ</a>
                 <a href="/profile" class="mobile-nav-item"><i class="bi bi-gear"></i> Cài đặt tài khoản</a>
                 <a href="javascript:void(0)" class="mobile-nav-item" style="color:var(--slate-600)" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Đăng xuất</a>`;
 

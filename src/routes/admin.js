@@ -27,6 +27,29 @@ function normalizeBannerPosition(position) {
     return positions[String(position)] || 'hero';
 }
 
+function parseTechnicalSpecs(value) {
+    if (value == null || value === '' || value === 'null') return [];
+    let specs;
+    try {
+        specs = typeof value === 'string' ? JSON.parse(value) : value;
+    } catch (error) {
+        throw Object.assign(new Error('Thông số kỹ thuật không đúng định dạng.'), { status: 400 });
+    }
+    if (!Array.isArray(specs) || specs.length > 60) {
+        throw Object.assign(new Error('Danh sách thông số kỹ thuật không hợp lệ.'), { status: 400 });
+    }
+    const seen = new Set();
+    return specs.flatMap(item => {
+        if (!item || typeof item.label !== 'string' || typeof item.value !== 'string') return [];
+        const label = item.label.trim().slice(0, 100);
+        const specValue = item.value.trim().slice(0, 1000);
+        const key = label.toLocaleLowerCase('vi');
+        if (!label || !specValue || /[<>]/.test(label + specValue) || seen.has(key)) return [];
+        seen.add(key);
+        return [{ label, value: specValue }];
+    });
+}
+
 function normalizeInternalLink(link) {
     if (!link || typeof link !== 'string') return link || '';
     try {
@@ -392,7 +415,7 @@ router.get('/chart-data', requireAdmin, async (req, res) => {
                 COUNT(*) as order_count
             FROM orders 
             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-                AND status != 'cancelled'
+                AND status = 'delivered'
             GROUP BY DATE_FORMAT(created_at, '%Y-%m')
             ORDER BY month ASC
         `);
@@ -449,9 +472,9 @@ router.get('/chart-data', requireAdmin, async (req, res) => {
                 p.thumbnail,
                 COALESCE(SUM(oi.quantity), 0) as total_sold,
                 COALESCE(SUM(oi.quantity * oi.price), 0) as total_revenue
-            FROM products p
-            LEFT JOIN order_items oi ON p.id = oi.product_id
-            LEFT JOIN orders o ON oi.order_id = o.id AND o.status != 'cancelled'
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id AND o.status != 'cancelled'
+            JOIN products p ON p.id = oi.product_id
             GROUP BY p.id, p.name, p.thumbnail
             HAVING total_sold > 0
             ORDER BY total_sold DESC
@@ -636,6 +659,7 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
             description, ram, storage, stock, is_featured,
             os, chipset, cpu, gpu, screen_size, screen_resolution
         } = req.body;
+        const technicalSpecs = parseTechnicalSpecs(req.body.technical_specs);
 
         // Validate required fields
         if (!name || !name.trim()) {
@@ -677,9 +701,9 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
         try {
             await connection.beginTransaction();
             [result] = await connection.query(
-            `INSERT INTO products (name, slug, brand_id, category_id, price, old_price, discount_percent, description, thumbnail, ram, storage, stock, is_featured, os, chipset, cpu, gpu, screen_size, screen_resolution)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name.trim(), slug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, effectiveRam, effectiveStorage, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null)]
+            `INSERT INTO products (name, slug, brand_id, category_id, price, old_price, discount_percent, description, thumbnail, ram, storage, stock, is_featured, os, chipset, cpu, gpu, screen_size, screen_resolution, technical_specs)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [name.trim(), slug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, effectiveRam, effectiveStorage, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), technicalSpecs.length ? JSON.stringify(technicalSpecs) : null]
             );
 
             const productId = result.insertId;
@@ -726,6 +750,7 @@ router.post('/products', requireAdmin, productUpload, async (req, res) => {
             });
         }
         if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.errno === 1452) return res.status(400).json({ error: 'Thương hiệu hoặc danh mục không tồn tại!' });
+        if (error.status) return res.status(error.status).json({ error: error.message });
         res.status(500).json({ error: 'Không thể lưu sản phẩm!' });
     }
 });
@@ -739,6 +764,7 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
             description, ram, storage, stock, is_featured,
             os, chipset, cpu, gpu, screen_size, screen_resolution
         } = req.body;
+        const technicalSpecs = parseTechnicalSpecs(req.body.technical_specs);
 
         // Validate
         const productId = Number(id);
@@ -844,11 +870,11 @@ router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {
 
         let query, params;
         if (newSlug) {
-            query = `UPDATE products SET name=?, slug=?, brand_id=?, category_id=?, price=?, old_price=?, discount_percent=?, description=?, thumbnail=?, stock=?, is_featured=?, os=?, chipset=?, cpu=?, gpu=?, screen_size=?, screen_resolution=?, ram=?, storage=? WHERE id=?`;
-            params = [name.trim(), newSlug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), effectiveRam, effectiveStorage, productId];
+            query = `UPDATE products SET name=?, slug=?, brand_id=?, category_id=?, price=?, old_price=?, discount_percent=?, description=?, thumbnail=?, stock=?, is_featured=?, os=?, chipset=?, cpu=?, gpu=?, screen_size=?, screen_resolution=?, ram=?, storage=?, technical_specs=? WHERE id=?`;
+            params = [name.trim(), newSlug, brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), effectiveRam, effectiveStorage, technicalSpecs.length ? JSON.stringify(technicalSpecs) : null, productId];
         } else {
-            query = `UPDATE products SET name=?, brand_id=?, category_id=?, price=?, old_price=?, discount_percent=?, description=?, thumbnail=?, stock=?, is_featured=?, os=?, chipset=?, cpu=?, gpu=?, screen_size=?, screen_resolution=?, ram=?, storage=? WHERE id=?`;
-            params = [name.trim(), brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), effectiveRam, effectiveStorage, productId];
+            query = `UPDATE products SET name=?, brand_id=?, category_id=?, price=?, old_price=?, discount_percent=?, description=?, thumbnail=?, stock=?, is_featured=?, os=?, chipset=?, cpu=?, gpu=?, screen_size=?, screen_resolution=?, ram=?, storage=?, technical_specs=? WHERE id=?`;
+            params = [name.trim(), brandId, categoryId, salePrice, oldPrice, discountValue, description === 'null' ? null : (description || null), thumbnail, stockValue, is_featured === 'true' || is_featured === '1' ? 1 : 0, os === 'null' ? null : (os || null), chipset === 'null' ? null : (chipset || null), cpu === 'null' ? null : (cpu || null), gpu === 'null' ? null : (gpu || null), screen_size === 'null' ? null : (screen_size || null), screen_resolution === 'null' ? null : (screen_resolution || null), effectiveRam, effectiveStorage, technicalSpecs.length ? JSON.stringify(technicalSpecs) : null, productId];
         }
 
         await connection.query(query, params);
@@ -1066,6 +1092,13 @@ router.put('/orders/:id/status', requireAdmin, async (req, res) => {
             await connection.rollback();
             connection.release();
             return res.status(400).json({ error: `Không thể chuyển đơn từ ${order.status} sang ${status}!` });
+        }
+        const effectiveCarrier = hasTrackingCarrier ? trackingCarrier : String(order.tracking_carrier || '');
+        const effectiveTrackingNumber = hasTrackingNumber ? trackingNumber : String(order.tracking_number || '');
+        if (status === 'shipping' && (!effectiveCarrier || !effectiveTrackingNumber || /^DEMO-/i.test(effectiveTrackingNumber) || /mô phỏng/i.test(effectiveCarrier))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'Nhập đơn vị vận chuyển và mã vận đơn hợp lệ trước khi chuyển sang Đang giao.' });
         }
 
         if (!statusChanged && !hasTrackingCarrier && !hasTrackingNumber) {

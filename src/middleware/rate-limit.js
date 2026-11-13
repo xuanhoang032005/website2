@@ -23,13 +23,14 @@ function createRateLimiter({
     windowMs,
     max,
     namespace = 'api',
+    keyGenerator = req => req.ip || req.socket?.remoteAddress || 'unknown',
     message = 'Bạn thao tác quá nhanh. Vui lòng thử lại sau!',
     database = pool,
     increment = incrementDatabaseBucket
 }) {
     return function rateLimit(req, res, next) {
-        const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-        const key = `${namespace}:${ip}`;
+        const identity = keyGenerator(req);
+        const key = `${namespace}:${identity}`;
         increment(database, key, windowMs).then(bucket => {
             const remaining = Math.max(0, max - bucket.count);
             res.setHeader('RateLimit-Limit', max);
