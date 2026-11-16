@@ -16,28 +16,46 @@ alwaysApply: true
 
 ## Trạng thái hiện tại
 
-- Backend là Express modular monolith trong `src/`; entry point tương thích hosting là `server.js`.
-- Database MySQL được khởi tạo từ `database/anhtraistore.sql`; các bảng bổ sung có migration tương thích database cũ.
-- Bộ kiểm tra hồi quy nằm tại `tests/product-regressions.test.js`.
-- Session, rate limit và trạng thái Socket.IO hiện còn lưu trong bộ nhớ tiến trình; OTP đặt lại mật khẩu được lưu dưới dạng HMAC-SHA-256 trong MySQL và tự hết hạn.
-- Upload ảnh hiện lưu trên filesystem local.
-- API đã có header bảo mật, CORS production, rate limit, generic 500 response và session cookie an toàn hơn.
-- Ảnh tham chiếu giao diện nằm tại `docs/references/`.
+- Yêu cầu Node.js 20 trở lên. Backend là Express modular monolith trong `src/`, dùng MySQL qua `mysql2/promise`; giao diện là HTML/CSS/JavaScript thuần trong `views/` và `public/`.
+- `src/app.js` cung cấp `createApp()` để tạo Express app cho kiểm thử. `server.js` tự khởi động khi được nạp để tương thích Passenger; không `require()` entry point này chỉ để lấy app trong test.
+- Một phần luồng đơn hàng, dashboard và quản trị người dùng đã tách theo `controller -> service -> repository`; các nghiệp vụ khác vẫn nằm trong route. Tiếp tục theo cấu trúc hiện có khi chỉnh sửa.
+- Session dùng `src/services/mysql-session-store.js`, lưu trong bảng `sessions`; rate limit dùng bảng `rate_limit_buckets`. Chưa có Redis.
+- Hội thoại và tin nhắn chat lưu trong MySQL. Socket.IO dùng chung session middleware, nhưng room, kết nối và trạng thái online vẫn thuộc từng tiến trình; chưa có adapter đồng bộ nhiều instance.
+- Queue nền tại `src/services/job-queue.js` được `server.js` cấu hình dùng bảng `background_jobs`, có retry/backoff, lease và dọn dữ liệu hết hạn. Queue còn chế độ bộ nhớ khi chưa cấu hình database, phục vụ các test độc lập. Handler phải tính đến khả năng job được chạy lại.
+- Email đơn hàng cho khách và admin là hai job riêng; OTP, email chào mừng, liên hệ, dọn ảnh và yêu cầu AI bất đồng bộ cũng có handler nền tại `src/services/background-jobs.js`.
+- Upload ảnh sản phẩm, banner, avatar, danh mục và hậu mãi dùng Multer với Cloudinary qua `src/services/cloud-storage.js`. Thiếu cấu hình Cloudinary trả `503`; ảnh local có sẵn vẫn được phục vụ qua các đường dẫn tương thích.
+- Trợ lý AI dùng client Chat Completions tại `src/services/ai/openai-client.js`, cấu hình bằng `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`. Tool lấy dữ liệu cửa hàng từ database; tra cứu đơn phải dùng tài khoản trong session. Yêu cầu AI dài hoặc `async: true` vào queue, kết quả chỉ được đọc bởi session tạo job.
+- API có security headers/CSP, CORS production, CSRF kiểm tra nguồn gửi, rate limit và lỗi 500 chung. Cookie session có `HttpOnly`, `SameSite=Lax`, `Secure` trong production; `SESSION_SECRET` production phải dài ít nhất 32 ký tự.
+- Log JSON có request ID; `/health` kiểm tra tiến trình, `/ready` kiểm tra database, `/metrics` trả số liệu và dùng `METRICS_TOKEN` nếu cấu hình. Có webhook cảnh báo lỗi và backup qua `npm run backup`/`mysqldump`.
 
-## Hướng nâng cấp doanh nghiệp đã thống nhất
+## Database và quy tắc nghiệp vụ
 
-1. Giữ kiến trúc modular monolith; chưa tách microservice.
-2. Ưu tiên migration, constraint/index và xử lý lệch schema trước.
-3. Chuyển session và rate limit sang Redis khi chạy nhiều instance; trạng thái Socket.IO cần đồng bộ nếu mở rộng nhiều instance.
-4. Chuẩn hóa validation, `/api/v1`, OpenAPI và response API.
-5. Thêm integration test MySQL, E2E, lint/type-check và CI.
-6. Sau đó mới tách service/repository, module frontend, queue email, object storage và observability.
-7. Payment webhook, inventory ledger và nghiệp vụ tài chính chỉ cần khi chuyển sang thương mại thật.
+- `database/anhtraistore.sql` là file SQL tổng chứa schema, dữ liệu demo, khối nâng cấp và lịch sử migration. Import toàn bộ có `TRUNCATE`, chỉ dùng cho database cài mới.
+- Database hiện có được nâng cấp bằng `npm run migrate`. Runner tại `src/config/migrate.js` đọc các khối đánh dấu trong SQL tổng, dùng khóa MySQL và checksum ổn định giữa Windows/Linux. Khi được yêu cầu sửa schema, phải cập nhật nhất quán khối nâng cấp và lịch sử/checksum liên quan.
+- Khi khởi động, server chạy migration và `repairBusinessData()` trước khi mở cổng: bổ sung tiêu đề liên hệ, đồng bộ tổng tồn kho và ghi sổ tồn kho ban đầu nếu thiếu.
+- `product_variants` quản lý SKU, RAM, ROM, màu, giá và tồn kho theo phiên bản; `inventory_movements` đã lưu sổ biến động kho. Giữ transaction, khóa hàng và đồng bộ tổng tồn kho khi sửa luồng đặt/hủy đơn hoặc điều chỉnh kho.
+- Backend tính lại giá, phí và giảm giá. Phí giao tiêu chuẩn là 30.000đ, giao nhanh là 50.000đ; hiện không tự miễn phí theo ngưỡng 500.000đ.
+- COD tạo đơn `pending`, trừ kho và ghi nhận coupon khi đặt. VNPay/MoMo mô phỏng tạo đơn chưa trừ kho; bước hoàn tất thanh toán mới xác nhận và trừ kho. Giữ kiểm tra trạng thái để tránh trừ hoặc hoàn kho/coupon lặp.
+- Trạng thái đơn đi theo luồng backend cho phép; đã có lịch sử trạng thái và thông tin vận chuyển. Chuyển sang `shipping` phải có đơn vị và mã vận đơn hợp lệ, không chấp nhận mã `DEMO-` hoặc đơn vị có chữ “mô phỏng”.
+- Chỉ người mua có đơn đã giao chứa sản phẩm mới được đánh giá; mỗi tài khoản chỉ đánh giá một lần cho một sản phẩm, đánh giá trùng trả `409`. Hỏi đáp sản phẩm là loại riêng và cho phép nhiều câu hỏi. Đã có báo cáo đánh giá, đổi trả và bảo hành.
+- Quản trị người dùng đã có tạo/sửa/xóa, validation, bảo vệ tài khoản đang đăng nhập và admin cuối cùng, chặn xóa người có lịch sử nghiệp vụ. Thay email, vai trò hoặc mật khẩu thu hồi các session liên quan theo service.
+- OTP đặt lại mật khẩu lưu HMAC-SHA-256 với `SESSION_SECRET` trong `reset_tokens`, hết hạn sau 5 phút và bị xóa sau khi đổi mật khẩu thành công hoặc hết lượt nhập sai theo `withVerifiedResetOtp()` trong `src/routes/auth.js`.
+- Khi tài liệu và mã nguồn lệch nhau, đối chiếu route/service và test trước khi kết luận hành vi; cập nhật tài liệu theo hành vi đã xác minh.
 
-## Điểm cần nhớ khi nâng cấp
+## Kiểm thử và xác minh
 
-- Code đang truy vấn `product_variants`; schema hiện tại đã có bảng tương ứng.
-- Luồng OTP dùng bảng `reset_tokens`; mỗi mã chỉ lưu HMAC-SHA-256 với `SESSION_SECRET`, hết hạn sau 5 phút và bị xóa sau khi dùng hoặc nhập sai 5 lần.
-- `package.json` và README yêu cầu Node.js 20 trở lên.
-- Tài khoản admin demo và mật khẩu mẫu phải được loại bỏ trước khi triển khai thật.
-- Các file lớn cần tách dần: `src/routes/admin.js` và các trang HTML chứa nhiều CSS/JavaScript inline.
+- `npm test` chạy `tests/product-regressions.test.js` bằng `node:test`/`assert`, không cần MySQL; gồm kiểm thử handler với mock, DOM giả lập và kiểm tra tĩnh nguồn/HTML/CSS.
+- `npm run check` chạy lint, format, kiểm tra cú pháp migration và toàn bộ hồi quy. Lint hiện chủ yếu chạy `node --check` cho JavaScript backend/scripts/tests; format hiện chỉ đọc file UTF-8, chưa phải formatter hoặc type-check đầy đủ.
+- `npm run test:e2e` chạy HTTP và MySQL thật; `npm run test:e2e:users` chạy nhánh quản trị người dùng. Test tạo database `ats_e2e_*` ngẫu nhiên và xóa khi kết thúc, vô hiệu hóa gửi email bằng `E2E_DISABLE_EMAILS=1`; tài khoản MySQL cần quyền tạo/xóa database test.
+- E2E hiện không điều khiển trình duyệt và không tạo kết nối Socket.IO thật. Với thay đổi giao diện/realtime, kiểm tra trực tiếp luồng liên quan trên trình duyệt khi có môi trường.
+- Khi đổi tên class hoặc cấu trúc mã, đối chiếu hành vi trước khi sửa assertion. Ưu tiên kiểm tra kết quả/hành vi, giữ mock đủ API/query cần dùng và không bỏ qua các kiểm tra nghiệp vụ để làm test xanh.
+- CI tại `.github/workflows/ci.yml` được cấu hình chạy lint, format, regression và E2E với Node.js 20/MySQL 8.
+- Mốc kiểm tra ngày 16/11/2026: đã sửa 6 test lỗi thời; `npm run check` đạt 79/79 test. E2E lần chạy gần nhất còn dừng ở đánh giá trùng do test mong `400` trong khi API trả `409`; các bước phía sau chưa được xác minh trong lần đó. Đây là kết quả tại thời điểm ghi, cần chạy lại sau thay đổi liên quan.
+
+## Hướng phát triển tiếp khi có yêu cầu
+
+1. Giữ kiến trúc modular monolith và ưu tiên tính nhất quán schema, dữ liệu, transaction và phân quyền.
+2. Tiếp tục tách các route lớn, nhất là `src/routes/admin.js`, và script inline theo các lớp/module đã có. Frontend đã có module HTTP/CSRF và AI widget trong `public/js/modules/`.
+3. Chuẩn hóa validation, phiên bản API, OpenAPI/response; nâng kiểm tra lint/format/type-check và bổ sung kiểm thử trình duyệt/realtime khi mở rộng phạm vi.
+4. Chỉ bổ sung Redis/adapter Socket.IO hoặc hạ tầng khác khi có nhu cầu triển khai nhiều instance; session, rate limit và queue hiện đã lưu MySQL.
+5. Payment webhook và nghiệp vụ tài chính thật chỉ triển khai khi được yêu cầu chuyển sang thanh toán thật. Trước khi đưa lên môi trường công khai, xử lý tài khoản và mật khẩu admin demo.
