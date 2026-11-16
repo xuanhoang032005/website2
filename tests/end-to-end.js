@@ -82,6 +82,91 @@ async function expectStatus(result, expected, label) {
     return result.data;
 }
 
+async function testUserManagement(baseUrl, admin, customer, adminUser, pool, product) {
+    const payload = {
+        full_name: 'E2E Managed User', email: `managed-${crypto.randomUUID()}@example.invalid`,
+        phone: '0901234567', password: 'Managed-Password-93!', role: 'customer'
+    };
+    const created = await expectStatus(await request(baseUrl, admin, 'POST', '/admin/users', payload), 200, 'admin creates user');
+    const id = Number(created.id);
+    const userPath = `/admin/users/${id}`;
+    const changes = { full_name: '  Tên đã sửa  ', email: payload.email.toUpperCase(), phone: '', role: 'customer', password: '' };
+    const userJar = new CookieJar();
+    await expectStatus(await request(baseUrl, userJar, 'POST', '/api/auth/login', { email: payload.email, password: payload.password }), 200, 'managed user login');
+    const [[before]] = await pool.query('SELECT password FROM users WHERE id = ?', [id]);
+
+    for (const method of ['PUT', 'DELETE']) {
+        await expectStatus(await request(baseUrl, null, method, userPath, method === 'PUT' ? changes : undefined), 401, 'guest cannot manage users');
+        await expectStatus(await request(baseUrl, customer, method, userPath, method === 'PUT' ? changes : undefined), 403, 'customer cannot manage users');
+    }
+    await expectStatus(await request(baseUrl, admin, 'POST', '/admin/users', payload), 409, 'duplicate account email');
+    await expectStatus(await request(baseUrl, admin, 'PUT', userPath, changes), 200, 'admin edits user without password');
+    const [[edited]] = await pool.query('SELECT full_name, email, phone, password FROM users WHERE id = ?', [id]);
+    assert.equal(edited.full_name, 'Tên đã sửa');
+    assert.equal(edited.email, payload.email);
+    assert.equal(edited.phone, '');
+    assert.equal(edited.password, before.password, 'blank password must preserve the hash');
+    assert.equal((await request(baseUrl, userJar, 'GET', '/api/auth/me')).data.user.full_name, edited.full_name);
+
+    for (const invalid of [
+        { full_name: '' }, { full_name: '<script>' }, { email: 'invalid' },
+        { email: 'a'.repeat(90) + '@example.invalid' }, { phone: '1'.repeat(16) },
+        { password: 'short' }, { password: 123456 }, { role: 'owner' }
+    ]) {
+        await expectStatus(await request(baseUrl, admin, 'PUT', userPath, { ...changes, ...invalid }), 400, 'invalid user edit');
+    }
+    const conflict = await expectStatus(await request(baseUrl, admin, 'PUT', userPath, { ...changes, email: adminUser.email }), 409, 'edit duplicate email');
+    assert.equal(conflict.code, 'EMAIL_EXISTS');
+    const [[afterConflict]] = await pool.query('SELECT email, full_name FROM users WHERE id = ?', [id]);
+    assert.equal(afterConflict.email, payload.email, 'conflicting edit must roll back');
+    for (const method of ['PUT', 'DELETE']) {
+        await expectStatus(await request(baseUrl, admin, method, '/admin/users/2147483647', method === 'PUT' ? changes : undefined), 404, 'missing user');
+        await expectStatus(await request(baseUrl, admin, method, '/admin/users/1oops', method === 'PUT' ? changes : undefined), 400, 'invalid user ID');
+    }
+    await expectStatus(await request(baseUrl, admin, 'DELETE', `/admin/users/${adminUser.id}`), 400, 'cannot delete oneself');
+    await expectStatus(await request(baseUrl, admin, 'PUT', `/admin/users/${adminUser.id}`, {
+        full_name: adminUser.full_name, email: adminUser.email, phone: adminUser.phone || '', role: 'customer'
+    }), 400, 'cannot demote oneself');
+
+    await pool.query('INSERT INTO reset_tokens (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))', [id, 'e2e-managed-token']);
+    await pool.query('INSERT INTO sessions (sid, expires_at, data) VALUES (?, DATE_ADD(NOW(), INTERVAL 1 HOUR), ?)', [
+        `e2e-passport-${id}`, JSON.stringify({ passport: { user: id } })
+    ]);
+    const newPassword = 'Changed-Password-94!';
+    const newEmail = `changed-${crypto.randomUUID()}@example.invalid`;
+    await expectStatus(await request(baseUrl, admin, 'PUT', userPath, { ...changes, email: newEmail, password: newPassword, role: 'admin' }), 200, 'change email password and role');
+    const [[changed]] = await pool.query('SELECT password, role, email FROM users WHERE id = ?', [id]);
+    assert.equal(changed.role, 'admin');
+    assert.equal(changed.email, newEmail);
+    assert.ok(await bcrypt.compare(newPassword, changed.password));
+    assert.equal((await request(baseUrl, userJar, 'GET', '/api/auth/me')).data.user, null, 'sensitive changes revoke old sessions');
+    const [[revoked]] = await pool.query('SELECT COUNT(*) AS c FROM sessions WHERE sid = ?', [`e2e-passport-${id}`]);
+    assert.equal(Number(revoked.c), 0, 'passport-only sessions are revoked');
+    const [[tokens]] = await pool.query('SELECT COUNT(*) AS c FROM reset_tokens WHERE user_id = ?', [id]);
+    assert.equal(Number(tokens.c), 0);
+    await expectStatus(await request(baseUrl, userJar, 'POST', '/api/auth/login', { email: newEmail, password: newPassword }), 200, 'login with updated credentials');
+    await expectStatus(await request(baseUrl, userJar, 'GET', '/admin/users/list'), 200, 'promoted user can administer');
+    await expectStatus(await request(baseUrl, admin, 'PUT', userPath, { ...changes, email: newEmail }), 200, 'demote another admin');
+    await expectStatus(await request(baseUrl, userJar, 'GET', '/admin/users/list'), 401, 'demoted admin session loses access');
+    await expectStatus(await request(baseUrl, userJar, 'POST', '/api/auth/login', { email: newEmail, password: newPassword }), 200, 'demoted user login');
+    await expectStatus(await request(baseUrl, userJar, 'GET', '/admin/users/list'), 403, 'demoted account cannot administer');
+
+    const list = await expectStatus(await request(baseUrl, admin, 'GET', '/admin/users/list'), 200, 'user list');
+    assert.equal(list.users.find(user => Number(user.id) === id).full_name, edited.full_name);
+    assert.ok(list.users.every(user => !('password' in user) && !('google_id' in user)), 'list never exposes credentials');
+    await pool.query('INSERT INTO cart (user_id, product_id, variant_id, quantity) VALUES (?, ?, ?, 1)', [id, product.id, product.variant_id]);
+    await pool.query('INSERT INTO wishlists (user_id, product_id) VALUES (?, ?)', [id, product.id]);
+    await expectStatus(await request(baseUrl, admin, 'DELETE', userPath), 200, 'delete user');
+    const [[deleted]] = await pool.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [id]);
+    assert.equal(Number(deleted.c), 0);
+    for (const table of ['cart', 'wishlists']) {
+        const [[remaining]] = await pool.query(`SELECT COUNT(*) AS c FROM ${table} WHERE user_id = ?`, [id]);
+        assert.equal(Number(remaining.c), 0, `${table} must be cleaned by foreign keys`);
+    }
+    assert.equal((await request(baseUrl, userJar, 'GET', '/api/auth/me')).data.user, null, 'deleted user session is revoked');
+    await expectStatus(await request(baseUrl, admin, 'DELETE', userPath), 404, 'repeated deletion');
+}
+
 async function main() {
     const rootConnection = await mysql.createConnection(connectionOptions);
     let pool;
@@ -192,6 +277,13 @@ async function main() {
         await expectStatus(await request(reopened.baseUrl, adminCookies, 'POST', '/api/auth/login', {
             email: adminUser.email, password: adminPassword
         }), 200, 'admin login');
+        await testUserManagement(reopened.baseUrl, adminCookies, customer, adminUser, pool, product);
+        const blockedDeletion = await expectStatus(await request(reopened.baseUrl, adminCookies, 'DELETE', `/admin/users/${customerId}`), 409, 'preserve user order history');
+        assert.equal(blockedDeletion.code, 'USER_HAS_HISTORY');
+        if (process.argv.includes('--users-only')) {
+            console.log('User management E2E passed: create, edit, password preservation, validation, permissions, duplicate email, session revocation, deletion and order history protection.');
+            return;
+        }
         for (const status of ['confirmed', 'shipping', 'delivered']) {
             expectStatus(await request(reopened.baseUrl, adminCookies, 'PUT', `/admin/orders/${cod.data.order_id}/status`, {
                 status,
@@ -297,7 +389,7 @@ async function main() {
         await expectStatus(await request(reopened.baseUrl, customer, 'POST', '/api/auth/logout', {}), 200, 'customer logout');
         await expectStatus(await request(reopened.baseUrl, adminCookies, 'POST', '/api/auth/logout', {}), 200, 'admin logout');
 
-        console.log('E2E passed: registration, durable session, cart, COD, simulated payment, tracking, review, warranty, support chat, rate limit and queue restart.');
+        console.log('E2E passed: user management, permissions, session revocation, registration, durable session, cart, COD, simulated payment, tracking, review, warranty, support chat, rate limit and queue restart.');
     } finally {
         await closeServer(secondServer).catch(() => {});
         await closeServer(server).catch(() => {});

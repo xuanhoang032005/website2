@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
-const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -13,7 +12,8 @@ const { adjustOrderStock } = require('../services/inventory');
 const { recordOpeningStock, recordStockMovement } = require('../services/stock-ledger');
 const { recordOrderStatus, getOrderStatusHistory } = require('../services/order-tracking');
 const { parseCouponPayload } = require('../core/coupon-validation');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin, requireAdminApi } = require('../middleware/auth');
+const { asyncRoute } = require('../core/http-error');
 const adminController = require('../controllers/admin-controller');
 const {
     productCloudinaryStorage,
@@ -1215,58 +1215,10 @@ router.get('/users', requireAdmin, (req, res) => {
     res.sendFile(path.join(viewsDir, 'admin', 'users.html'));
 });
 
-router.get('/users/list', requireAdmin, async (req, res) => {
-    try {
-        const [users] = await pool.query(
-            'SELECT id, full_name, email, phone, role, created_at FROM users ORDER BY created_at DESC'
-        );
-        res.json({ users });
-    } catch (error) {
-        res.status(500).json({ error: 'Đã xảy ra lỗi!' });
-    }
-});
-
-router.post('/users', requireAdmin, async (req, res) => {
-    try {
-        const { full_name, email, phone, password, role } = req.body;
-        const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-        const normalizedName = typeof full_name === 'string' ? full_name.trim() : '';
-        const normalizedPhone = phone == null ? '' : String(phone).trim();
-        const normalizedRole = role || 'customer';
-
-        if (!normalizedName || !normalizedEmail || !password) {
-            return res.status(400).json({ error: 'Vui lòng nhập đầy đủ thông tin!' });
-        }
-        if (normalizedName.length > 100 || normalizedPhone.length > 30 || normalizedEmail.length > 255 || /[<>]/.test(normalizedName + normalizedPhone) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-            return res.status(400).json({ error: 'Thông tin người dùng không hợp lệ!' });
-        }
-        if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
-            return res.status(400).json({ error: 'Mật khẩu phải có từ 6 đến 128 ký tự!' });
-        }
-        if (!['customer', 'admin'].includes(normalizedRole)) {
-            return res.status(400).json({ error: 'Vai trò người dùng không hợp lệ!' });
-        }
-
-        // Check existing email
-        const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
-        if (existing.length > 0) {
-            return res.status(400).json({ error: 'Email này đã được đăng ký!' });
-        }
-
-        // Hash password before saving
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const [result] = await pool.query(
-            'INSERT INTO users (full_name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)',
-            [normalizedName, normalizedEmail, normalizedPhone, hashedPassword, normalizedRole]
-        );
-
-        res.json({ success: true, id: result.insertId });
-    } catch (error) {
-        console.error('Create user error:', error);
-        res.status(500).json({ error: 'Đã xảy ra lỗi!' });
-    }
-});
+router.get('/users/list', requireAdminApi, asyncRoute(adminController.listUsers));
+router.post('/users', requireAdminApi, asyncRoute(adminController.createUser));
+router.put('/users/:id', requireAdminApi, asyncRoute(adminController.updateUser));
+router.delete('/users/:id', requireAdminApi, asyncRoute(adminController.deleteUser));
 
 // Reviews management
 router.get('/reviews', requireAdmin, (req, res) => {

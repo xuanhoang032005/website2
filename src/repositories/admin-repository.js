@@ -24,4 +24,67 @@ async function dashboardStats(db = pool) {
     };
 }
 
-module.exports = { dashboardStats };
+async function listUsers(db = pool) {
+    const [users] = await db.query(
+        'SELECT id, full_name, email, phone, role, created_at FROM users ORDER BY created_at DESC, id DESC'
+    );
+    return users;
+}
+
+async function createUser(user, db = pool) {
+    const [result] = await db.query(
+        'INSERT INTO users (full_name, email, phone, password, role) VALUES (?, ?, ?, ?, ?)',
+        [user.full_name, user.email, user.phone, user.password, user.role]
+    );
+    return result.insertId;
+}
+
+async function lockAdmins(db) {
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE");
+    return admins;
+}
+
+async function lockUser(id, db) {
+    const [users] = await db.query(
+        'SELECT id, full_name, email, phone, role FROM users WHERE id = ? FOR UPDATE', [id]
+    );
+    return users[0];
+}
+
+async function updateUser(id, user, db) {
+    const params = [user.full_name, user.email, user.phone, user.role];
+    const passwordSql = user.password ? ', password = ?' : '';
+    if (user.password) params.push(user.password);
+    params.push(id);
+    await db.query(`UPDATE users SET full_name = ?, email = ?, phone = ?, role = ?${passwordSql} WHERE id = ?`, params);
+}
+
+async function hasUserHistory(id, db) {
+    const [[history]] = await db.query(
+        `SELECT EXISTS(SELECT 1 FROM orders WHERE user_id = ?) AS orders,
+                EXISTS(SELECT 1 FROM reviews WHERE user_id = ?) AS reviews,
+                EXISTS(SELECT 1 FROM service_requests WHERE user_id = ?) AS service_requests`,
+        [id, id, id]
+    );
+    return Boolean(Number(history.orders) || Number(history.reviews) || Number(history.service_requests));
+}
+
+async function deleteUser(id, db) {
+    await db.query('DELETE FROM users WHERE id = ?', [id]);
+}
+
+async function revokeUserSessions(id, exceptSid, db) {
+    // Passport stores the account ID separately until the first authenticated request.
+    await db.query(
+        `DELETE FROM sessions
+         WHERE (JSON_UNQUOTE(JSON_EXTRACT(data, '$.user_id')) = ?
+             OR JSON_UNQUOTE(JSON_EXTRACT(data, '$.passport.user')) = ?)
+           AND sid <> ?`,
+        [String(id), String(id), exceptSid || '']
+    );
+}
+
+module.exports = {
+    dashboardStats, listUsers, createUser, lockAdmins, lockUser, updateUser,
+    hasUserHistory, deleteUser, revokeUserSessions
+};

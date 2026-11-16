@@ -1,0 +1,26 @@
+.user-actions {
+    display: flex;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.user-actions button:disabled,
+#saveUserButton:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+#usersMessage.alert-success {
+    color: #047857;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+}
+
+#userRole:disabled {
+    color: #64748b;
+    background: #f1f5f9;
+}
+
+#selfRoleHint[hidden] {
+    display: none;
+}

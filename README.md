@@ -25,7 +25,7 @@ AnhTraiStore là đồ án website thương mại điện tử bán điện tho�
 - Dashboard doanh thu, đơn hàng, khách hàng, cảnh báo tồn kho, biểu đồ và thông báo.
 - Quản lý sản phẩm và gallery ảnh, danh mục, thương hiệu.
 - Xem đơn hàng, cập nhật trạng thái theo đúng luồng nghiệp vụ và nhập đơn vị/mã vận chuyển cùng ghi chú gửi khách.
-- Xem người dùng và tạo tài khoản người dùng mới.
+- Xem, tạo, chỉnh sửa thông tin/vai trò/mật khẩu và xóa người dùng; có xác nhận trước khi xóa.
 - Xem, phản hồi hoặc xóa đánh giá.
 - Tiếp nhận và trả lời hội thoại hỗ trợ realtime; đóng/mở lại hội thoại.
 - Quản lý coupon.
@@ -230,6 +230,7 @@ API được chia theo các prefix `/api/auth`, `/api/products`, `/api/cart`, `/
 - Mỗi tài khoản chỉ dùng một coupon một lần. `WELCOME10` và `NEWUSER` chỉ dành cho đơn đầu tiên; `VIP20` yêu cầu tổng đơn đã giao từ 30 triệu đồng.
 - Chỉ tài khoản đã có đơn `delivered` chứa sản phẩm mới được đánh giá sản phẩm đó, và mỗi sản phẩm chỉ được đánh giá một lần trên mỗi tài khoản.
 - Sản phẩm đã xuất hiện trong đơn hàng không thể bị xóa, nhằm giữ lịch sử đơn.
+- Không thể tự xóa tài khoản đang đăng nhập hoặc tự hạ quyền quản trị. Người dùng có đơn hàng, đánh giá, câu hỏi hoặc yêu cầu đổi trả/bảo hành không thể bị xóa để giữ lịch sử. Đổi email, vai trò hoặc mật khẩu sẽ kết thúc các phiên đăng nhập khác của người dùng.
 - Dữ liệu “Mua ngay” được giữ trong session tối đa 15 phút.
 
 Các coupon mẫu gồm `WELCOME10`, `FREESHIP`, `VIP20`, `SALE5TR`, `PHONE15` và `NEWUSER`. Ngày hết hạn và giới hạn sử dụng nằm trong dữ liệu SQL, vì vậy giao diện chỉ hiển thị những mã còn hiệu lực tại thời điểm chạy.
@@ -282,6 +283,9 @@ npm test
 
 # E2E trên MySQL: tạo và xóa database dùng tên ngẫu nhiên
 npm run test:e2e
+
+# Kiểm tra riêng quản trị người dùng trên MySQL
+npm run test:e2e:users
 
 # Kiểm tra cú pháp entry point rồi chạy test
 npm run check

@@ -1,0 +1,1872 @@
+[
+  {
+    "path": "src\\app.js",
+    "lines": 75,
+    "sha256": "76f1481785e6101c9915db875d9f08e4a06a2cd3956237a52854e518370af238",
+    "routes": [
+      "app.get(['/assets/images/products/:filename', '/images/products/:filename', '/uploads/products/:filename', '/images/banners/:filename'], (req, res) => {",
+      "app.get(['/favicon.ico', '/favicon.svg'], (req, res) => res.sendFile(path.join(publicDir, 'favicon.svg')));",
+      "app.get('/metrics', (req, res, next) => {"
+    ],
+    "functions": [
+      "createApp"
+    ]
+  },
+  {
+    "path": "src\\config\\database.js",
+    "lines": 15,
+    "sha256": "f687d7aa0c0b21c3be55ce4e04707912bfa44b469fc2fd84e8b055c42db090ef",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "src\\config\\logger.js",
+    "lines": 31,
+    "sha256": "dbee449b21924cf2d2dbad3a2285d804bb59b1b782ae4a91a163ea8a7dbf5b42",
+    "routes": [],
+    "functions": [
+      "write",
+      "info",
+      "warn",
+      "error",
+      "alertError"
+    ]
+  },
+  {
+    "path": "src\\config\\mail.js",
+    "lines": 322,
+    "sha256": "37687298de6eb99ca97ea356bbb908586b593a32b9795045884655d08952c0a0",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "testConnection",
+      "sendEmail",
+      "sendOrderEmail",
+      "sendAdminOrderNotification",
+      "sendPasswordResetOTP",
+      "sendWelcomeEmail",
+      "function"
+    ]
+  },
+  {
+    "path": "src\\config\\metrics.js",
+    "lines": 25,
+    "sha256": "bebc5266efb05a52eb0cc5fbc091920e914cd4f76aa43bd001217a74362c9a88",
+    "routes": [],
+    "functions": [
+      "observe",
+      "snapshot"
+    ]
+  },
+  {
+    "path": "src\\config\\migrate.js",
+    "lines": 211,
+    "sha256": "df5694fd483053b071f31c561dbd30f46cc374aecddc005e039eb1fbe3b87a25",
+    "routes": [],
+    "functions": [
+      "databaseOptions",
+      "checksum",
+      "loadSchemaUpgrade",
+      "loadSchemaUpgrades",
+      "migrate"
+    ]
+  },
+  {
+    "path": "src\\config\\passport.js",
+    "lines": 113,
+    "sha256": "4260fffb964214b034bfc92ab24e63ecc0ffffd04cd6e8cb9b847c4732f6d836",
+    "routes": [],
+    "functions": [
+      "safeProfileName",
+      "configureGoogleOAuth"
+    ]
+  },
+  {
+    "path": "src\\config\\runtime.js",
+    "lines": 40,
+    "sha256": "c18feca90a2ba7859dc157db23f80cbf6d8e2034f4ce9805db3df9a7641d4d54",
+    "routes": [],
+    "functions": [
+      "allowedOrigins",
+      "corsOrigin",
+      "sessionOptions"
+    ]
+  },
+  {
+    "path": "src\\controllers\\admin-controller.js",
+    "lines": 39,
+    "sha256": "7b685d82f4b67992df7107def4b3e2729023bc9cee209d624e05ab84dd73027b",
+    "routes": [
+      "app.get('io');"
+    ],
+    "functions": [
+      "stats",
+      "listUsers",
+      "createUser",
+      "disconnectUser",
+      "updateUser",
+      "deleteUser"
+    ]
+  },
+  {
+    "path": "src\\controllers\\orders-controller.js",
+    "lines": 14,
+    "sha256": "5db376c4e40c7998dce595f7373acf20d0ed7730a46a7368398d582976e2e30f",
+    "routes": [],
+    "functions": [
+      "list",
+      "detail"
+    ]
+  },
+  {
+    "path": "src\\core\\coupon-validation.js",
+    "lines": 66,
+    "sha256": "a845f8b47c3bba0a424ba1343e21b9b7b07fd1e8a99c5fc394e656218a6029f2",
+    "routes": [],
+    "functions": [
+      "numberField",
+      "parseCouponPayload"
+    ]
+  },
+  {
+    "path": "src\\core\\http-error.js",
+    "lines": 17,
+    "sha256": "e1f85c478988db706334fb3b8bbff3d73512f3d0977263932a7811b8d53402f3",
+    "routes": [],
+    "functions": [
+      "asyncRoute",
+      "wrappedRoute"
+    ]
+  },
+  {
+    "path": "src\\core\\image-upload.js",
+    "lines": 16,
+    "sha256": "618ebb591fbaeca3c44ecce7802449ed7960061d41670b5081038f7b5327de5a",
+    "routes": [],
+    "functions": [
+      "isAllowedImage"
+    ]
+  },
+  {
+    "path": "src\\core\\paths.js",
+    "lines": 9,
+    "sha256": "209c000235414ab94115daa68f3945ac8b835d5b9014c4fcf695a81281f9f55b",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "src\\core\\product-variants.js",
+    "lines": 191,
+    "sha256": "7d549914573e7bd47945571b22f61e19a85ed95335406b66c226d3779bc654a1",
+    "routes": [],
+    "functions": [
+      "nullableText",
+      "parseVariantPayload",
+      "variantSummary",
+      "saveProductVariants",
+      "syncProductStock"
+    ]
+  },
+  {
+    "path": "src\\core\\review-comment.js",
+    "lines": 21,
+    "sha256": "3b8efc0b17449da7f9c845248704289e7169a9636fa232fdc3a4fde3c591a4f3",
+    "routes": [],
+    "functions": [
+      "parseReviewComment",
+      "serializeReviewComment"
+    ]
+  },
+  {
+    "path": "src\\middleware\\auth.js",
+    "lines": 32,
+    "sha256": "f8209024ef53e0b67922a94239df0674b244f3cd130cd0bc3574e8efc62c8a97",
+    "routes": [],
+    "functions": [
+      "isAdmin",
+      "requireAdminApi",
+      "requireAdmin"
+    ]
+  },
+  {
+    "path": "src\\middleware\\csrf.js",
+    "lines": 79,
+    "sha256": "d84c7ee0391046787d1a02536d3f11a3bf9f562e892a162f6ef469af30593eb2",
+    "routes": [],
+    "functions": [
+      "csrfToken",
+      "normalizeOrigin",
+      "requestOrigins",
+      "csrfProtection"
+    ]
+  },
+  {
+    "path": "src\\middleware\\error-handler.js",
+    "lines": 44,
+    "sha256": "4e7d60749801bcc79c2f8bafa95e05d65a90f165e592dde26f0a6e08f955c10a",
+    "routes": [],
+    "functions": [
+      "errorPayload",
+      "notFoundHandler",
+      "errorHandler"
+    ]
+  },
+  {
+    "path": "src\\middleware\\observability.js",
+    "lines": 18,
+    "sha256": "b9796842cd52d0d949f342debf8648b7342d31dff6b599610303ce2a508e3732",
+    "routes": [],
+    "functions": [
+      "requestId"
+    ]
+  },
+  {
+    "path": "src\\middleware\\rate-limit.js",
+    "lines": 66,
+    "sha256": "3a8e5c49a7613bd72bbf4c72c211d5525a049fdbbfe06532a4dac84ab510f2a1",
+    "routes": [],
+    "functions": [
+      "incrementDatabaseBucket",
+      "createRateLimiter",
+      "rateLimit"
+    ]
+  },
+  {
+    "path": "src\\middleware\\security.js",
+    "lines": 32,
+    "sha256": "ed1bf33255913f06199f64dad90acecf4c010e06e500bde8c49a774ed776b82d",
+    "routes": [],
+    "functions": [
+      "securityHeaders"
+    ]
+  },
+  {
+    "path": "src\\middleware\\validate.js",
+    "lines": 90,
+    "sha256": "cd2672eaa1b972e1b2e90f7d0fa45fbbb65b4196f4bd398fdd6eb56131c57bf3",
+    "routes": [],
+    "functions": [
+      "stringField",
+      "emailField",
+      "integerField",
+      "enumField",
+      "validateBody",
+      "bodyValidation"
+    ]
+  },
+  {
+    "path": "src\\realtime\\chat-socket.js",
+    "lines": 72,
+    "sha256": "00ee17217a34b98fc384e54f1e709b0f4c947ea1feccb4b15a1c21962fb14294",
+    "routes": [],
+    "functions": [
+      "configureChatSocket",
+      "canAccessConversation"
+    ]
+  },
+  {
+    "path": "src\\repositories\\admin-repository.js",
+    "lines": 90,
+    "sha256": "1a8f73b08f87441c2a9d0846a204ad2b32351a0ee71d6f444c8e6cd10d5b8a79",
+    "routes": [],
+    "functions": [
+      "dashboardStats",
+      "listUsers",
+      "createUser",
+      "lockAdmins",
+      "lockUser",
+      "updateUser",
+      "hasUserHistory",
+      "deleteUser",
+      "revokeUserSessions"
+    ]
+  },
+  {
+    "path": "src\\repositories\\orders-repository.js",
+    "lines": 31,
+    "sha256": "38a5a3b6aae7cfd3e02478cda11f8c8aab778753e949a40746515c1d13241a35",
+    "routes": [],
+    "functions": [
+      "listByUser",
+      "findOwnedWithItems"
+    ]
+  },
+  {
+    "path": "src\\routes\\admin.js",
+    "lines": 1603,
+    "sha256": "10cd3b748549f9a1a6572990d88af33e28b8229e44aee63b000bea6d4f334898",
+    "routes": [
+      "router.get('/stats', requireAdmin, async (req, res, next) => {",
+      "router.get('/notifications', requireAdmin, async (req, res) => {",
+      "router.get('/top-customers', requireAdmin, async (req, res) => {",
+      "router.get('/chart-data', requireAdmin, async (req, res) => {",
+      "router.get('/', (req, res) => {",
+      "router.get('/products', requireAdmin, (req, res) => {",
+      "router.get('/categories', requireAdmin, (req, res) => {",
+      "router.get('/brands', requireAdmin, (req, res) => {",
+      "router.get('/history', requireAdmin, (req, res) => {",
+      "router.get('/inventory', requireAdmin, (req, res) => {",
+      "router.get('/inventory/products', requireAdmin, async (req, res) => {",
+      "router.get('/inventory/movements', requireAdmin, async (req, res) => {",
+      "router.get('/products/:id', requireAdmin, async (req, res) => {",
+      "router.post('/products', requireAdmin, productUpload, async (req, res) => {",
+      "router.put('/products/:id', requireAdmin, productUpload, async (req, res) => {",
+      "router.delete('/products/:id', requireAdmin, async (req, res) => {",
+      "router.get('/orders', requireAdmin, (req, res) => {",
+      "router.get('/service-requests', requireAdmin, (req, res) => {",
+      "router.get('/orders/list', requireAdmin, async (req, res) => {",
+      "router.get('/orders/:id', requireAdmin, async (req, res) => {",
+      "router.put('/orders/:id/status', requireAdmin, async (req, res) => {",
+      "router.get('/users', requireAdmin, (req, res) => {",
+      "router.get('/users/list', requireAdminApi, asyncRoute(adminController.listUsers));",
+      "router.post('/users', requireAdminApi, asyncRoute(adminController.createUser));",
+      "router.put('/users/:id', requireAdminApi, asyncRoute(adminController.updateUser));",
+      "router.delete('/users/:id', requireAdminApi, asyncRoute(adminController.deleteUser));",
+      "router.get('/reviews', requireAdmin, (req, res) => {",
+      "router.get('/reviews/list', requireAdmin, async (req, res) => {",
+      "router.put('/reviews/:id/reply', requireAdmin, async (req, res) => {",
+      "router.delete('/reviews/:id', requireAdmin, async (req, res) => {",
+      "router.get('/contacts', requireAdmin, (req, res) => {",
+      "router.get('/contacts/list', requireAdmin, async (req, res) => {",
+      "router.get('/contacts/:id', requireAdmin, async (req, res) => {",
+      "router.put('/contacts/:id', requireAdmin, async (req, res) => {",
+      "router.put('/contacts/:id/read', requireAdmin, async (req, res) => {",
+      "router.get('/banners', requireAdmin, (req, res) => {",
+      "router.get('/promotions', requireAdmin, (req, res) => {",
+      "router.get('/api/coupons', requireAdmin, async (req, res) => {",
+      "router.post('/api/coupons', requireAdmin, async (req, res) => {",
+      "router.put('/api/coupons/:id', requireAdmin, async (req, res) => {",
+      "router.delete('/api/coupons/:id', requireAdmin, async (req, res) => {",
+      "router.get('/low-stock-products', requireAdmin, async (req, res) => {",
+      "router.get('/banners/list', requireAdmin, async (req, res) => {",
+      "router.get('/banners/item/:id', requireAdmin, async (req, res) => {",
+      "router.post('/banners', requireAdmin, async (req, res) => {",
+      "router.post('/banners/upload', requireAdmin, bannerUpload, (req, res) => {",
+      "router.post('/banners/upload-many', requireAdmin, bannerUploads, (req, res) => {",
+      "router.put('/banners/hero-set', requireAdmin, async (req, res) => {",
+      "router.put('/banners/:id', requireAdmin, async (req, res) => {",
+      "router.delete('/banners/:id', requireAdmin, async (req, res) => {",
+      "router.put('/banners/:id/toggle', requireAdmin, async (req, res) => {"
+    ],
+    "functions": [
+      "normalizeBannerPosition",
+      "parseTechnicalSpecs",
+      "normalizeInternalLink",
+      "removeStoredBanner",
+      "productValidationError",
+      "parseProductNumbers",
+      "validateProductNumbers",
+      "isMissingProductImageAltText",
+      "loadProductImages",
+      "insertProductImages",
+      "to",
+      "createSlug",
+      "generateUniqueSlug"
+    ]
+  },
+  {
+    "path": "src\\routes\\ai-chat.js",
+    "lines": 131,
+    "sha256": "a1e7395df3246bc3c5108f544cb8f3847156067ea0d2e14e92523974038992f7",
+    "routes": [
+      "router.get('/ai/history', (req, res) => {",
+      "router.get('/ai/jobs/:id', async (req, res) => {",
+      "router.post('/ai/compare', compareRateLimit, async (req, res) => {",
+      "router.post('/ai', chatRateLimit, async (req, res) => {"
+    ],
+    "functions": [
+      "sessionHistory",
+      "productsForHistory"
+    ]
+  },
+  {
+    "path": "src\\routes\\api.js",
+    "lines": 729,
+    "sha256": "3e111539b774b4bac7af7419482066c5943ddf371b05f6fd467b18f7ee8af451",
+    "routes": [
+      "router.get('/search', async (req, res) => {",
+      "router.get('/cart-count', async (req, res) => {",
+      "router.post('/contact', contactValidation, async (req, res) => {",
+      "router.post('/review', productQuestionRateLimit, reviewSubmissionValidation, async (req, res) => {",
+      "router.put('/review/:id', reviewValidation, async (req, res) => {",
+      "router.post('/review/:id/report', async (req, res) => {",
+      "router.post('/categories/upload-image', requireAdmin, (req, res, next) => {",
+      "router.get('/categories', async (req, res) => {",
+      "router.get('/categories/menu', async (req, res) => {",
+      "router.get('/categories/:id', async (req, res) => {",
+      "router.post('/categories', requireAdmin, async (req, res) => {",
+      "router.put('/categories/:id', requireAdmin, async (req, res) => {",
+      "router.delete('/categories/:id', requireAdmin, async (req, res) => {",
+      "router.get('/brands', async (req, res) => {",
+      "router.get('/brands/:id', async (req, res) => {",
+      "router.post('/brands', requireAdmin, async (req, res) => {",
+      "router.put('/brands/:id', requireAdmin, async (req, res) => {",
+      "router.delete('/brands/:id', requireAdmin, async (req, res) => {",
+      "router.get('/banners/active', async (req, res) => {"
+    ],
+    "functions": [
+      "escapeMailHtml",
+      "normalizeActiveFlag",
+      "normalizeCategoryImage",
+      "normalizeCategorySlug",
+      "normalizeTechnicalSpecsTemplate"
+    ]
+  },
+  {
+    "path": "src\\routes\\auth.js",
+    "lines": 590,
+    "sha256": "770e0ff8c6dc8e3306441045622e59b9f825b0a0ca85a570b2cade619436990e",
+    "routes": [
+      "router.post('/register', loginRateLimit, registerValidation, async (req, res) => {",
+      "router.post('/login', loginRateLimit, loginValidation, async (req, res) => {",
+      "router.post('/logout', (req, res, next) => {",
+      "router.get('/me', async (req, res) => {",
+      "router.get('/profile-summary', async (req, res) => {",
+      "router.put('/profile', profileValidation, async (req, res) => {",
+      "router.put('/update-profile', profileValidation, async (req, res) => {",
+      "router.post('/forgot-password', passwordResetRateLimit, emailValidation, async (req, res) => {",
+      "router.post('/reset-password', passwordResetRateLimit, resetPasswordValidation, async (req, res) => {",
+      "router.post('/verify-otp', passwordResetRateLimit, otpValidation, async (req, res) => {",
+      "router.put('/change-password', changePasswordValidation, async (req, res) => {",
+      "router.post('/upload-avatar', requireLogin, handleAvatarUpload, async (req, res) => {",
+      "router.delete('/avatar', async (req, res) => {"
+    ],
+    "functions": [
+      "normalizeEmail",
+      "hashResetOtp",
+      "withVerifiedResetOtp",
+      "isValidEmail",
+      "validateProfile",
+      "requireLogin",
+      "removeStoredAvatar"
+    ]
+  },
+  {
+    "path": "src\\routes\\cart.js",
+    "lines": 344,
+    "sha256": "ea3da792758e9583989c31d9dc37bf2f375123a346e5f3df30407ca8e452caee",
+    "routes": [
+      "router.get('/count', async (req, res) => {",
+      "router.get('/', async (req, res) => {",
+      "router.post('/add', async (req, res) => {",
+      "router.put('/:id', async (req, res) => {",
+      "router.delete('/all', async (req, res) => {",
+      "router.delete('/:id', async (req, res) => {",
+      "router.post('/buy-now', async (req, res) => {",
+      "router.get('/buy-now', async (req, res) => {"
+    ],
+    "functions": []
+  },
+  {
+    "path": "src\\routes\\coupons.js",
+    "lines": 269,
+    "sha256": "16f6bb550d29370658deafeb2d668ef6132bf4d8acc6b853093f3b2cc456f0a0",
+    "routes": [
+      "router.post('/validate', async (req, res) => {",
+      "router.get('/active', async (req, res) => {",
+      "router.get('/available', async (req, res) => {",
+      "router.post('/', async (req, res) => {"
+    ],
+    "functions": [
+      "couponDescription",
+      "getCouponContext",
+      "addPhoneCategoryContext",
+      "selectedItems",
+      "getCouponRestriction"
+    ]
+  },
+  {
+    "path": "src\\routes\\health.js",
+    "lines": 19,
+    "sha256": "a39d947ff535feb4e5436eb5fd9e883ac9385864331088bb32542390f43d957b",
+    "routes": [
+      "router.get('/health', (req, res) => {",
+      "router.get('/ready', async (req, res) => {"
+    ],
+    "functions": []
+  },
+  {
+    "path": "src\\routes\\index.js",
+    "lines": 29,
+    "sha256": "63547e48eff6dee3ab4183ea50cc6c0ef7c2fab405433af610c57505f063e675",
+    "routes": [],
+    "functions": [
+      "registerRoutes"
+    ]
+  },
+  {
+    "path": "src\\routes\\messages.js",
+    "lines": 488,
+    "sha256": "bc3f252fa534ab731fed60fa26f4965747359eaa7a6d0a0464a52dd736075bf2",
+    "routes": [
+      "router.get('/conversations', async (req, res) => {\r",
+      "router.get('/:conversation_id', async (req, res) => {\r",
+      "router.post('/:conversation_id', async (req, res) => {\r",
+      "app.get('io');\r",
+      "router.get('/admin/conversations', async (req, res) => {\r",
+      "router.get('/admin/:conversation_id', async (req, res) => {\r",
+      "router.post('/admin/:conversation_id', async (req, res) => {\r",
+      "app.get('io');\r",
+      "router.put('/admin/:conversation_id/close', async (req, res) => {",
+      "router.put('/admin/:conversation_id/reopen', async (req, res) => {"
+    ],
+    "functions": [
+      "supportSessionStartedAt"
+    ]
+  },
+  {
+    "path": "src\\routes\\orders.js",
+    "lines": 716,
+    "sha256": "91055bbee3248a40d752144adb3c40afc5f57bb70f4553860de12677bfc06511",
+    "routes": [
+      "router.post('/', async (req, res) => {",
+      "router.get('/', async (req, res, next) => {",
+      "router.get('/:id', async (req, res, next) => {",
+      "router.put('/:id/cancel', async (req, res) => {",
+      "router.post('/initiate', async (req, res) => {",
+      "router.get('/:id/check-payment', async (req, res) => {",
+      "router.post('/:id/complete', async (req, res) => {"
+    ],
+    "functions": [
+      "normalizeLocation",
+      "deliveryEstimate",
+      "shippingFeeFor",
+      "toCustomerOrder",
+      "validateShippingInput",
+      "parseItemIds",
+      "getCheckoutItems",
+      "calculateCoupon",
+      "useCoupon",
+      "releaseCoupon",
+      "decreaseStock",
+      "sendConfirmationEmail"
+    ]
+  },
+  {
+    "path": "src\\routes\\pages.js",
+    "lines": 44,
+    "sha256": "67f8416fefa8e2c59070ffb70873ac604f788a75aa1f66a8a3e5533666a5527e",
+    "routes": [
+      "router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));",
+      "router.get(['/auth/google', '/auth/google/callback'], (req, res) => {",
+      "router.get(route, (req, res) => res.sendFile(path.join(viewsDir, filename)));"
+    ],
+    "functions": [
+      "createPageRouter"
+    ]
+  },
+  {
+    "path": "src\\routes\\products.js",
+    "lines": 480,
+    "sha256": "80f006f6fcb4bb3ab5d82acf9958c98d2ca0388cf913badb66f0382c132e12a7",
+    "routes": [
+      "router.get('/', async (req, res) => {",
+      "router.get('/:id', async (req, res) => {",
+      "router.get('/home/featured', async (req, res) => {",
+      "router.post('/compare', async (req, res) => {"
+    ],
+    "functions": [
+      "filterValues",
+      "normalizeCapacity",
+      "priceValue",
+      "positiveInteger"
+    ]
+  },
+  {
+    "path": "src\\routes\\service-requests.js",
+    "lines": 200,
+    "sha256": "2598188956280f0ec0675b2967bebc277b3533a763dc3ae14c2adc62b7137735",
+    "routes": [
+      "router.post('/', requireLogin, imageUpload.array('images', 4), async (req, res) => {",
+      "router.get('/mine', async (req, res) => {",
+      "router.get('/admin/list', requireAdmin, async (req, res) => {",
+      "router.put('/admin/:id', requireAdmin, async (req, res) => {"
+    ],
+    "functions": [
+      "attachRequestImages",
+      "requireLogin"
+    ]
+  },
+  {
+    "path": "src\\routes\\wishlist.js",
+    "lines": 212,
+    "sha256": "daf05599d14dc25e07fe97235ace9997d4f635b44b1f4ab41f5a9b6a953206e5",
+    "routes": [
+      "router.get('/', async (req, res) => {",
+      "router.post('/add', async (req, res) => {",
+      "router.delete('/:id', async (req, res) => {",
+      "router.delete('/product/:product_id', async (req, res) => {",
+      "router.post('/toggle', async (req, res) => {",
+      "router.get('/check/:product_id', async (req, res) => {",
+      "router.get('/count', async (req, res) => {",
+      "router.delete('/', async (req, res) => {"
+    ],
+    "functions": []
+  },
+  {
+    "path": "src\\services\\admin-service.js",
+    "lines": 116,
+    "sha256": "a69473e4478a4f1ba9276904286606d49a9a64affc0b47cd8a80cda124d9edb7",
+    "routes": [],
+    "functions": [
+      "getDashboardStats",
+      "parseUser",
+      "parseUserId",
+      "userError",
+      "createUser",
+      "mutateUser",
+      "protectAdmin",
+      "updateUser",
+      "deleteUser"
+    ]
+  },
+  {
+    "path": "src\\services\\ai\\openai-client.js",
+    "lines": 73,
+    "sha256": "a6a96a5766e1b7a02e74b1e523d0f4c8d411fcb627f701d30efa948b4b584ff8",
+    "routes": [],
+    "functions": [
+      "completionUrl",
+      "request",
+      "tools"
+    ]
+  },
+  {
+    "path": "src\\services\\background-jobs.js",
+    "lines": 44,
+    "sha256": "d951b14c83b8184666f79ed05ed47e8e708a6547bdf277c94bfa05f4d1b09fd1",
+    "routes": [],
+    "functions": [
+      "deliverEmail",
+      "loadOrderEmailData"
+    ]
+  },
+  {
+    "path": "src\\services\\cloud-storage.js",
+    "lines": 137,
+    "sha256": "d5c0bb5b0057348180871eebc3c8ec1c489e8d4040796b58fa8555c28b3b6c25",
+    "routes": [],
+    "functions": [
+      "ensureConfigured",
+      "uploadImageStream",
+      "destroyPublicId",
+      "publicIdFromCloudinaryUrl",
+      "destroyCloudinaryUrlsNow",
+      "destroyCloudinaryUrls",
+      "destroyUploadedFiles",
+      "createCloudinaryStorage"
+    ]
+  },
+  {
+    "path": "src\\services\\data-consistency.js",
+    "lines": 62,
+    "sha256": "fb7353ed30b5ef425ef57813351038a3ae934f1578f4ff0cf8bcf6222356fbdb",
+    "routes": [],
+    "functions": [
+      "repairBusinessData"
+    ]
+  },
+  {
+    "path": "src\\services\\inventory.js",
+    "lines": 84,
+    "sha256": "b67df8f96750702c38636d370a44e3abf25363548fa221a49ae3630a1fffcb87",
+    "routes": [],
+    "functions": [
+      "inventoryError",
+      "adjustStock",
+      "adjustOrderStock"
+    ]
+  },
+  {
+    "path": "src\\services\\job-queue.js",
+    "lines": 224,
+    "sha256": "33e76c10cc3f06aa98f80d0a6a228dc8cd2590693fece3de5a3f62c977dfe0fa",
+    "routes": [],
+    "functions": [
+      "register",
+      "configure",
+      "parseJson",
+      "enqueue",
+      "get",
+      "drainMemoryQueue",
+      "runMemoryJob",
+      "claimNextJob",
+      "runDatabaseJob",
+      "pollDatabaseQueue",
+      "cleanupExpiredState",
+      "start",
+      "stop",
+      "snapshot"
+    ]
+  },
+  {
+    "path": "src\\services\\mysql-session-store.js",
+    "lines": 58,
+    "sha256": "75133465fc2e48a2337b4f1e41630012556588aeeb85585b544163dc48df1e7e",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "src\\services\\order-tracking.js",
+    "lines": 21,
+    "sha256": "13d3b0576a5c3ed308542382fc37c6405b9faecca8207ed591d3deb33d599cf9",
+    "routes": [],
+    "functions": [
+      "recordOrderStatus",
+      "getOrderStatusHistory"
+    ]
+  },
+  {
+    "path": "src\\services\\orders-service.js",
+    "lines": 19,
+    "sha256": "b95d895a77d0b0b930e78f50b69b2d9dd339c221088333013e360c688116008f",
+    "routes": [],
+    "functions": [
+      "customerOrder",
+      "listCustomerOrders",
+      "getCustomerOrder"
+    ]
+  },
+  {
+    "path": "src\\services\\product-qa.js",
+    "lines": 104,
+    "sha256": "28432e0a2205a744223f5ebb762cede16651bd3a2aa3c29b9f40a3adc9966a61",
+    "routes": [],
+    "functions": [
+      "safeText",
+      "completePoliteAnswer",
+      "isPromotionQuestion",
+      "promotionReply",
+      "answerProductQuestion",
+      "reviewReply"
+    ]
+  },
+  {
+    "path": "src\\services\\stock-ledger.js",
+    "lines": 62,
+    "sha256": "3628f070f5faa2b7e5e398e57d4f34f8bb89d33e406459084c207e858299f811",
+    "routes": [],
+    "functions": [
+      "variantLabel",
+      "recordStockMovement",
+      "recordOpeningStock"
+    ]
+  },
+  {
+    "path": "src\\services\\store-ai.js",
+    "lines": 583,
+    "sha256": "c3cfade8f1205e958f31d84c630eb2a057bdc7ba8bfabba9d2faf5b12303f216",
+    "routes": [],
+    "functions": [
+      "clampInteger",
+      "cleanText",
+      "isStoreDataUnavailable",
+      "normalizeProductThumbnail",
+      "productSummary",
+      "searchProducts",
+      "findProduct",
+      "recommendProducts",
+      "getOrderStatus",
+      "preparePurchase",
+      "getStoreInformation",
+      "executeStoreTool",
+      "openAITools",
+      "sanitizeHistory",
+      "extractReply",
+      "ensureAssistantGreeting",
+      "formatCurrency",
+      "formatToolResult",
+      "runStoreAssistant",
+      "compareProductsWithAI"
+    ]
+  },
+  {
+    "path": "views\\admin\\banners.html",
+    "lines": 549,
+    "sha256": "5e7d0a6aebeefab72417520a3a1d633d31885048ae17a7e085c610f02c7e4268",
+    "routes": [],
+    "functions": [
+      "loadBanners",
+      "renderBanners",
+      "toggleBanner",
+      "deleteBanner",
+      "previewBanner",
+      "editBanner",
+      "resolveImageUrl",
+      "setupImageUpload",
+      "showPreviewImages",
+      "saveBanner",
+      "closeModal",
+      "showToast",
+      "escapeHtml",
+      "adminLogout"
+    ]
+  },
+  {
+    "path": "views\\admin\\brands.html",
+    "lines": 281,
+    "sha256": "847ebf00086df930d01bafd1a9110ea68087cb8587742655a96c479cf56836e8",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "adminLogout",
+      "loadBrands",
+      "openModal",
+      "closeModal",
+      "editBrand",
+      "saveBrand",
+      "deleteBrand",
+      "showAlert"
+    ]
+  },
+  {
+    "path": "views\\admin\\categories.html",
+    "lines": 386,
+    "sha256": "cd845bd783e7e5fa540cc5004485ab275b16b049041b9f8902767aebf4071daf",
+    "routes": [],
+    "functions": [
+      "slugifyCategory",
+      "setCategoryImage",
+      "escapeHtml",
+      "adminLogout",
+      "loadCategories",
+      "openModal",
+      "closeModal",
+      "editCategory",
+      "saveCategory",
+      "deleteCategory",
+      "showAlert"
+    ]
+  },
+  {
+    "path": "views\\admin\\contacts.html",
+    "lines": 531,
+    "sha256": "30a35cc33faadfa6c273dbafac1ffcb08310c944f86c293c1e75babf39fe21c3",
+    "routes": [],
+    "functions": [
+      "showToast",
+      "adminLogout",
+      "initSocket",
+      "loadConversations",
+      "renderConversationList",
+      "filterConversations",
+      "openConversation",
+      "markConversationRead",
+      "sendMessage",
+      "appendMessage",
+      "scrollToBottom",
+      "handleInputKeydown",
+      "autoResize",
+      "emitTyping",
+      "closeConversation",
+      "reopenConversation",
+      "toggleConversationStatus",
+      "escapeHtml",
+      "formatTime",
+      "formatRelativeTime",
+      "showToast",
+      "loadNotificationBadges"
+    ]
+  },
+  {
+    "path": "views\\admin\\index.html",
+    "lines": 1139,
+    "sha256": "e157d77ba527f317561fa1c0dce49bd073787f370669eba78ea15c0ac01191c4",
+    "routes": [],
+    "functions": [
+      "adminLogout",
+      "loadChartData",
+      "renderRevenueChart",
+      "renderStatusChart",
+      "renderWeekChart",
+      "renderTopProductsChart",
+      "loadAdminData",
+      "renderStats",
+      "renderLowStockAlert",
+      "toggleLowStockAlert",
+      "escapeHtml",
+      "escapeAttr",
+      "renderRecentOrders",
+      "getStatusLabel",
+      "formatPrice",
+      "toggleNotifications",
+      "loadNotifications",
+      "renderNotifications",
+      "updateNotificationBadge",
+      "updateAlertsBanner",
+      "markAllNotificationsRead",
+      "timeAgo",
+      "loadTopCustomers",
+      "renderTopCustomers",
+      "startAutoRefresh",
+      "stopAutoRefresh",
+      "startNotificationsPolling"
+    ]
+  },
+  {
+    "path": "views\\admin\\inventory.html",
+    "lines": 111,
+    "sha256": "49745f173e33f2d7692e52007d20046de3d0c80492db9af01a5222b415122605",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "dateTime",
+      "adminLogout",
+      "setAlert",
+      "loadMovements"
+    ]
+  },
+  {
+    "path": "views\\admin\\orders.html",
+    "lines": 398,
+    "sha256": "efc1f0a7b28ee6eb6d81edc7b3c367c925bd97a2ec03ff5ce6d25b3d13c4565e",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "adminLogout",
+      "loadNotificationBadges",
+      "filterOrders",
+      "loadOrders",
+      "getPaymentBadge",
+      "viewOrder",
+      "showOrderModal",
+      "closeOrderModal",
+      "updateOrderStatus",
+      "getStatusLabel",
+      "formatPrice",
+      "showAlert"
+    ]
+  },
+  {
+    "path": "views\\admin\\products.html",
+    "lines": 1320,
+    "sha256": "7dd8df8d0b021ae419ba26603f0e2824c0faff7ef15d10c63edd9a1814315707",
+    "routes": [],
+    "functions": [
+      "adminLogout",
+      "loadNotificationBadges",
+      "setBadge",
+      "loadBrands",
+      "loadCategories",
+      "formatPriceInput",
+      "getRawNumber",
+      "categorySpecTemplate",
+      "defaultTechnicalSpecs",
+      "renderTechnicalSpecs",
+      "collectTechnicalSpecs",
+      "addTechnicalSpecRow",
+      "removeTechnicalSpecRow",
+      "escapeHtml",
+      "calculateDiscount",
+      "loadProducts",
+      "openModal",
+      "closeModal",
+      "safeSetValue",
+      "safeSetChecked",
+      "resolveAdminProductImageUrl",
+      "loadProductData",
+      "handleGalleryUpload",
+      "addGalleryImage",
+      "removeGalleryImage",
+      "setPrimaryImage",
+      "setGalleryImageColor",
+      "galleryColorOptions",
+      "renderGalleryPreview",
+      "emptyProductVariant",
+      "variantAttr",
+      "variantSelectOptions",
+      "skuToken",
+      "colorCode",
+      "generatedVariantSku",
+      "updateVariantSku",
+      "updateAllVariantSkus",
+      "renderVariantColorOptions",
+      "renderProductVariants",
+      "collectProductVariants",
+      "addProductVariant",
+      "removeProductVariant",
+      "saveProduct",
+      "editProduct",
+      "deleteProduct",
+      "showAlert",
+      "formatPrice"
+    ]
+  },
+  {
+    "path": "views\\admin\\promotions.html",
+    "lines": 449,
+    "sha256": "3231efbd9da847fb2cd2e0aded51fb412ac9f787253c3e89fb1376edce09bd2f",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "showAlert",
+      "loadCoupons",
+      "renderCoupons",
+      "updateStats",
+      "openAddModal",
+      "editCoupon",
+      "closeModal",
+      "saveCoupon",
+      "deleteCoupon",
+      "formatPrice",
+      "adminLogout"
+    ]
+  },
+  {
+    "path": "views\\admin\\reviews.html",
+    "lines": 290,
+    "sha256": "8a5b1fcacf72e0a15db2df57d5eb7fe72908ef7560017bd09f2559399ada362c",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "showToast",
+      "adminLogout",
+      "loadNotificationBadges",
+      "loadReviews",
+      "openReplyModal",
+      "closeReplyModal",
+      "saveReply",
+      "deleteReview"
+    ]
+  },
+  {
+    "path": "views\\admin\\service-requests.html",
+    "lines": 102,
+    "sha256": "1de7f75126102f183203e56c7f743ded4a7f9868d947479243c565e9cf607b57",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "formatTime",
+      "adminLogout",
+      "alert",
+      "renderRequests",
+      "loadRequests",
+      "updateRequest"
+    ]
+  },
+  {
+    "path": "views\\admin\\users.html",
+    "lines": 141,
+    "sha256": "a1d9446a4197e74673453b098d8ea1a1b326944ad5f1c5a90e326aef1c7ccf0e",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "views\\cart.html",
+    "lines": 425,
+    "sha256": "8e1ce12653691d402583c868c6a395465f00eaa0e1b2bbea24c26020698a3516",
+    "routes": [],
+    "functions": [
+      "loadCart",
+      "getThumbUrl",
+      "renderCart",
+      "recalculate",
+      "changeQty",
+      "updateQty",
+      "removeItem",
+      "clearCart"
+    ]
+  },
+  {
+    "path": "views\\checkout.html",
+    "lines": 147,
+    "sha256": "e1108ff754a77080c68b9c53a2474a3a9dfc32e1fc1f9227d648e342426a93ed",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "views\\compare.html",
+    "lines": 540,
+    "sha256": "4093342228c499bef230fae9d941186a37e9044db4ed94bb664b89123ccf1888",
+    "routes": [],
+    "functions": [
+      "showLoginModal",
+      "closeLoginModal",
+      "formatPrice",
+      "escapeHtml",
+      "capacityValue",
+      "recommendComparedProduct",
+      "getThumbUrl",
+      "switchGalleryImg",
+      "showToast",
+      "loadCompare",
+      "renderEmpty",
+      "renderEmptyError",
+      "renderCompare",
+      "loadAICompareConclusion",
+      "removeFromCompare",
+      "clearCompareAndReload",
+      "executeClearCompare",
+      "showConfirmModal",
+      "closeConfirmModal"
+    ]
+  },
+  {
+    "path": "views\\components\\ai-chatbox.html",
+    "lines": 790,
+    "sha256": "1a79245b04b4ddb16b21b53ba64cabac20d903546ac250f9f9cf3dd3a87b0afa",
+    "routes": [],
+    "functions": [
+      "getSocket",
+      "initSocket",
+      "setupEventListeners",
+      "autoResize",
+      "toggleWindow",
+      "minimizeWindow",
+      "switchTab",
+      "checkAdminStatus",
+      "updateAdminStatus",
+      "sendAIMessage",
+      "loadAIHistory",
+      "resolveProductImageUrl",
+      "addProductCards",
+      "connectToAdmin",
+      "loadOrCreateConversation",
+      "loadMessages",
+      "showWelcomeMessage",
+      "markAsRead",
+      "sendAdminMessage",
+      "addMessage",
+      "addTypingIndicator",
+      "removeTypingIndicator",
+      "scrollToBottom",
+      "escapeHtml",
+      "formatTime",
+      "formatPrice"
+    ]
+  },
+  {
+    "path": "views\\contact.html",
+    "lines": 273,
+    "sha256": "4f008c01c3582e0defa1f3a48fc13f37662c70c41f30bf5cdfa2850de13201bd",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "views\\forgot-password.html",
+    "lines": 413,
+    "sha256": "2d0172b9326fa792fed3255b957c369c59d1f96b2b7e59d04a2ee936f40224d7",
+    "routes": [],
+    "functions": [
+      "showToast",
+      "showStep",
+      "showError",
+      "showSuccess",
+      "startTimer",
+      "resendOTP"
+    ]
+  },
+  {
+    "path": "views\\index.html",
+    "lines": 522,
+    "sha256": "521cef8128642a777eb134569e1c1c8bb740d372eb71332dab566e055266b725",
+    "routes": [],
+    "functions": [
+      "showLoginModal",
+      "closeLoginModal",
+      "loadHomeData",
+      "renderCategories",
+      "renderHomeHero",
+      "loadAdminHomeBanners",
+      "renderHomeBannerSlide",
+      "renderHomePromoTiles",
+      "renderHomeRail",
+      "getThumbUrl",
+      "createProductCard",
+      "renderFeaturedProducts",
+      "renderNewProducts",
+      "renderPromoProducts",
+      "renderBanners",
+      "stopMainBannerAutoplay",
+      "startMainBannerAutoplay",
+      "showMainBannerSlide",
+      "selectMainBannerSlide",
+      "renderMainBannerControls",
+      "renderFromBannersTable",
+      "renderMainBannerSlide",
+      "resolveImageUrl",
+      "renderFromPromotions",
+      "escapeHtml",
+      "safeInternalLink"
+    ]
+  },
+  {
+    "path": "views\\login.html",
+    "lines": 267,
+    "sha256": "f2f4c41d619c4da1e41efb59df8e635a74fcf6196681b807e863493e0c80f058",
+    "routes": [],
+    "functions": [
+      "showToast",
+      "togglePassword"
+    ]
+  },
+  {
+    "path": "views\\order-detail.html",
+    "lines": 490,
+    "sha256": "db4a9c12db0b0cb086265e061426c0223266e47a1355bed387ebfeb9e00fe178",
+    "routes": [],
+    "functions": [
+      "formatPrice",
+      "formatDate",
+      "showToast",
+      "loadServiceRequests",
+      "loadOrder",
+      "renderOrder",
+      "escapeAttribute",
+      "toggleServiceForm",
+      "submitServiceRequest",
+      "cancelOrder",
+      "reorder"
+    ]
+  },
+  {
+    "path": "views\\orders.html",
+    "lines": 442,
+    "sha256": "822d56b73f8f39537e1c9b5688448a74f06c311d1a0f36eac700a18e36ca1e04",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "loadServiceRequestHistory",
+      "formatPrice",
+      "formatDate",
+      "showToast",
+      "loadOrders",
+      "updateCounts",
+      "getStatusConfig",
+      "renderOrders",
+      "renderEmpty",
+      "cancelOrder",
+      "reorder"
+    ]
+  },
+  {
+    "path": "views\\policy.html",
+    "lines": 294,
+    "sha256": "4e9dd76505c4aaf9c9be8a05f7181177efb9fee5c9b56f769e80e8bcb2832c64",
+    "routes": [],
+    "functions": [
+      "setActive",
+      "activeFromViewport"
+    ]
+  },
+  {
+    "path": "views\\product-detail.html",
+    "lines": 1327,
+    "sha256": "1b19a134f4b945d0b17f2bd43084291aa3965a7ba3459d29e6f73bec0e90d3da",
+    "routes": [],
+    "functions": [
+      "showLoginModal",
+      "closeLoginModal",
+      "loadProduct",
+      "renderProduct",
+      "renderMainGalleryImage",
+      "fitMainImage",
+      "selectGalleryImage",
+      "selectColorGalleryImage",
+      "changeGalleryImage",
+      "openImageViewer",
+      "renderViewerImage",
+      "changeViewerImage",
+      "closeImageViewer",
+      "startThumbAutoScroll",
+      "stopThumbAutoScroll",
+      "memoryKey",
+      "memoryLabel",
+      "variantSwatchColor",
+      "renderVariantSelectors",
+      "drawVariantSelectors",
+      "updateVariantPriceAndStock",
+      "initDeliveryEstimator",
+      "deliveryDateAfter",
+      "updateDeliveryEstimate",
+      "updateMobilePurchaseBar",
+      "mobileAddToCart",
+      "mobileBuyNow",
+      "updateVariantIdentity",
+      "renderProductActions",
+      "applySelectedVariant",
+      "switchTab",
+      "changeQty",
+      "addToWishlist",
+      "addToCompare",
+      "buyNow",
+      "renderReviews",
+      "openReviewEditor",
+      "setReviewEditRating",
+      "saveReviewEdit",
+      "openReviewReport",
+      "submitReviewReport",
+      "renderRelated",
+      "showToast",
+      "formatPrice",
+      "getThumbUrl",
+      "bindInlineReviewForm",
+      "updateStars",
+      "submitReview",
+      "formatDate"
+    ]
+  },
+  {
+    "path": "views\\products.html",
+    "lines": 651,
+    "sha256": "d0be93bfe006e1819a2abda4a5028c60bbb2981ecbdb8e6f033785ca20d78e10",
+    "routes": [],
+    "functions": [
+      "showLoginModal",
+      "closeLoginModal",
+      "parseURLParams",
+      "normalizeCapacity",
+      "formatNumber",
+      "parseNumber",
+      "loadProducts",
+      "renderFilters",
+      "getThumbUrl",
+      "renderProducts",
+      "renderPagination",
+      "goPage",
+      "changeSort",
+      "setPrice",
+      "renderActiveFilters",
+      "removeFilter",
+      "setupEventListeners",
+      "applySearchFilter",
+      "autoApplyFilter",
+      "changeCategoryFilter",
+      "applyFilters",
+      "navigateFilters",
+      "showFilterError",
+      "openFilterPanel",
+      "closeFilterPanel",
+      "toggleFilterCard",
+      "escapeHtml"
+    ]
+  },
+  {
+    "path": "views\\profile.html",
+    "lines": 643,
+    "sha256": "70b9de2ab7cbbec5f3c4939512e43760ab211f49df0328309f0ba88403d81f51",
+    "routes": [],
+    "functions": [
+      "showAlert",
+      "showPasswordAlert",
+      "showAvatarAlert",
+      "togglePw",
+      "checkStrength",
+      "checkMatch",
+      "loadProfileSummary",
+      "renderRecentOrders",
+      "initializeNotificationSettings",
+      "uploadAvatar",
+      "removeAvatar",
+      "loadAvatarFromServer"
+    ]
+  },
+  {
+    "path": "views\\promotions.html",
+    "lines": 757,
+    "sha256": "860d8a0154162bea50cff585181444f284fce2b324a51cd5ef040ae76458e6c7",
+    "routes": [],
+    "functions": [
+      "showLoginModal",
+      "closeLoginModal",
+      "parseURLParams",
+      "formatNumber",
+      "parseNumber",
+      "formatPriceVND",
+      "loadBrands",
+      "renderCategoryFilters",
+      "renderBrandFilters",
+      "loadPromotions",
+      "applyFiltersAndRender",
+      "renderPromotionPagination",
+      "goPromotionPage",
+      "renderProducts",
+      "getThumbUrl",
+      "createProductCard",
+      "renderActiveFilters",
+      "removeFilter",
+      "setupEventListeners",
+      "applyFiltersFromForm",
+      "syncFormFromFilters",
+      "buildUrlFromFilters",
+      "setPrice",
+      "validatePriceRange",
+      "openFilterPanel",
+      "closeFilterPanel",
+      "clearPromotionFilters",
+      "toggleFilterCard",
+      "escapeHtml"
+    ]
+  },
+  {
+    "path": "views\\register.html",
+    "lines": 446,
+    "sha256": "a7411d5c0c122ace1994e7394d3934057b1106d967c0901000721b3439bbb80d",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "showToast",
+      "goToStep",
+      "togglePassword"
+    ]
+  },
+  {
+    "path": "views\\wishlist.html",
+    "lines": 454,
+    "sha256": "fc84ee308c9e0068b8cc7032503e62efd2cf3ecb42b7f93a98fa9641c6bbc2ba",
+    "routes": [],
+    "functions": [
+      "showLoginModal",
+      "closeLoginModal",
+      "formatPriceVND",
+      "showToast",
+      "loadWishlist",
+      "getThumbUrl",
+      "renderWishlist",
+      "renderWishlistToolbar",
+      "buyWishlistNow",
+      "renderEmpty",
+      "removeFromWishlist",
+      "showConfirmModal",
+      "closeConfirmModal",
+      "clearWishlist",
+      "executeClearWishlist",
+      "addToCart",
+      "escapeHtml"
+    ]
+  },
+  {
+    "path": "public\\css\\admin.css",
+    "lines": 1709,
+    "sha256": "41b084a3ec885145212a6626d5d51a87716295d747478c7138d0dbf72e22216d",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\chatbox.css",
+    "lines": 628,
+    "sha256": "fda8736e838e20f94526006310883c15c155cb5903e15cb8b96d078d83c39772",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\filter.css",
+    "lines": 261,
+    "sha256": "d61099d69caa0adbe04442d856762bb05d9a52736c9f8373ae3ab51b699ab5f1",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\admin-users.css",
+    "lines": 26,
+    "sha256": "c4e60bd1d3deca8d824d017fa43ab89a9c1ed82d0811f850ca99ad6e9c7f01c2",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\auth-theme.css",
+    "lines": 32,
+    "sha256": "bd4184f66ab6530f4cb7419578e6709f8f4157701081e32fe5659a9e5e451c9b",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\cart.css",
+    "lines": 384,
+    "sha256": "98ce7b065ef06ca5b9a29a674a7194d38bf33a8216708cd22de6ec24753d6e7b",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\checkout.css",
+    "lines": 879,
+    "sha256": "46b6b0283da26f3fcfc37e8a5e0b6e07e17bf7638e6679fe43193b00db63d9d0",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\compare.css",
+    "lines": 621,
+    "sha256": "136ffbfc88647e84152c0a5e2b636456f4ca7740d57139458861fe356de5ca62",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\contact-late-2.css",
+    "lines": 1,
+    "sha256": "362bf326dc85e21f4f97bcf9f806f2f59b101bdb780cbe90584b41f49aec3902",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\contact.css",
+    "lines": 347,
+    "sha256": "43c00cd1c4afafaf2fae68639c9b97f0244c0b365033af651f772fc17d54323a",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\forgot-password.css",
+    "lines": 377,
+    "sha256": "e958f1de6bc15825a40dc60ae9346c9185afe0cb7cf3d789a9b1fc0624811e32",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\home-theme.css",
+    "lines": 33,
+    "sha256": "b2af3b9d2b039aff35f3230073cb92d75ffb47254454387c6fd8b359ac51a5df",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\index.css",
+    "lines": 428,
+    "sha256": "7588ca58e7dcf7a5a6ff8903a78dd10d8d3b8177d752f16a1e0e6b391d3e344f",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\login-modal.css",
+    "lines": 105,
+    "sha256": "789cfbe5deb73aa79a58f7120927317081aed9ce67563f1b8922d058c2ad6fc8",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\login.css",
+    "lines": 443,
+    "sha256": "92731ca1077444dd593f3fb1d7b6d4b82cb9ef1d322d9a1d5bd07028e4a06d04",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\order-detail.css",
+    "lines": 641,
+    "sha256": "ec8d2a19d5b8811c343540ac2bd25e549c30f14d4959271f9080003dbfc7c0d6",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\orders.css",
+    "lines": 448,
+    "sha256": "bae65fed9959c746832f3e971a1bb4e693c32a3c99fa543350c61541364ebc4c",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\policy.css",
+    "lines": 256,
+    "sha256": "71766f87290db5fd80facda7696c4dc26e67284d9c175ceea4ae60a2b1966b15",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\product-detail.css",
+    "lines": 1309,
+    "sha256": "273f4caf0d55f6cc3b5d02236f6a7e927e8a3fca68bdc509589061623203ae80",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\products.css",
+    "lines": 319,
+    "sha256": "f22d91b13ff0b87724c1d9e7137e049957a45a4f55c8d58632bd33299f07aa68",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\profile.css",
+    "lines": 571,
+    "sha256": "1ae5106072b6add0ed1a6b6dcab9e38a79b2819ff4ad9eb45d1bb81288f6171c",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\promotions.css",
+    "lines": 282,
+    "sha256": "31546dedf76c6bfd25b94074fe7f0b485248dd01de4421fd6dc9c26d2a3ddc21",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\register.css",
+    "lines": 495,
+    "sha256": "edf8a3868d5cc3c1413f5e2efee77715f607191c85c646989eec61088b8991d5",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\pages\\wishlist.css",
+    "lines": 489,
+    "sha256": "32f3c7e02511740ee3611e7d8badd2b4ea63dfb84d1d3924e135a4b61e5241f0",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\storefront-theme.css",
+    "lines": 212,
+    "sha256": "5b2efc208c51b898a8f77746a5b09cecec57d6462c48329362b115d19f959d88",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\css\\style.css",
+    "lines": 1235,
+    "sha256": "6912ce6f8b2cf33f0027556ccee5b9a2ae708feed67579d1cdff8f883da0e5a6",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "public\\js\\admin-ui.js",
+    "lines": 252,
+    "sha256": "dd52702903941bcae4b2a5fba52d04446db588d7f24da44fdbdaf39aff69c26c",
+    "routes": [],
+    "functions": [
+      "normalizedPath",
+      "createConfirmElement",
+      "adminConfirm",
+      "close",
+      "onKeydown",
+      "closeSidebar",
+      "setupNavigation",
+      "setupTables",
+      "improveAccessibility",
+      "setupMobileChat"
+    ]
+  },
+  {
+    "path": "public\\js\\admin-users.js",
+    "lines": 191,
+    "sha256": "5b7721fda81c97cc8b4b43d18a8dc273f1b65a69ceaa04874df47f68fa883459",
+    "routes": [],
+    "functions": [
+      "escapeHtml",
+      "message",
+      "request",
+      "renderAdmin",
+      "loadUsers",
+      "openModal",
+      "closeModal",
+      "deleteUser"
+    ]
+  },
+  {
+    "path": "public\\js\\app.js",
+    "lines": 656,
+    "sha256": "25a919271b53b04936e87a921ddec92bb791eae62569d2858b1af9b25ecc425a",
+    "routes": [],
+    "functions": [
+      "formatPrice",
+      "escapeHtml",
+      "showToast",
+      "showLoginPrompt",
+      "getCategoryPriceRanges",
+      "categoryPriceLink",
+      "initApp",
+      "loadCategoryMenu",
+      "loadUserInfo",
+      "loadCartBadge",
+      "loadWishlistBadge",
+      "getCompareList",
+      "saveCompareList",
+      "isInCompare",
+      "toggleCompare",
+      "clearCompare",
+      "updateCompareBadge",
+      "addToCart",
+      "toggleWishlist",
+      "setupSearch",
+      "showConfirm",
+      "showConfirmLogout",
+      "logout",
+      "setupUserDropdown",
+      "openMobileMenu",
+      "closeMobileMenu",
+      "goSearch",
+      "goMobileSearch",
+      "formatDate",
+      "debounce",
+      "executedFunction"
+    ]
+  },
+  {
+    "path": "public\\js\\checkout.js",
+    "lines": 578,
+    "sha256": "371b38d20b33696623223231bfe021d4da77d6c9b7ba8209f0ade4fbec96908c",
+    "routes": [],
+    "functions": [
+      "initializeCheckout",
+      "jsonRequest",
+      "loadCheckoutData",
+      "renderLoginRequired",
+      "renderCheckout",
+      "initializeAddressSelectors",
+      "inferProfileAddress",
+      "bindCheckoutEvents",
+      "populateDistricts",
+      "populateWards",
+      "addressValues",
+      "evaluateAddressCompletion",
+      "hideAfterAddress",
+      "selectShipping",
+      "selectPayment",
+      "normalizeLocation",
+      "deliveryProfile",
+      "dateAfter",
+      "updateDeliveryEstimates",
+      "loadAvailableCoupons",
+      "renderCouponOptions",
+      "applyCoupon",
+      "renderOrderSummary",
+      "checkoutPayload",
+      "continuePayment",
+      "createCodOrder",
+      "createOnlineOrder",
+      "renderQrPayment",
+      "confirmPayment",
+      "updateSteps",
+      "showLoading",
+      "hideLoading",
+      "checkoutToast",
+      "formatPrice",
+      "productImage",
+      "escapeAttribute"
+    ]
+  },
+  {
+    "path": "public\\js\\modules\\ai-widget.js",
+    "lines": 15,
+    "sha256": "72b88fec0332cd3a87b70557b2fc8a57269a2977a20c64bdfbd72e6bfcc37ccb",
+    "routes": [],
+    "functions": [
+      "mountAiWidget"
+    ]
+  },
+  {
+    "path": "public\\js\\modules\\http.js",
+    "lines": 23,
+    "sha256": "152f2b37518812b62404d01ecc6b290b5856e992c914db0f0c80c98f16c0ad81",
+    "routes": [],
+    "functions": [
+      "readCookie",
+      "apiFetch",
+      "installFetch"
+    ]
+  },
+  {
+    "path": "public\\js\\vietnam-address.js",
+    "lines": 456,
+    "sha256": "26f52ae5c9d8bd8ef41bc0c1f29a3499b5be3892c91f77f61b0577224debee5d",
+    "routes": [],
+    "functions": [
+      "to",
+      "getProvinces",
+      "to",
+      "getDistricts",
+      "to",
+      "getWards"
+    ]
+  },
+  {
+    "path": "database\\anhtraistore.sql",
+    "lines": 1442,
+    "sha256": "c327eae60ce9db4c63984bc9e0910c75599c2f04aad1e75a2e15ef0881b3b7ac",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "scripts\\backup.js",
+    "lines": 17,
+    "sha256": "5153732f7792f3d5a65324a6a353e01923b4071692c4969b65cdc3d28b62915e",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "scripts\\format-check.js",
+    "lines": 15,
+    "sha256": "3a1c29719603561968a328df9cd382486d95d679b9f40b6e616247ef79f1fce6",
+    "routes": [],
+    "functions": [
+      "walk"
+    ]
+  },
+  {
+    "path": "scripts\\lint.js",
+    "lines": 18,
+    "sha256": "fd796a20509927677e1002c1669dadaca921fffcfbc1b668164e0d75efcb5a04",
+    "routes": [],
+    "functions": [
+      "walk"
+    ]
+  },
+  {
+    "path": "tests\\end-to-end.js",
+    "lines": 441,
+    "sha256": "61deb15c75eae6e36f162d8fe738d13948d90cb95c31117ee023d46983d8ce9f",
+    "routes": [],
+    "functions": [
+      "request",
+      "listen",
+      "closeServer",
+      "waitFor",
+      "expectStatus",
+      "testUserManagement",
+      "main"
+    ]
+  },
+  {
+    "path": "tests\\product-regressions.test.js",
+    "lines": 1679,
+    "sha256": "d12d9831525b89d7057cff6e8af8a6eff993dafd67af5c5453e16f83c5291410",
+    "routes": [],
+    "functions": [
+      "migrationDatabase",
+      "request",
+      "createProductCard",
+      "loadPage",
+      "adminDelete",
+      "callDelete",
+      "walk",
+      "escapeHtml",
+      "loadRoute",
+      "jsonResponse",
+      "buyWishlistNow",
+      "recommendComparedProduct",
+      "adminConfirm",
+      "showConfirm",
+      "before",
+      "withOpenAISettings",
+      "calling",
+      "updateDeliveryEstimate",
+      "changeViewerImage"
+    ]
+  },
+  {
+    "path": ".github\\workflows\\ci.yml",
+    "lines": 39,
+    "sha256": "1479b66fe8a57a7ef2931070ac65a5b634b5a8e812e088bf2ff490469cfd5fd1",
+    "routes": [],
+    "functions": []
+  },
+  {
+    "path": "server.js",
+    "lines": 70,
+    "sha256": "d159af8dcac180e4c7557b4856b6133cd10e9bf1aa749f778b670809d579173c"
+  },
+  {
+    "path": "package.json",
+    "lines": 48,
+    "sha256": "52b29d9ebe6739a14e3dde2d70849c0bbfc7a22bf6b84046d8e8f9479ec60f32"
+  },
+  {
+    "path": "README.md",
+    "lines": 341,
+    "sha256": "0c2f7febefb41b5f4663565c6f9115d8a19c1c19a327f04206ac4c2c78b1ad71"
+  },
+  {
+    "path": ".env.example",
+    "lines": 47,
+    "sha256": "c1eaae5723d78e6be48d65ae0f220daba4a8680bba06145785650f8202e86b3a"
+  }
+]

@@ -74,7 +74,9 @@ test('migration checksums stay stable between Windows and Linux line endings', a
     assert.equal(checksum(unixSql), checksum(unixSql.replace(/\n/g, '\r\n')));
 });
 
-function migrationDatabase(storedChecksum, rejectMigration = false, legacyHistory = []) {
+async function migrationDatabase(storedChecksum, rejectMigration = false, legacyHistory = []) {
+    const upgrades = await require('../src/config/migrate').loadSchemaUpgrades();
+    const upgradeSql = new Set(upgrades.map(upgrade => upgrade.sql));
     const name = 'merged_schema_upgrade';
     const history = new Map(legacyHistory);
     if (storedChecksum) history.set(name, storedChecksum);
@@ -92,27 +94,10 @@ function migrationDatabase(storedChecksum, rejectMigration = false, legacyHistor
             if (sql.includes('FROM INFORMATION_SCHEMA.COLUMNS') && sql.includes("TABLE_NAME = 'schema_migrations'")) {
                 return [[{ max_length: 191 }]];
             }
-            if (sql.includes('CREATE TABLE IF NOT EXISTS inventory_movements') ||
-                sql.includes('CREATE TABLE IF NOT EXISTS service_requests') ||
-                sql.includes('CREATE TABLE IF NOT EXISTS review_reports') ||
-                sql.includes('CREATE TABLE IF NOT EXISTS service_request_images')) {
-                executions++;
-                return [[]];
-            }
-            if (sql.includes('CREATE TABLE IF NOT EXISTS sessions') ||
-                sql.includes('CREATE TABLE IF NOT EXISTS rate_limit_buckets') ||
-                sql.includes('CREATE TABLE IF NOT EXISTS background_jobs')) {
-                executions++;
-                return [[]];
-            }
-            if (sql.includes('SET NAMES utf8mb4') || sql.includes('CONVERT TO CHARACTER SET utf8mb4')) {
-                executions++;
-                return [[]];
-            }
             if (sql === 'SELECT name, checksum FROM schema_migrations') {
                 return [[...history].map(([migrationName, digest]) => ({ name: migrationName, checksum: digest }))];
             }
-            if (sql.includes('SET @column_exists')) {
+            if (upgradeSql.has(sql)) {
                 assert.doesNotMatch(sql, /TRUNCATE\s+TABLE|INSERT\s+INTO\s+(?:users|products|coupons)/i);
                 executions++;
                 if (rejectMigration) throw new Error('Simulated DDL failure');
@@ -131,20 +116,21 @@ function migrationDatabase(storedChecksum, rejectMigration = false, legacyHistor
     };
 }
 
-test('merged SQL upgrade runs once and ignores unrelated historical records', async () => {
-    const { migrate, loadSchemaUpgrade } = require('../src/config/migrate');
-    const { name, checksum: currentChecksum } = await loadSchemaUpgrade();
+test('schema upgrades run once and ignore unrelated historical records', async () => {
+    const { migrate, loadSchemaUpgrades } = require('../src/config/migrate');
+    const upgrades = await loadSchemaUpgrades();
+    const { checksum: currentChecksum } = upgrades[0];
     for (const scenario of [
         { previous: undefined, legacy: [] },
         { previous: undefined, legacy: [['legacy_migration', 'legacy-checksum']] },
         { previous: currentChecksum, legacy: [] }
     ]) {
         const { previous, legacy } = scenario;
-        const database = migrationDatabase(previous, false, legacy);
+        const database = await migrationDatabase(previous, false, legacy);
         await migrate({ createConnection: async () => database });
-        assert.equal(database.history.get(name), currentChecksum);
+        upgrades.forEach(upgrade => assert.equal(database.history.get(upgrade.name), upgrade.checksum));
         legacy.forEach(([legacyName, digest]) => assert.equal(database.history.get(legacyName), digest));
-        const expectedExecutions = previous === currentChecksum ? 4 : 5;
+        const expectedExecutions = upgrades.length - (previous === currentChecksum ? 1 : 0);
         assert.equal(database.executions, expectedExecutions);
         assert.equal(database.closed, true);
         assert.equal(database.events.at(-1), 'unlock');
@@ -155,13 +141,13 @@ test('merged SQL upgrade runs once and ignores unrelated historical records', as
 
 test('merged upgrade rejects checksum changes and retains history when SQL fails', async () => {
     const { migrate } = require('../src/config/migrate');
-    const changed = migrationDatabase('unknown-checksum');
+    const changed = await migrationDatabase('unknown-checksum');
     await assert.rejects(migrate({ createConnection: async () => changed }), /checksum thay đổi/);
     assert.equal(changed.executions, 0);
     assert.equal(changed.history.get('merged_schema_upgrade'), 'unknown-checksum');
     assert.equal(changed.closed, true);
 
-    const failed = migrationDatabase(undefined, true, [['legacy_migration', 'legacy-checksum']]);
+    const failed = await migrationDatabase(undefined, true, [['legacy_migration', 'legacy-checksum']]);
     await assert.rejects(migrate({ createConnection: async () => failed }), /Simulated DDL failure/);
     assert.equal(failed.history.get('legacy_migration'), 'legacy-checksum');
     assert.equal(failed.history.has('merged_schema_upgrade'), false);
@@ -257,8 +243,8 @@ test('home product cards disable cart actions and show a badge when stock is dep
         id: 1, name: 'Điện thoại hết hàng', price: 1000, old_price: null,
         discount_percent: 0, stock: '0', thumbnail: null, brand_name: 'Test'
     });
-    assert.match(soldOut, /product-stock-badge[^>]*>Hết hàng</);
-    assert.match(soldOut, /btn-out-of-stock" disabled/);
+    assert.match(soldOut, /home-stock-badge[^>]*>Hết hàng</);
+    assert.match(soldOut, /<button\b[^>]*aria-label="Hết hàng"[^>]*\sdisabled(?:\s|>)/);
     assert.doesNotMatch(soldOut, /onclick="addToCart\(/);
 
     const available = context.createProductCard({
@@ -266,7 +252,7 @@ test('home product cards disable cart actions and show a badge when stock is dep
         discount_percent: 0, stock: '3', thumbnail: null, brand_name: 'Test'
     });
     assert.match(available, /onclick="addToCart\(2\)"/);
-    assert.doesNotMatch(available, /btn-out-of-stock|product-stock-badge/);
+    assert.doesNotMatch(available, /home-stock-badge|<button\b[^>]*\sdisabled(?:\s|>)/);
 
     const malicious = context.createProductCard({
         id: 3,
@@ -307,6 +293,10 @@ function loadPage(name, search = '') {
         getElementById(id) {
             if (!elements.has(id)) elements.set(id, element());
             return elements.get(id);
+        },
+        querySelector(selector) {
+            if (selector === '#storageFilter .filter-header-title') return this.getElementById('storageFilterTitle');
+            throw new Error('Unexpected selector: ' + selector);
         },
         querySelectorAll(selector) { return groups[selector.match(/name="(\w+)"/)[1]] || []; }
     };
@@ -537,6 +527,10 @@ test('product update keeps selected old images, adds new files and stores unchec
                 updateParams = params;
                 return [{ affectedRows: 1 }];
             }
+            if (sql === 'SELECT stock FROM products WHERE id = ?') {
+                assert.deepEqual(plain(params), [1]);
+                return [[{ stock: 5 }]];
+            }
             if (sql.startsWith('DELETE FROM product_images')) return [{ affectedRows: 2 }];
             if (sql.startsWith('INSERT INTO product_images')) {
                 galleryValues = params[0];
@@ -670,14 +664,39 @@ test('review comments keep customer text separate from the admin reply', () => {
     assert.equal(serializeReviewComment(stored, 'Phản hồi đã sửa').match(/ANHTRAISTORE_ADMIN_REPLY/g).length, 1);
 });
 
-test('only delivered buyers can review and the gallery scrolls horizontally', () => {
+test('only delivered buyers can review and the gallery scrolls horizontally', async () => {
     const productPage = fs.readFileSync(path.join(root, 'views', 'product-detail.html'), 'utf8');
-    const productRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'products.js'), 'utf8');
     const apiRoute = fs.readFileSync(path.join(root, 'src', 'routes', 'api.js'), 'utf8');
     const productCss = fs.readFileSync(path.join(root, 'public', 'css', 'pages', 'product-detail.css'), 'utf8');
     assert.match(productPage, /reviewEligibility\.canReview/);
-    assert.match(productRoute, /reviewEligibility/);
-    assert.match(productRoute, /reviewEligibility = deliveredPurchases\.length[\s\S]*?canReview: true/);
+    for (const scenario of [
+        { userId: null, delivered: false, hasReview: false, canReview: false },
+        { userId: 7, delivered: false, hasReview: false, canReview: false },
+        { userId: 7, delivered: true, hasReview: false, canReview: true },
+        { userId: 7, delivered: true, hasReview: true, canReview: false }
+    ]) {
+        const pool = { async query(sql, params) {
+            if (sql.includes('FROM products p')) return [[{ id: 1, name: 'Phone', category_id: null }]];
+            if (sql.includes('FROM product_images') || sql.includes('FROM product_variants')) return [[]];
+            if (sql.startsWith('SELECT entry_type FROM reviews')) {
+                assert.deepEqual(plain(params), ['1', scenario.userId]);
+                return [scenario.hasReview ? [{ entry_type: 'review' }] : [{ entry_type: 'question' }]];
+            }
+            if (sql.includes('FROM order_items oi JOIN orders o')) {
+                assert.match(sql, /o\.status = 'delivered'/);
+                assert.deepEqual(plain(params), [scenario.userId, '1']);
+                return [scenario.delivered ? [{ id: 10 }] : []];
+            }
+            if (sql.includes('FROM reviews r')) return [[]];
+            throw new Error('Unexpected query: ' + sql);
+        } };
+        const route = loadRoute(path.join(root, 'src', 'routes', 'products.js'), '/:id', 'get', pool);
+        const res = jsonResponse();
+        await route.stack[0].handle({ params: { id: '1' }, session: { user_id: scenario.userId } }, res);
+        assert.equal(res.statusCode, 200);
+        assert.equal(res.body.reviewEligibility.isDeliveredBuyer, scenario.delivered);
+        assert.equal(res.body.reviewEligibility.canReview, scenario.canReview);
+    }
     assert.match(apiRoute, /deliveredPurchases/);
     assert.match(apiRoute, /status = 'delivered'/);
     assert.match(productCss, /\.product-reference-page \.detail-img-thumbs[\s\S]*?overflow-x:\s*auto/);
@@ -1498,7 +1517,7 @@ test('GPT tool calling remains bounded and disables tools on the final request',
         }
     });
     assert.equal(requests, 3);
-    assert.equal(result.reply, 'Bạn có thể chọn COD.');
+    assert.equal(result.reply, 'Chào bạn! Bạn có thể chọn COD.');
 });
 
 test('AI chat history is retained in the current Express session', () => {

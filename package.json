@@ -13,6 +13,7 @@
     "backup": "node scripts/backup.js",
     "test": "node tests/product-regressions.test.js",
     "test:e2e": "node tests/end-to-end.js",
+    "test:e2e:users": "node tests/end-to-end.js --users-only",
     "check": "npm run lint && npm run format && node --check src/config/migrate.js && node tests/product-regressions.test.js"
   },
   "engines": {

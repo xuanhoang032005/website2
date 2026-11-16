@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="/css/admin.css?v=20261001-1">
+    <link rel="stylesheet" href="/css/pages/admin-users.css?v=20261115-1">
 </head>
 <body class="admin-shell">
     <div class="admin-wrapper">
@@ -60,10 +61,12 @@
                 </div>
                 <div class="top-header-right">
                     <span class="header-date" id="currentDate"></span>
+                    <button type="button" class="btn btn-primary" id="addUserButton"><i class="fas fa-plus" aria-hidden="true"></i> Thêm người dùng</button>
                 </div>
             </header>
 
             <div class="page-content">
+                <div id="usersMessage" role="status" hidden></div>
                 <div class="card">
                     <div class="card-body" style="padding: 0;">
                         <table class="data-table">
@@ -74,10 +77,11 @@
                                     <th>Điện thoại</th>
                                     <th>Vai trò</th>
                                     <th>Ngày đăng ký</th>
+                                    <th>Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody id="usersBody">
-                                <tr><td colspan="5" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
+                                <tr><td colspan="6" style="text-align: center; padding: 48px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: var(--gray-400);"></i></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -86,88 +90,52 @@
         </main>
     </div>
 
-    <script>
-        function escapeHtml(value) {
-            return String(value ?? '').replace(/[&<>"']/g, char => ({
-                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-            })[char]);
-        }
-        async function adminLogout() {
-            showConfirm('Đăng xuất?', 'Bạn có chắc muốn đăng xuất?', async () => {
-                await fetch('/api/auth/logout', { method: 'POST' });
-                window.location.href = '/login';
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            const now = new Date();
-            document.getElementById('currentDate').textContent = now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-
-            try {
-                const userRes = await fetch('/api/auth/me', { credentials: 'include' });
-                const userData = await userRes.json();
-                if (userData.user) {
-                    document.getElementById('adminUser').innerHTML = `<div class="sidebar-avatar">${escapeHtml(userData.user.full_name?.charAt(0) || 'A')}</div><div class="sidebar-user-info"><div class="sidebar-user-name">${escapeHtml(userData.user.full_name || 'Admin')}</div><div class="sidebar-user-role">Quản trị viên</div></div>`;
-                }
-            } catch (e) {}
-
-            loadNotificationBadges();
-            loadUsers();
-        });
-
-        async function loadNotificationBadges() {
-            try {
-                const res = await fetch('/admin/notifications', { credentials: 'include' });
-                const data = await res.json();
-                const pendingOrders = data.counts?.pending_orders || 0;
-                const contacts = data.counts?.contacts || 0;
-                const lowStock = data.low_stock_products?.length || 0;
-                
-                document.getElementById('navBadgeOrders').textContent = pendingOrders > 0 ? pendingOrders : '';
-                document.getElementById('navBadgeOrders').style.display = pendingOrders > 0 ? 'inline-flex' : 'none';
-                document.getElementById('navBadgeContacts').textContent = contacts > 0 ? contacts : '';
-                document.getElementById('navBadgeContacts').style.display = contacts > 0 ? 'inline-flex' : 'none';
-                document.getElementById('navBadgeProducts').textContent = lowStock > 0 ? lowStock : '';
-                document.getElementById('navBadgeProducts').style.display = lowStock > 0 ? 'inline-flex' : 'none';
-            } catch (e) {}
-        }
-
-        async function loadUsers() {
-            try {
-                const res = await fetch('/admin/users/list', { credentials: 'include' });
-                const data = await res.json();
-                const users = data.users || [];
-                const tbody = document.getElementById('usersBody');
-
-                if (users.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-users"></i><h3>Chưa có khách hàng nào</h3></div></td></tr>`;
-                    return;
-                }
-
-                let html = '';
-                users.forEach(u => {
-                    const isAdmin = u.role === 'admin';
-                    html += `<tr>
-                        <td>
-                            <div class="user-info">
-                                <div class="user-avatar">${escapeHtml(u.full_name?.charAt(0) || 'U')}</div>
-                                <div>
-                                    <div class="user-name">${escapeHtml(u.full_name || 'N/A')}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>${escapeHtml(u.email || '-')}</td>
-                        <td>${escapeHtml(u.phone || '-')}</td>
-                        <td><span class="badge ${isAdmin ? 'badge-primary' : 'badge-success'}">${isAdmin ? 'Admin' : 'Khách hàng'}</span></td>
-                        <td>${u.created_at ? new Date(u.created_at).toLocaleDateString('vi-VN') : '-'}</td>
-                    </tr>`;
-                });
-                tbody.innerHTML = html;
-            } catch (e) {
-                document.getElementById('usersBody').innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><h3>Lỗi tải dữ liệu</h3></div></td></tr>`;
-            }
-        }
-    </script>
+    <div class="modal-overlay" id="userModal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+            <div class="modal-header">
+                <h2 class="modal-title" id="userModalTitle">Chỉnh sửa người dùng</h2>
+                <button type="button" class="modal-close" data-close-user-modal aria-label="Đóng"><i class="fas fa-times" aria-hidden="true"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="userFormMessage" role="alert" hidden></div>
+                <form id="userForm">
+                    <div class="form-group">
+                        <label for="userFullName">Họ tên <span aria-hidden="true">*</span></label>
+                        <input type="text" class="form-control" id="userFullName" name="full_name" maxlength="100" autocomplete="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="userEmail">Email <span aria-hidden="true">*</span></label>
+                        <input type="email" class="form-control" id="userEmail" name="email" maxlength="100" autocomplete="off" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userPhone">Số điện thoại</label>
+                            <input type="tel" class="form-control" id="userPhone" name="phone" maxlength="15" autocomplete="tel">
+                        </div>
+                        <div class="form-group">
+                            <label for="userRole">Vai trò</label>
+                            <select class="form-control" id="userRole" name="role" required>
+                                <option value="customer">Khách hàng</option>
+                                <option value="admin">Quản trị viên</option>
+                            </select>
+                            <small class="form-hint" id="selfRoleHint" hidden>Bạn không thể tự hạ quyền quản trị.</small>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="userPassword" id="userPasswordLabel">Mật khẩu mới</label>
+                        <input type="password" class="form-control" id="userPassword" name="password" minlength="6" maxlength="128" autocomplete="new-password" aria-describedby="userPasswordHint">
+                        <small class="form-hint" id="userPasswordHint">Để trống để giữ nguyên mật khẩu hiện tại.</small>
+                    </div>
+                    <p class="form-hint">Khi đổi email, vai trò hoặc mật khẩu, các phiên đăng nhập khác của người dùng sẽ kết thúc.</p>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-close-user-modal>Hủy</button>
+                <button type="submit" class="btn btn-primary" form="userForm" id="saveUserButton">Lưu thay đổi</button>
+            </div>
+        </div>
+    </div>
     <script src="/js/admin-ui.js?v=20261110-2"></script>
+    <script type="module" src="/js/admin-users.js?v=20261115-1"></script>
 </body>
 </html>
