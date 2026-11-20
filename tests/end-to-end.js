@@ -304,7 +304,7 @@ async function main() {
         }), 200, 'submit delivered-buyer review');
         assert.equal((await request(reopened.baseUrl, customer, 'POST', '/api/review', {
             product_id: product.id, rating: 4, comment: 'Duplicate E2E review'
-        })).status, 400, 'second review must be rejected');
+        })).status, 409, 'second review must be rejected');
 
         const serviceRequest = await request(reopened.baseUrl, customer, 'POST', '/api/service-requests', {
             order_item_id: orderItemId, request_type: 'warranty', reason: 'E2E warranty check', description: 'Test warranty workflow'
